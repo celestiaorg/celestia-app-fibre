@@ -242,6 +242,7 @@ jobs:
           - testcase: TestICA
             entrypoint: TestIBCTestSuite
           - testcase: TestStateSyncWithAppUpgrade
+          - testcase: TestMinorVersionCompatibility
 
     steps:
       - name: Checkout code
