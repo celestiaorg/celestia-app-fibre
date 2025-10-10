@@ -86,7 +86,7 @@ func (msg *PaymentPromise) ValidateBasic() error {
 		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "commitment must be 32 bytes, got %d", len(msg.Commitment))
 	}
 
-	if err := ValidateRowVersion(msg.RowVersion); err != nil {
+	if err := validateRowVersion(msg.RowVersion); err != nil {
 		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid row version: %s", err)
 	}
 
@@ -147,12 +147,10 @@ func (msg *MsgPaymentPromiseTimeout) ValidateBasic() error {
 
 // ValidateBasic performs stateless validation for MsgUpdateFibreParams
 func (msg *MsgUpdateFibreParams) ValidateBasic() error {
-	// Validate authority address
 	if _, err := sdk.AccAddressFromBech32(msg.Authority); err != nil {
 		return errorsmod.Wrapf(sdkerrors.ErrInvalidAddress, "invalid authority address: %s", err)
 	}
 
-	// Validate params
 	if err := msg.Params.Validate(); err != nil {
 		return errorsmod.Wrap(err, "invalid params")
 	}
@@ -160,7 +158,7 @@ func (msg *MsgUpdateFibreParams) ValidateBasic() error {
 	return nil
 }
 
-func ValidateRowVersion(rowVersion uint32) error {
+func validateRowVersion(rowVersion uint32) error {
 	if rowVersion != RowVersionZero {
 		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "unsupported row version: %d", rowVersion)
 	}

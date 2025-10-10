@@ -147,7 +147,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 	signerPublicKey := generatePubKeyAny(t)
 	namespace := generateNamespace(t)
 	blobSize := uint32(1000)
-	commitment := generateCommitment(t)
+	commitment := generateCommitment()
 	rowVersion := RowVersionZero
 	creationTimestamp := time.Now()
 	signature := []byte("valid-signature")
@@ -509,7 +509,7 @@ func generateNamespace(t *testing.T) []byte {
 	return namespace.Bytes()
 }
 
-func generateCommitment(t *testing.T) []byte {
+func generateCommitment() []byte {
 	commitment := make([]byte, 32)
 	for i := range commitment {
 		commitment[i] = byte(i)
@@ -530,7 +530,7 @@ func generatePaymentPromise(t *testing.T) PaymentPromise {
 		SignerPublicKey:   generatePubKeyAny(t),
 		Namespace:         generateNamespace(t),
 		BlobSize:          1000,
-		Commitment:        generateCommitment(t),
+		Commitment:        generateCommitment(),
 		RowVersion:        uint32(share.ShareVersionZero),
 		CreationTimestamp: time.Now(),
 		Signature:         []byte("valid-signature"),
