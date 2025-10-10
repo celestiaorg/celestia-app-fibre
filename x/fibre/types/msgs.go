@@ -48,17 +48,8 @@ func (msg *MsgRequestWithdrawal) ValidateBasic() error {
 
 // ValidateBasic performs stateless validation for PaymentPromise
 func (msg *PaymentPromise) ValidateBasic() error {
-	if msg.SignerPublicKey == nil {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "signer public key cannot be nil")
-	}
-
-	pubKey, ok := msg.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
-	if !ok {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "failed to get cached public key")
-	}
-
-	if pubKey == nil {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "signer public key cannot be nil")
+	if msg.ChainId == "" {
+		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "chain ID cannot be empty")
 	}
 
 	if len(msg.Namespace) == 0 {
@@ -98,12 +89,21 @@ func (msg *PaymentPromise) ValidateBasic() error {
 		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "creation timestamp cannot be zero")
 	}
 
-	if len(msg.Signature) == 0 {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "signature cannot be empty")
+	if msg.SignerPublicKey == nil {
+		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "signer public key cannot be nil")
 	}
 
-	if msg.ChainId == "" {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "chain ID cannot be empty")
+	pubKey, ok := msg.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
+	if !ok {
+		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "failed to get cached public key")
+	}
+
+	if pubKey == nil {
+		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "signer public key cannot be nil")
+	}
+
+	if len(msg.Signature) == 0 {
+		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "signature cannot be empty")
 	}
 
 	return nil
