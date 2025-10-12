@@ -11,7 +11,7 @@ import (
 
 func (suite *KeeperTestSuite) TestMsgDepositToEscrow() {
 	msgServer := keeper.NewMsgServerImpl(*suite.keeper)
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 	amount := sdk.NewInt64Coin("utia", 1000)
 
 	msg := &types.MsgDepositToEscrow{
@@ -49,7 +49,7 @@ func (suite *KeeperTestSuite) TestMsgDepositToEscrow() {
 
 func (suite *KeeperTestSuite) TestMsgRequestWithdrawal() {
 	msgServer := keeper.NewMsgServerImpl(*suite.keeper)
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 
 	// First, create an escrow account with funds
 	escrowAccount := types.EscrowAccount{
@@ -91,7 +91,7 @@ func (suite *KeeperTestSuite) TestMsgRequestWithdrawal() {
 	suite.Contains(err.Error(), "insufficient available balance")
 
 	// Test non-existent escrow account
-	nonExistentSigner := "celestia1nonexistent123456789012345678901234567"
+	nonExistentSigner := "celestia1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"
 	msg.Signer = nonExistentSigner
 	msg.Amount = sdk.NewInt64Coin("utia", 100)
 
@@ -129,7 +129,7 @@ func (suite *KeeperTestSuite) TestMsgUpdateFibreParams() {
 	suite.Equal(newParams.PaymentPromiseRetentionWindow, updatedParams.PaymentPromiseRetentionWindow)
 
 	// Test unauthorized update
-	msg.Authority = "celestia1unauthorized123456789012345678901234567"
+	msg.Authority = "celestia1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"
 	_, err = msgServer.UpdateFibreParams(suite.ctx, msg)
 	suite.Error(err)
 	suite.Contains(err.Error(), "invalid authority")

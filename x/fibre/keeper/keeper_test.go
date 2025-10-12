@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"cosmossdk.io/log"
 	"cosmossdk.io/store"
 	"cosmossdk.io/store/metrics"
 	storetypes "cosmossdk.io/store/types"
@@ -13,7 +14,6 @@ import (
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -34,25 +34,24 @@ func TestKeeperTestSuite(t *testing.T) {
 }
 
 func (suite *KeeperTestSuite) SetupTest() {
+	// Set up SDK config for celestia addresses
+	config := sdk.GetConfig()
+	config.SetBech32PrefixForAccount("celestia", "celestiapub")
+	config.SetBech32PrefixForValidator("celestiavaloper", "celestiavaloperpub")
+	config.SetBech32PrefixForConsensusNode("celestiavalcons", "celestiavalconspub")
+
 	key := storetypes.NewKVStoreKey(types.StoreKey)
 	tkey := storetypes.NewTransientStoreKey("transient_test")
 
 	db := dbm.NewMemDB()
-	stateStore := store.NewCommitMultiStore(db, nil, metrics.NewNoOpMetrics())
+	stateStore := store.NewCommitMultiStore(db, log.NewNopLogger(), metrics.NewNoOpMetrics())
 	stateStore.MountStoreWithDB(key, storetypes.StoreTypeIAVL, db)
-	stateStore.MountStoreWithDB(tkey, storetypes.StoreTypeTransient, db)
+	stateStore.MountStoreWithDB(tkey, storetypes.StoreTypeTransient, nil)
 	require.NoError(suite.T(), stateStore.LoadLatestVersion())
 
 	registry := codectypes.NewInterfaceRegistry()
 	// types.RegisterInterfaces(registry) // Skip for now as this function may not exist
 	cdc := codec.NewProtoCodec(registry)
-
-	paramsSubspace := paramtypes.NewSubspace(cdc,
-		codec.NewLegacyAmino(),
-		key,
-		tkey,
-		"FibreParams",
-	)
 
 	// Create a mock bank keeper
 	mockBankKeeper := &MockBankKeeper{}
@@ -61,7 +60,6 @@ func (suite *KeeperTestSuite) SetupTest() {
 		cdc,
 		key,
 		mockBankKeeper,
-		paramsSubspace,
 		authtypes.NewModuleAddress("gov").String(),
 	)
 
@@ -106,7 +104,7 @@ func (suite *KeeperTestSuite) TestSetGetParams() {
 }
 
 func (suite *KeeperTestSuite) TestEscrowAccount() {
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 
 	// Test getting non-existent account
 	_, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
@@ -134,7 +132,7 @@ func (suite *KeeperTestSuite) TestEscrowAccount() {
 }
 
 func (suite *KeeperTestSuite) TestWithdrawal() {
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 	testTime := suite.ctx.BlockTime()
 
 	// Test getting non-existent withdrawal
@@ -189,7 +187,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromise() {
 	// with proper public key, signature, etc. For now, we'll test the basic validation
 	// that checks for processed promises and escrow account existence.
 
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 
 	// Create escrow account
 	account := types.EscrowAccount{
@@ -205,8 +203,8 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromise() {
 
 func (suite *KeeperTestSuite) TestIterators() {
 	// Test escrow account iterator
-	signer1 := "celestia1abc123def456ghi789jkl012mno345pqr678st"
-	signer2 := "celestia1def456ghi789jkl012mno345pqr678stuv901"
+	signer1 := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
+	signer2 := "celestia1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"
 
 	account1 := types.EscrowAccount{
 		Signer:           signer1,

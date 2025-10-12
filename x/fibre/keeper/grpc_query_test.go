@@ -22,7 +22,7 @@ func (suite *KeeperTestSuite) TestQueryParams() {
 }
 
 func (suite *KeeperTestSuite) TestQueryEscrowAccount() {
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 
 	// Create escrow account
 	account := types.EscrowAccount{
@@ -42,7 +42,7 @@ func (suite *KeeperTestSuite) TestQueryEscrowAccount() {
 	suite.Equal(account.AvailableBalance, resp.EscrowAccount.AvailableBalance)
 
 	// Test non-existent account
-	nonExistentSigner := "celestia1nonexistent123456789012345678901234567"
+	nonExistentSigner := "celestia1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7d39gm"
 	req.Signer = nonExistentSigner
 	_, err = suite.keeper.EscrowAccount(suite.ctx, req)
 	suite.Error(err)
@@ -66,7 +66,7 @@ func (suite *KeeperTestSuite) TestQueryEscrowAccount() {
 }
 
 func (suite *KeeperTestSuite) TestQueryWithdrawals() {
-	signer := "celestia1abc123def456ghi789jkl012mno345pqr678st"
+	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 
 	// Create some withdrawals
 	testTime1 := suite.ctx.BlockTime()
@@ -102,7 +102,7 @@ func (suite *KeeperTestSuite) TestQueryWithdrawals() {
 	suite.True(withdrawalAmounts[200])
 
 	// Test signer with no withdrawals
-	emptySigner := "celestia1empty123456789012345678901234567890123"
+	emptySigner := "celestia1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7d39gm"
 	req.Signer = emptySigner
 	resp, err = suite.keeper.Withdrawals(suite.ctx, req)
 	suite.NoError(err)

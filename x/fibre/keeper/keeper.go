@@ -13,7 +13,6 @@ import (
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 )
 
 // Keeper handles all the state changes for the fibre module.
@@ -21,9 +20,8 @@ type Keeper struct {
 	cdc        codec.Codec
 	storeKey   storetypes.StoreKey
 	bankKeeper types.BankKeeper
-	// TODO: remove legacySubspace. The x/fibre module should not use the x/params module and should instead manage it's own parameters.
-	legacySubspace paramtypes.Subspace
-	// TODO: explain what the authoried is.
+	// authority is the address that has the authority to update module parameters.
+	// This is typically the governance module address.
 	authority string
 }
 
@@ -32,19 +30,13 @@ func NewKeeper(
 	cdc codec.Codec,
 	storeKey storetypes.StoreKey,
 	bankKeeper types.BankKeeper,
-	legacySubspace paramtypes.Subspace,
 	authority string,
 ) *Keeper {
-	if !legacySubspace.HasKeyTable() {
-		legacySubspace = legacySubspace.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return &Keeper{
-		cdc:            cdc,
-		storeKey:       storeKey,
-		bankKeeper:     bankKeeper,
-		legacySubspace: legacySubspace,
-		authority:      authority,
+		cdc:        cdc,
+		storeKey:   storeKey,
+		bankKeeper: bankKeeper,
+		authority:  authority,
 	}
 }
 
@@ -59,15 +51,11 @@ func (k Keeper) Logger(ctx sdk.Context) log.Logger {
 }
 
 // GetParams gets all parameters as types.Params
-// TODO: remove legacySubspace. The x/fibre module should not use the x/params module and should instead manage it's own parameters.
 func (k Keeper) GetParams(ctx sdk.Context) types.Params {
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get([]byte(types.ParamsKey))
 	if len(bz) == 0 {
-		// fallback to legacy store space.
-		var params types.Params
-		k.legacySubspace.GetParamSet(ctx, &params)
-		return params
+		return types.DefaultParams()
 	}
 
 	var params types.Params
