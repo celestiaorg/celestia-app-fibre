@@ -18,11 +18,13 @@ import (
 
 // Keeper handles all the state changes for the fibre module.
 type Keeper struct {
-	cdc            codec.Codec
-	storeKey       storetypes.StoreKey
-	bankKeeper     types.BankKeeper
+	cdc        codec.Codec
+	storeKey   storetypes.StoreKey
+	bankKeeper types.BankKeeper
+	// TODO: remove legacySubspace. The x/fibre module should not use the x/params module and should instead manage it's own parameters.
 	legacySubspace paramtypes.Subspace
-	authority      string
+	// TODO: explain what the authoried is.
+	authority string
 }
 
 // NewKeeper creates a new fibre Keeper instance
@@ -51,12 +53,13 @@ func (k Keeper) GetAuthority() string {
 	return k.authority
 }
 
-// Logger returns a module-specific logger.
+// Logger returns a x/fibre specific logger.
 func (k Keeper) Logger(ctx sdk.Context) log.Logger {
 	return ctx.Logger().With("module", fmt.Sprintf("x/%s", types.ModuleName))
 }
 
 // GetParams gets all parameters as types.Params
+// TODO: remove legacySubspace. The x/fibre module should not use the x/params module and should instead manage it's own parameters.
 func (k Keeper) GetParams(ctx sdk.Context) types.Params {
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get([]byte(types.ParamsKey))
@@ -79,8 +82,8 @@ func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	store.Set([]byte(types.ParamsKey), bz)
 }
 
-// GetEscrowAccount retrieves an escrow account by signer address
-func (k Keeper) GetEscrowAccount(ctx sdk.Context, signer string) (types.EscrowAccount, bool) {
+// GetEscrowAccount retrieves an escrow account by signer address.
+func (k Keeper) GetEscrowAccount(ctx sdk.Context, signer string) (account types.EscrowAccount, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.EscrowAccountKey(signer)
 	bz := store.Get(key)
@@ -88,7 +91,6 @@ func (k Keeper) GetEscrowAccount(ctx sdk.Context, signer string) (types.EscrowAc
 		return types.EscrowAccount{}, false
 	}
 
-	var account types.EscrowAccount
 	k.cdc.MustUnmarshal(bz, &account)
 	return account, true
 }
@@ -109,7 +111,7 @@ func (k Keeper) DeleteEscrowAccount(ctx sdk.Context, signer string) {
 }
 
 // GetWithdrawal retrieves a withdrawal by signer and timestamp
-func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp time.Time) (types.Withdrawal, bool) {
+func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp time.Time) (withdrawal types.Withdrawal, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.WithdrawalKey(signer, requestedTimestamp)
 	bz := store.Get(key)
@@ -117,7 +119,6 @@ func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp
 		return types.Withdrawal{}, false
 	}
 
-	var withdrawal types.Withdrawal
 	k.cdc.MustUnmarshal(bz, &withdrawal)
 	return withdrawal, true
 }
@@ -155,9 +156,10 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 }
 
 // IsPaymentPromiseProcessed checks if a payment promise has been processed
-func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, hash []byte) bool {
+// TODO: Refactor this method to accept the payment promise as an argument instead of the payment promise hash.
+func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, paymentPromiseHash []byte) bool {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(hash)
+	key := types.PaymentPromiseKey(paymentPromiseHash)
 	return store.Has(key)
 }
 
@@ -174,28 +176,27 @@ func (k Keeper) SetPaymentPromiseProcessed(ctx sdk.Context, paymentPromiseHash [
 }
 
 // GetPaymentPromiseHash calculates the hash of a payment promise
+// TODO: make sure this implements the hashing described in the sdk_module spec.
 func (k Keeper) GetPaymentPromiseHash(promise *types.PaymentPromise) []byte {
 	bz := k.cdc.MustMarshal(promise)
 	hash := sha256.Sum256(bz)
 	return hash[:]
 }
 
-// ValidatePaymentPromiseInternal validates a payment promise for server use
-func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) error {
-	// Check if already processed
+// isValidUnprocessedPaymentPromise returns nil if the payment promise is valid
+// and unprocessed.
+func (k Keeper) isValidUnprocessedPaymentPromise(ctx sdk.Context, promise *types.PaymentPromise) error {
 	hash := k.GetPaymentPromiseHash(promise)
 	if k.IsPaymentPromiseProcessed(ctx, hash) {
 		return errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise already processed")
 	}
 
-	// Get signer address from public key
 	pubKey, ok := promise.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
 	if !ok {
 		return errors.Wrap(sdkerrors.ErrInvalidPubKey, "failed to get cached public key")
 	}
 	signerAddr := sdk.AccAddress(pubKey.Address())
 
-	// Check escrow account exists and has sufficient balance
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddr.String())
 	if !found {
 		return errors.Wrap(sdkerrors.ErrNotFound, "escrow account not found")
@@ -203,13 +204,12 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 
 	// Calculate required payment based on blob size and gas per blob byte
 	params := k.GetParams(ctx)
+	// TODO: this doesn't account for the padding that is added to the blob.
 	requiredAmount := sdk.NewInt64Coin("utia", int64(promise.BlobSize*params.GasPerBlobByte))
 
 	// Check if available balance is sufficient
 	if escrowAccount.AvailableBalance.IsLT(requiredAmount) {
-		return errors.Wrapf(sdkerrors.ErrInsufficientFunds,
-			"insufficient available balance: have %s, need %s",
-			escrowAccount.AvailableBalance, requiredAmount)
+		return errors.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient available balance: have %s, need %s", escrowAccount.AvailableBalance, requiredAmount)
 	}
 
 	// Check timestamp is within valid window
@@ -218,14 +218,12 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 
 	// Payment promise should not be too old or too far in the future
 	if promise.CreationTimestamp.Before(now.Add(-params.WithdrawalDelay)) {
-		return errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise too old")
+		return errors.Wrap(sdkerrors.ErrInvalidRequest, "Payment promise creation timestamp must be after the current block time minus withdrawal delay.")
 	}
 
-	if promise.CreationTimestamp.After(now.Add(5 * time.Minute)) { // Allow 5 minutes in the future
-		return errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise too far in the future")
+	if promise.CreationTimestamp.After(now) {
+		return errors.Wrap(sdkerrors.ErrInvalidRequest, "Payment promise creation timestamp must be before than the current block time.")
 	}
 
 	return nil
 }
-
-// Note: GetNextWithdrawalID is no longer needed since withdrawals are keyed by timestamp

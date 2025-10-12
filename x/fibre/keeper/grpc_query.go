@@ -107,7 +107,7 @@ func (k Keeper) ValidatePaymentPromise(goCtx context.Context, req *types.QueryVa
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Validate payment promise against current state
-	if err := k.ValidatePaymentPromiseInternal(ctx, &req.Promise); err != nil {
+	if err := k.isValidUnprocessedPaymentPromise(ctx, &req.Promise); err != nil {
 		return &types.QueryValidatePaymentPromiseResponse{
 			Valid:        false,
 			ErrorMessage: err.Error(),

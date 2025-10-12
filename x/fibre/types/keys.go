@@ -52,6 +52,6 @@ func WithdrawalsBySignerPrefix(signer string) []byte {
 // PaymentPromiseKey returns the store key for a payment promise. Note: all
 // payment promises that are stored in the SDK module state have already been
 // processed.
-func PaymentPromiseKey(hash []byte) []byte {
-	return append(PaymentPromiseKeyPrefix, hash...)
+func PaymentPromiseKey(payment_promise_hash []byte) []byte {
+	return append(PaymentPromiseKeyPrefix, payment_promise_hash...)
 }

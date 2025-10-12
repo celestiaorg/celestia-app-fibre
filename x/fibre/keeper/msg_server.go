@@ -111,7 +111,7 @@ func (k msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre)
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Validate payment promise
-	if err := k.Keeper.ValidatePaymentPromiseInternal(ctx, &msg.PaymentPromise); err != nil {
+	if err := k.Keeper.isValidUnprocessedPaymentPromise(ctx, &msg.PaymentPromise); err != nil {
 		return nil, errors.Wrap(err, "invalid payment promise")
 	}
 
