@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"time"
 
@@ -26,12 +27,7 @@ type Keeper struct {
 }
 
 // NewKeeper creates a new fibre Keeper instance
-func NewKeeper(
-	cdc codec.Codec,
-	storeKey storetypes.StoreKey,
-	bankKeeper types.BankKeeper,
-	authority string,
-) *Keeper {
+func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, bankKeeper types.BankKeeper, authority string) *Keeper {
 	return &Keeper{
 		cdc:        cdc,
 		storeKey:   storeKey,
@@ -50,7 +46,7 @@ func (k Keeper) Logger(ctx sdk.Context) log.Logger {
 	return ctx.Logger().With("module", fmt.Sprintf("x/%s", types.ModuleName))
 }
 
-// GetParams gets all parameters as types.Params
+// GetParams returns the x/fibre module's parameters.
 func (k Keeper) GetParams(ctx sdk.Context) types.Params {
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get([]byte(types.ParamsKey))
@@ -159,12 +155,67 @@ func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromi
 	store.Set(key, bz)
 }
 
-// GetPaymentPromiseHash calculates the hash of a payment promise
-// TODO: make sure this implements the hashing described in the sdk_module spec.
+// GetPaymentPromiseHash calculates the hash of a payment promise according to the sdk_module spec.
+// The hash is calculated as: SHA256(sign_bytes || signature)
+// where sign_bytes = chain_id || namespace || blob_size || commitment || row_version || height || creation_timestamp || signer_public_key
 func (k Keeper) GetPaymentPromiseHash(promise *types.PaymentPromise) []byte {
-	bz := k.cdc.MustMarshal(promise)
-	hash := sha256.Sum256(bz)
+	signBytes := k.GetPaymentPromiseSignBytes(promise)
+
+	// Concatenate sign_bytes || signature
+	hashInput := append(signBytes, promise.Signature...)
+
+	hash := sha256.Sum256(hashInput)
 	return hash[:]
+}
+
+// GetPaymentPromiseSignBytes constructs the sign bytes for a payment promise according to the sdk_module spec.
+// Format: chain_id || namespace || blob_size || commitment || row_version || height || creation_timestamp || signer_public_key
+func (k Keeper) GetPaymentPromiseSignBytes(promise *types.PaymentPromise) []byte {
+	var signBytes []byte
+
+	// chain_id: Raw chain ID bytes (variable length)
+	signBytes = append(signBytes, []byte(promise.ChainId)...)
+
+	// namespace: Raw namespace bytes (fixed 29 bytes)
+	signBytes = append(signBytes, promise.Namespace...)
+
+	// blob_size: Big-endian encoded uint32 (4 bytes)
+	blobSizeBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(blobSizeBytes, promise.BlobSize)
+	signBytes = append(signBytes, blobSizeBytes...)
+
+	// commitment: Raw commitment bytes (32 bytes)
+	signBytes = append(signBytes, promise.Commitment...)
+
+	// row_version: Big-endian encoded uint32 (4 bytes)
+	rowVersionBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(rowVersionBytes, promise.RowVersion)
+	signBytes = append(signBytes, rowVersionBytes...)
+
+	// height: Big-endian encoded int64 (8 bytes)
+	heightBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(heightBytes, uint64(promise.Height))
+	signBytes = append(signBytes, heightBytes...)
+
+	// creation_timestamp: UTC timestamp encoded using Go's time.Time.MarshalBinary() (15 bytes)
+	timestampBytes, err := promise.CreationTimestamp.MarshalBinary()
+	if err != nil {
+		// This should never happen with a valid timestamp, but handle gracefully
+		panic(fmt.Sprintf("failed to marshal timestamp: %v", err))
+	}
+	signBytes = append(signBytes, timestampBytes...)
+
+	// signer_public_key: Raw bytes of signer address secp256k1 (20 bytes)
+	if promise.SignerPublicKey != nil {
+		pubKey, ok := promise.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
+		if ok && pubKey != nil {
+			// Get the 20-byte address from the public key
+			signerAddr := sdk.AccAddress(pubKey.Address())
+			signBytes = append(signBytes, signerAddr.Bytes()...)
+		}
+	}
+
+	return signBytes
 }
 
 // isValidUnprocessedPaymentPromise returns nil if the payment promise is valid
