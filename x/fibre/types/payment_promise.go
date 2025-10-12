@@ -35,13 +35,15 @@ func (p PaymentPromise) SignBytes() (signBytes []byte, err error) {
 	}
 	signBytes = append(signBytes, timestampBytes...)
 
-	if p.SignerPublicKey != nil {
-		pubKey, ok := p.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
-		if ok && pubKey != nil {
-			// Get the 20-byte address from the public key
-			signerAddr := sdk.AccAddress(pubKey.Address())
-			signBytes = append(signBytes, signerAddr.Bytes()...)
-		}
+	if p.SignerPublicKey == nil {
+		return nil, fmt.Errorf("signer public key cannot be nil")
+	}
+
+	pubKey, ok := p.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
+	if ok && pubKey != nil {
+		// Get the 20-byte address from the public key
+		signerAddr := sdk.AccAddress(pubKey.Address())
+		signBytes = append(signBytes, signerAddr.Bytes()...)
 	}
 
 	return signBytes, nil

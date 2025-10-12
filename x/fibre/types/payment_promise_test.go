@@ -13,60 +13,57 @@ import (
 )
 
 func TestPaymentPromiseSignBytes(t *testing.T) {
-	// Set up SDK config for celestia addresses
 	config := sdk.GetConfig()
 	config.SetBech32PrefixForAccount("celestia", "celestiapub")
 	config.SetBech32PrefixForValidator("celestiavaloper", "celestiavaloperpub")
 	config.SetBech32PrefixForConsensusNode("celestiavalcons", "celestiavalconspub")
 
-	// Create a test payment promise with known values
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
-
-	// Pack the public key into Any
-	pubKeyAny, err := codectypes.NewAnyWithValue(pubKey)
+	signerPublicKey, err := codectypes.NewAnyWithValue(pubKey)
 	require.NoError(t, err)
 
-	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	testNamespace := make([]byte, 29)
-	testNamespace[0] = 0x01 // Set first byte to 1 for testing
-	testCommitment := make([]byte, 32)
-	testCommitment[0] = 0xFF // Set first byte to 0xFF for testing
+	namespace := make([]byte, 29)
+	namespace[0] = 0x01 // Set first byte to 0x01 for testing
+	blobSize := uint32(1000)
+	commitment := make([]byte, 32)
+	commitment[0] = 0xFF // Set first byte to 0xFF for testing
+	rowVersion := uint32(0)
+	creationTimestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	height := int64(100)
+	chainId := "test-chain"
+	signature := make([]byte, 64)
+	signature[0] = 0x02 // Set first byte to 0x02 for testing
 
-	promise := types.PaymentPromise{
-		SignerPublicKey:   pubKeyAny,
-		Namespace:         testNamespace,
-		BlobSize:          1000,
-		Commitment:        testCommitment,
-		RowVersion:        0,
-		CreationTimestamp: testTime,
-		Height:            100,
-		ChainId:           "test-chain",
-		Signature:         make([]byte, 64), // All zeros for simplicity
+	paymentPromise := types.PaymentPromise{
+		SignerPublicKey:   signerPublicKey,
+		Namespace:         namespace,
+		BlobSize:          blobSize,
+		Commitment:        commitment,
+		RowVersion:        rowVersion,
+		CreationTimestamp: creationTimestamp,
+		Height:            height,
+		ChainId:           chainId,
+		Signature:         signature,
 	}
 
 	// Get sign bytes using the method
-	signBytes, err := promise.SignBytes()
+	signBytes, err := paymentPromise.SignBytes()
 	require.NoError(t, err)
 
-	// Verify the structure according to the sdk_module spec
 	// Expected length: chain_id(10) + namespace(29) + blob_size(4) + commitment(32) + row_version(4) + height(8) + creation_timestamp(15) + signer_public_key(20)
 	expectedLength := len("test-chain") + 29 + 4 + 32 + 4 + 8 + 15 + 20
-	require.Equal(t, expectedLength, len(signBytes), "Sign bytes should have expected length")
+	require.Equal(t, expectedLength, len(signBytes))
 
-	// Verify individual components by parsing the sign bytes
 	offset := 0
 
-	// chain_id: Raw chain ID bytes (variable length)
 	chainIdLen := len("test-chain")
 	require.Equal(t, []byte("test-chain"), signBytes[offset:offset+chainIdLen], "Chain ID should match")
 	offset += chainIdLen
 
-	// namespace: Raw namespace bytes (fixed 29 bytes)
-	require.Equal(t, testNamespace, signBytes[offset:offset+29], "Namespace should match")
+	require.Equal(t, namespace, signBytes[offset:offset+29], "Namespace should match")
 	offset += 29
 
-	// blob_size: Big-endian encoded uint32 (4 bytes)
 	expectedBlobSize := make([]byte, 4)
 	binary.BigEndian.PutUint32(expectedBlobSize, 1000)
 	require.Equal(t, expectedBlobSize, signBytes[offset:offset+4], "Blob size should be big-endian encoded")
@@ -74,11 +71,9 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 	require.Equal(t, uint32(1000), actualBlobSize, "Decoded blob size should match")
 	offset += 4
 
-	// commitment: Raw commitment bytes (32 bytes)
-	require.Equal(t, testCommitment, signBytes[offset:offset+32], "Commitment should match")
+	require.Equal(t, commitment, signBytes[offset:offset+32], "Commitment should match")
 	offset += 32
 
-	// row_version: Big-endian encoded uint32 (4 bytes)
 	expectedRowVersion := make([]byte, 4)
 	binary.BigEndian.PutUint32(expectedRowVersion, 0)
 	require.Equal(t, expectedRowVersion, signBytes[offset:offset+4], "Row version should be big-endian encoded")
@@ -86,7 +81,6 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 	require.Equal(t, uint32(0), actualRowVersion, "Decoded row version should match")
 	offset += 4
 
-	// height: Big-endian encoded int64 (8 bytes)
 	expectedHeight := make([]byte, 8)
 	binary.BigEndian.PutUint64(expectedHeight, 100)
 	require.Equal(t, expectedHeight, signBytes[offset:offset+8], "Height should be big-endian encoded")
@@ -94,50 +88,32 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 	require.Equal(t, uint64(100), actualHeight, "Decoded height should match")
 	offset += 8
 
-	// creation_timestamp: UTC timestamp encoded using Go's time.Time.MarshalBinary() (15 bytes)
-	expectedTimestamp, err := testTime.MarshalBinary()
+	expectedTimestamp, err := creationTimestamp.MarshalBinary()
 	require.NoError(t, err)
 	require.Equal(t, expectedTimestamp, signBytes[offset:offset+15], "Timestamp should match MarshalBinary encoding")
+
 	// Verify we can decode it back
 	var decodedTime time.Time
 	err = decodedTime.UnmarshalBinary(signBytes[offset : offset+15])
 	require.NoError(t, err)
-	require.Equal(t, testTime, decodedTime, "Decoded timestamp should match original")
+	require.Equal(t, creationTimestamp, decodedTime, "Decoded timestamp should match original")
 	offset += 15
 
-	// signer_public_key: Raw bytes of signer address secp256k1 (20 bytes)
 	expectedSignerAddr := sdk.AccAddress(pubKey.Address())
 	require.Equal(t, expectedSignerAddr.Bytes(), signBytes[offset:offset+20], "Signer address should match")
 	require.Len(t, expectedSignerAddr.Bytes(), 20, "Signer address should be 20 bytes")
 	offset += 20
 
-	// Verify we've consumed all bytes
-	require.Equal(t, len(signBytes), offset, "Should have consumed all sign bytes")
+	require.Equal(t, len(signBytes), offset)
 }
 
 func TestPaymentPromiseSignBytesWithNilPublicKey(t *testing.T) {
-	// Test edge case where SignerPublicKey is nil
-	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	paymentPromise := getPaymentPromise(t)
+	paymentPromise.SignerPublicKey = nil
 
-	promise := types.PaymentPromise{
-		SignerPublicKey:   nil, // Nil public key
-		Namespace:         make([]byte, 29),
-		BlobSize:          1000,
-		Commitment:        make([]byte, 32),
-		RowVersion:        0,
-		CreationTimestamp: testTime,
-		Height:            100,
-		ChainId:           "test-chain",
-		Signature:         make([]byte, 64),
-	}
-
-	// Get sign bytes - should not include signer address when public key is nil
-	signBytes, err := promise.SignBytes()
-	require.NoError(t, err)
-
-	// Expected length without signer_public_key: chain_id(10) + namespace(29) + blob_size(4) + commitment(32) + row_version(4) + height(8) + creation_timestamp(15)
-	expectedLength := len("test-chain") + 29 + 4 + 32 + 4 + 8 + 15
-	require.Equal(t, expectedLength, len(signBytes), "Sign bytes should not include signer address when public key is nil")
+	signBytes, err := paymentPromise.SignBytes()
+	require.Error(t, err)
+	require.Empty(t, signBytes)
 }
 
 func TestPaymentPromiseSignBytesWithDifferentValues(t *testing.T) {
@@ -218,5 +194,36 @@ func TestPaymentPromiseSignBytesWithDifferentValues(t *testing.T) {
 			actualHeight := binary.BigEndian.Uint64(signBytes[offset : offset+8])
 			require.Equal(t, uint64(tc.height), actualHeight, "Height should be correctly encoded")
 		})
+	}
+}
+
+func getPaymentPromise(t *testing.T) types.PaymentPromise {
+	privKey := secp256k1.GenPrivKey()
+	pubKey := privKey.PubKey()
+	signerPublicKey, err := codectypes.NewAnyWithValue(pubKey)
+	require.NoError(t, err)
+
+	namespace := make([]byte, 29)
+	namespace[0] = 0x01 // Set first byte to 0x01 for testing
+	blobSize := uint32(1000)
+	commitment := make([]byte, 32)
+	commitment[0] = 0xFF // Set first byte to 0xFF for testing
+	rowVersion := uint32(0)
+	creationTimestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	height := int64(100)
+	chainId := "test-chain"
+	signature := make([]byte, 64)
+	signature[0] = 0x02 // Set first byte to 0x02 for testing
+
+	return types.PaymentPromise{
+		SignerPublicKey:   signerPublicKey,
+		Namespace:         namespace,
+		BlobSize:          blobSize,
+		Commitment:        commitment,
+		RowVersion:        rowVersion,
+		CreationTimestamp: creationTimestamp,
+		Height:            height,
+		ChainId:           chainId,
+		Signature:         signature,
 	}
 }
