@@ -28,21 +28,18 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 	genesis := &types.GenesisState{}
 	genesis.Params = k.GetParams(ctx)
 
-	// Export escrow accounts
 	k.IterateEscrowAccounts(ctx, func(account types.EscrowAccount) bool {
 		genesis.EscrowAccounts = append(genesis.EscrowAccounts, account)
 		return false
 	})
 
-	// Export withdrawals
 	k.IterateWithdrawals(ctx, func(withdrawal types.Withdrawal) bool {
 		genesis.Withdrawals = append(genesis.Withdrawals, withdrawal)
 		return false
 	})
 
-	// Export processed payment promises
-	k.IterateProcessedPaymentPromises(ctx, func(entry types.ProcessedPaymentPromiseEntry) bool {
-		genesis.ProcessedPaymentPromises = append(genesis.ProcessedPaymentPromises, entry)
+	k.IterateProcessedPaymentPromises(ctx, func(entry types.PaymentPromiseEntry) bool {
+		genesis.PaymentPromiseEntries = append(genesis.PaymentPromiseEntries, entry)
 		return false
 	})
 
@@ -50,7 +47,7 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 }
 
 // IterateEscrowAccounts iterates over all escrow accounts and calls the provided callback function
-func (k Keeper) IterateEscrowAccounts(ctx sdk.Context, cb func(account types.EscrowAccount) bool) {
+func (k Keeper) IterateEscrowAccounts(ctx sdk.Context, callback func(account types.EscrowAccount) bool) {
 	store := ctx.KVStore(k.storeKey)
 	iterator := storetypes.KVStorePrefixIterator(store, types.EscrowAccountKeyPrefix)
 	defer iterator.Close()
@@ -58,14 +55,14 @@ func (k Keeper) IterateEscrowAccounts(ctx sdk.Context, cb func(account types.Esc
 	for ; iterator.Valid(); iterator.Next() {
 		var account types.EscrowAccount
 		k.cdc.MustUnmarshal(iterator.Value(), &account)
-		if cb(account) {
+		if callback(account) {
 			break
 		}
 	}
 }
 
 // IterateWithdrawals iterates over all withdrawals and calls the provided callback function
-func (k Keeper) IterateWithdrawals(ctx sdk.Context, cb func(withdrawal types.Withdrawal) bool) {
+func (k Keeper) IterateWithdrawals(ctx sdk.Context, callback func(withdrawal types.Withdrawal) bool) {
 	store := ctx.KVStore(k.storeKey)
 	iterator := storetypes.KVStorePrefixIterator(store, types.WithdrawalKeyPrefix)
 	defer iterator.Close()
@@ -73,22 +70,22 @@ func (k Keeper) IterateWithdrawals(ctx sdk.Context, cb func(withdrawal types.Wit
 	for ; iterator.Valid(); iterator.Next() {
 		var withdrawal types.Withdrawal
 		k.cdc.MustUnmarshal(iterator.Value(), &withdrawal)
-		if cb(withdrawal) {
+		if callback(withdrawal) {
 			break
 		}
 	}
 }
 
-// IterateProcessedPaymentPromises iterates over all processed payment promises and calls the provided callback function
-func (k Keeper) IterateProcessedPaymentPromises(ctx sdk.Context, cb func(entry types.ProcessedPaymentPromiseEntry) bool) {
+// IterateProcessedPaymentPromises iterates over all payment promises and calls the provided callback function
+func (k Keeper) IterateProcessedPaymentPromises(ctx sdk.Context, callback func(entry types.PaymentPromiseEntry) bool) {
 	store := ctx.KVStore(k.storeKey)
 	iterator := storetypes.KVStorePrefixIterator(store, types.PaymentPromiseKeyPrefix)
 	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {
-		var entry types.ProcessedPaymentPromiseEntry
+		var entry types.PaymentPromiseEntry
 		k.cdc.MustUnmarshal(iterator.Value(), &entry)
-		if cb(entry) {
+		if callback(entry) {
 			break
 		}
 	}

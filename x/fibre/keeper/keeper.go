@@ -165,7 +165,7 @@ func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, hash []byte) bool {
 func (k Keeper) SetPaymentPromiseProcessed(ctx sdk.Context, paymentPromiseHash []byte, processedAt time.Time) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.PaymentPromiseKey(paymentPromiseHash)
-	entry := types.ProcessedPaymentPromiseEntry{
+	entry := types.PaymentPromiseEntry{
 		PaymentPromiseHash: paymentPromiseHash,
 		ProcessedAt:        processedAt,
 	}
