@@ -162,12 +162,12 @@ func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, hash []byte) bool {
 }
 
 // SetPaymentPromiseProcessed marks a payment promise as processed
-func (k Keeper) SetPaymentPromiseProcessed(ctx sdk.Context, hash []byte, processedAt time.Time) {
+func (k Keeper) SetPaymentPromiseProcessed(ctx sdk.Context, paymentPromiseHash []byte, processedAt time.Time) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(hash)
+	key := types.PaymentPromiseKey(paymentPromiseHash)
 	entry := types.ProcessedPaymentPromiseEntry{
-		PromiseHash: hash,
-		ProcessedAt: processedAt,
+		PaymentPromiseHash: paymentPromiseHash,
+		ProcessedAt:        processedAt,
 	}
 	bz := k.cdc.MustMarshal(&entry)
 	store.Set(key, bz)

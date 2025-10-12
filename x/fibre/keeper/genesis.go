@@ -7,23 +7,19 @@ import (
 )
 
 // InitGenesis initializes the module's state from a provided genesis state.
-func (k Keeper) InitGenesis(ctx sdk.Context, genState types.GenesisState) {
-	// Set params
-	k.SetParams(ctx, genState.Params)
+func (k Keeper) InitGenesis(ctx sdk.Context, genesisState types.GenesisState) {
+	k.SetParams(ctx, genesisState.Params)
 
-	// Set escrow accounts
-	for _, escrowAccount := range genState.EscrowAccounts {
+	for _, escrowAccount := range genesisState.EscrowAccounts {
 		k.SetEscrowAccount(ctx, escrowAccount)
 	}
 
-	// Set withdrawals
-	for _, withdrawal := range genState.Withdrawals {
+	for _, withdrawal := range genesisState.Withdrawals {
 		k.SetWithdrawal(ctx, withdrawal)
 	}
 
-	// Set processed payment promises
-	for _, entry := range genState.ProcessedPaymentPromises {
-		k.SetPaymentPromiseProcessed(ctx, entry.PromiseHash, entry.ProcessedAt)
+	for _, entry := range genesisState.PaymentPromiseEntries {
+		k.SetPaymentPromiseProcessed(ctx, entry.PaymentPromiseHash, entry.ProcessedAt)
 	}
 }
 
