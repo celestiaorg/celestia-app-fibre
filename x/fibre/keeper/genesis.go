@@ -19,7 +19,7 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genesisState types.GenesisState) {
 	}
 
 	for _, entry := range genesisState.PaymentPromiseEntries {
-		k.SetPaymentPromiseProcessed(ctx, entry.PaymentPromiseHash, entry.ProcessedAt)
+		k.SetPaymentPromiseEntry(ctx, entry)
 	}
 }
 

@@ -111,7 +111,7 @@ func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp
 	return withdrawal, true
 }
 
-// SetWithdrawal stores a withdrawal
+// SetWithdrawal saves a withdrawal to the store
 func (k Keeper) SetWithdrawal(ctx sdk.Context, withdrawal types.Withdrawal) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.WithdrawalKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
@@ -143,22 +143,18 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 	return withdrawals
 }
 
-// IsPaymentPromiseProcessed checks if a payment promise has been processed
-// TODO: Refactor this method to accept the payment promise as an argument instead of the payment promise hash.
-func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, paymentPromiseHash []byte) bool {
+// IsPaymentPromiseProcessed returns true if a payment promise has been processed.
+func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(paymentPromiseHash)
+	hash := k.GetPaymentPromiseHash(promise)
+	key := types.PaymentPromiseKey(hash)
 	return store.Has(key)
 }
 
-// SetPaymentPromiseProcessed marks a payment promise as processed
-func (k Keeper) SetPaymentPromiseProcessed(ctx sdk.Context, paymentPromiseHash []byte, processedAt time.Time) {
+// SetPaymentPromiseEntry saves a payment promise entry to the store as processed
+func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromiseEntry) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(paymentPromiseHash)
-	entry := types.PaymentPromiseEntry{
-		PaymentPromiseHash: paymentPromiseHash,
-		ProcessedAt:        processedAt,
-	}
+	key := types.PaymentPromiseKey(entry.PaymentPromiseHash)
 	bz := k.cdc.MustMarshal(&entry)
 	store.Set(key, bz)
 }
@@ -174,8 +170,7 @@ func (k Keeper) GetPaymentPromiseHash(promise *types.PaymentPromise) []byte {
 // isValidUnprocessedPaymentPromise returns nil if the payment promise is valid
 // and unprocessed.
 func (k Keeper) isValidUnprocessedPaymentPromise(ctx sdk.Context, promise *types.PaymentPromise) error {
-	hash := k.GetPaymentPromiseHash(promise)
-	if k.IsPaymentPromiseProcessed(ctx, hash) {
+	if k.IsPaymentPromiseProcessed(ctx, promise) {
 		return errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise already processed")
 	}
 

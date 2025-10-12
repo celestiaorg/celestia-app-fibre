@@ -166,17 +166,31 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 }
 
 func (suite *KeeperTestSuite) TestPaymentPromiseProcessed() {
-	hash := []byte("test_hash_12345678901234567890123456")
+	// Create a test payment promise
+	promise := &types.PaymentPromise{
+		Namespace:         make([]byte, 29), // Valid namespace size
+		BlobSize:          1000,
+		Commitment:        make([]byte, 32), // Valid commitment size
+		RowVersion:        0,
+		Height:            100,
+		ChainId:           "test-chain",
+		CreationTimestamp: suite.ctx.BlockTime(),
+	}
 
 	// Test checking non-existent processed payment promise
-	processed := suite.keeper.IsPaymentPromiseProcessed(suite.ctx, hash)
+	processed := suite.keeper.IsPaymentPromiseProcessed(suite.ctx, promise)
 	suite.False(processed)
 
 	// Test setting processed payment promise
+	hash := suite.keeper.GetPaymentPromiseHash(promise)
 	processedTime := suite.ctx.BlockTime()
-	suite.keeper.SetPaymentPromiseProcessed(suite.ctx, hash, processedTime)
+	entry := types.PaymentPromiseEntry{
+		PaymentPromiseHash: hash,
+		ProcessedAt:        processedTime,
+	}
+	suite.keeper.SetPaymentPromiseEntry(suite.ctx, entry)
 
-	processed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, hash)
+	processed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, promise)
 	suite.True(processed)
 }
 

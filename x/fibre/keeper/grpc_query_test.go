@@ -130,12 +130,13 @@ func (suite *KeeperTestSuite) TestQueryProcessedPaymentPromise() {
 	// Create a simple payment promise for testing
 	// Note: This is a simplified version. In practice, you'd need proper cryptographic setup
 	promise := &types.PaymentPromise{
-		Namespace:  make([]byte, 29), // Valid namespace size
-		BlobSize:   1000,
-		Commitment: make([]byte, 32), // Valid commitment size
-		RowVersion: 0,
-		Height:     100,
-		ChainId:    "test-chain",
+		Namespace:         make([]byte, 29), // Valid namespace size
+		BlobSize:          1000,
+		Commitment:        make([]byte, 32), // Valid commitment size
+		RowVersion:        0,
+		Height:            100,
+		ChainId:           "test-chain",
+		CreationTimestamp: suite.ctx.BlockTime(),
 	}
 
 	// Test unprocessed payment promise
@@ -148,7 +149,11 @@ func (suite *KeeperTestSuite) TestQueryProcessedPaymentPromise() {
 
 	// Mark as processed
 	processedTime := suite.ctx.BlockTime()
-	suite.keeper.SetPaymentPromiseProcessed(suite.ctx, hash, processedTime)
+	entry := types.PaymentPromiseEntry{
+		PaymentPromiseHash: hash,
+		ProcessedAt:        processedTime,
+	}
+	suite.keeper.SetPaymentPromiseEntry(suite.ctx, entry)
 
 	// Test processed payment promise
 	resp, err = suite.keeper.ProcessedPaymentPromise(suite.ctx, req)

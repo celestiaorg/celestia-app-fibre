@@ -80,7 +80,12 @@ func (k Keeper) ProcessedPaymentPromise(goCtx context.Context, req *types.QueryP
 	}
 
 	ctx := sdk.UnwrapSDKContext(goCtx)
-	processed := k.IsPaymentPromiseProcessed(ctx, req.PromiseHash)
+
+	// Since we only have the hash, we need to create a helper method or keep the hash-based approach
+	// For now, let's check directly using the hash
+	store := ctx.KVStore(k.storeKey)
+	key := types.PaymentPromiseKey(req.PromiseHash)
+	processed := store.Has(key)
 
 	if !processed {
 		return &types.QueryProcessedPaymentPromiseResponse{Found: false}, nil
@@ -138,8 +143,7 @@ func (k Keeper) ValidatePaymentPromise(goCtx context.Context, req *types.QueryVa
 	requiredAmount := sdk.NewInt64Coin("utia", int64(req.Promise.BlobSize*params.GasPerBlobByte))
 
 	// Check if already processed
-	hash := k.GetPaymentPromiseHash(&req.Promise)
-	alreadyProcessed := k.IsPaymentPromiseProcessed(ctx, hash)
+	alreadyProcessed := k.IsPaymentPromiseProcessed(ctx, &req.Promise)
 
 	return &types.QueryValidatePaymentPromiseResponse{
 		Valid:             true,

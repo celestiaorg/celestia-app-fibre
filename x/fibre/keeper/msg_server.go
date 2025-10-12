@@ -140,7 +140,11 @@ func (k msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre)
 	escrowAccount.AvailableBalance = escrowAccount.AvailableBalance.Sub(paymentAmount)
 
 	// Mark payment promise as processed
-	k.Keeper.SetPaymentPromiseProcessed(ctx, hash, ctx.BlockTime())
+	entry := types.PaymentPromiseEntry{
+		PaymentPromiseHash: hash,
+		ProcessedAt:        ctx.BlockTime(),
+	}
+	k.Keeper.SetPaymentPromiseEntry(ctx, entry)
 
 	// Save updated escrow account
 	k.Keeper.SetEscrowAccount(ctx, escrowAccount)
@@ -162,8 +166,7 @@ func (k msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgPa
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Check if payment promise has already been processed
-	hash := k.Keeper.GetPaymentPromiseHash(&msg.PaymentPromise)
-	if k.Keeper.IsPaymentPromiseProcessed(ctx, hash) {
+	if k.Keeper.IsPaymentPromiseProcessed(ctx, &msg.PaymentPromise) {
 		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise already processed")
 	}
 
@@ -195,7 +198,12 @@ func (k msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgPa
 	escrowAccount.AvailableBalance = escrowAccount.AvailableBalance.Sub(paymentAmount)
 
 	// Mark payment promise as processed
-	k.Keeper.SetPaymentPromiseProcessed(ctx, hash, ctx.BlockTime())
+	hash := k.Keeper.GetPaymentPromiseHash(&msg.PaymentPromise)
+	entry := types.PaymentPromiseEntry{
+		PaymentPromiseHash: hash,
+		ProcessedAt:        ctx.BlockTime(),
+	}
+	k.Keeper.SetPaymentPromiseEntry(ctx, entry)
 
 	// Save updated escrow account
 	k.Keeper.SetEscrowAccount(ctx, escrowAccount)
