@@ -157,14 +157,14 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 // IsPaymentPromiseProcessed checks if a payment promise has been processed
 func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, hash []byte) bool {
 	store := ctx.KVStore(k.storeKey)
-	key := types.ProcessedPaymentPromiseKey(hash)
+	key := types.PaymentPromiseKey(hash)
 	return store.Has(key)
 }
 
 // SetPaymentPromiseProcessed marks a payment promise as processed
 func (k Keeper) SetPaymentPromiseProcessed(ctx sdk.Context, hash []byte, processedAt time.Time) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.ProcessedPaymentPromiseKey(hash)
+	key := types.PaymentPromiseKey(hash)
 	entry := types.ProcessedPaymentPromiseEntry{
 		PromiseHash: hash,
 		ProcessedAt: processedAt,
