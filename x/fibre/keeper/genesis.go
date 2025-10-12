@@ -38,7 +38,7 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		return false
 	})
 
-	k.IterateProcessedPaymentPromises(ctx, func(entry types.PaymentPromiseEntry) bool {
+	k.IteratePaymentPromises(ctx, func(entry types.PaymentPromiseEntry) bool {
 		genesis.PaymentPromiseEntries = append(genesis.PaymentPromiseEntries, entry)
 		return false
 	})
@@ -76,8 +76,8 @@ func (k Keeper) IterateWithdrawals(ctx sdk.Context, callback func(withdrawal typ
 	}
 }
 
-// IterateProcessedPaymentPromises iterates over all payment promises and calls the provided callback function
-func (k Keeper) IterateProcessedPaymentPromises(ctx sdk.Context, callback func(entry types.PaymentPromiseEntry) bool) {
+// IteratePaymentPromises iterates over all payment promises and calls the provided callback function
+func (k Keeper) IteratePaymentPromises(ctx sdk.Context, callback func(entry types.PaymentPromiseEntry) bool) {
 	store := ctx.KVStore(k.storeKey)
 	iterator := storetypes.KVStorePrefixIterator(store, types.PaymentPromiseKeyPrefix)
 	defer iterator.Close()
