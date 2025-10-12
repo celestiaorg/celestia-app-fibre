@@ -34,7 +34,9 @@ func EscrowAccountKey(signer string) []byte {
 	return append(EscrowAccountKeyPrefix, []byte(signer)...)
 }
 
-// WithdrawalKey returns the store key for a withdrawal
+// WithdrawalKey returns the store key for a withdrawal TODO: should we add a
+// unique ID to the withdrawal key instead of keying based on requested
+// timetstamp?
 func WithdrawalKey(signer string, requestedTimestamp time.Time) []byte {
 	key := WithdrawalsBySignerPrefix(signer)
 	key = append(key, []byte("/")...)
