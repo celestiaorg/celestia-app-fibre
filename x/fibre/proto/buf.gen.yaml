@@ -1,0 +1,10 @@
+version: v1
+managed:
+  enabled: false
+plugins:
+  - name: go
+    out: x/fibre/proto
+    opt: paths=source_relative
+  - name: go-grpc
+    out: x/fibre/proto
+    opt: paths=source_relative
