@@ -7,7 +7,7 @@
 package proto
 
 import (
-	types "github.com/celestiaorg/celestia-app/x/fibre/types"
+	types "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

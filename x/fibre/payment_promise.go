@@ -1,0 +1,309 @@
+package fibre
+
+import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
+
+	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	secp256k1 "github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	gogoproto "github.com/cosmos/gogoproto/proto"
+
+	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/rsema1d"
+)
+
+// Commitment is a commitment to a blob.
+// TODO(@Wondertan): merge with rsema1d.Commitment once it has these methods.
+type Commitment rsema1d.Commitment
+
+// UnmarshalBinary decodes a [Commitment] from bytes.
+func (c *Commitment) UnmarshalBinary(data []byte) error {
+	if len(data) != 32 {
+		return fmt.Errorf("commitment must be 32 bytes, got %d", len(data))
+	}
+	copy(c[:], data)
+	return nil
+}
+
+// String returns the hex-encoded string representation of the commitment.
+func (c Commitment) String() string {
+	return hex.EncodeToString(c[:])
+}
+
+// PaymentPromise is a promise to pay for a fibre blob.
+type PaymentPromise struct {
+	// SignerKey is the secp256k1 public key of the signer (escrow account owner).
+	SignerKey *secp256k1.PubKey
+	// ChainID is the chain identifier for domain separation.
+	ChainID string
+	// Namespace is the namespace the blob is associated with.
+	Namespace share.Namespace
+	// BlobSize is the size of the blob in bytes.
+	BlobSize uint32
+	// BlobVersion is the version of the blob format.
+	BlobVersion uint32
+	// Commitment is the hash of the row root and the RLC root.
+	Commitment Commitment
+	// CreationTimestamp is the timestamp when this promise was created.
+	CreationTimestamp time.Time
+	// Signature is the signer's signature over the sign bytes returned by [PaymentPromise.SignBytes].
+	Signature []byte
+	// Height is the height used to determine the validator set.
+	Height int64
+
+	// cached sign bytes and hash
+	signBytesOnce sync.Once
+	signBytes     []byte
+	signBytesErr  error
+	hashOnce      sync.Once
+	hash          [32]byte
+	hashErr       error
+}
+
+// MarshalBinary encodes the [PaymentPromise] using protobuf.
+func (p *PaymentPromise) MarshalBinary() ([]byte, error) {
+	pbMsg, err := p.ToProtoWithErr()
+	if err != nil {
+		return nil, err
+	}
+	return gogoproto.Marshal(pbMsg)
+}
+
+// UnmarshalBinary decodes the [PaymentPromise] from protobuf.
+func (p *PaymentPromise) UnmarshalBinary(data []byte) error {
+	pbMsg := &types.PaymentPromise{}
+	if err := gogoproto.Unmarshal(data, pbMsg); err != nil {
+		return err
+	}
+
+	return p.FromProto(pbMsg)
+}
+
+func (p *PaymentPromise) FromProto(pbMsg *types.PaymentPromise) error {
+	// parse namespace
+	ns, err := share.NewNamespaceFromBytes(pbMsg.Namespace)
+	if err != nil {
+		return fmt.Errorf("invalid namespace: %w", err)
+	}
+
+	// parse commitment
+	var commitment Commitment
+	if err := commitment.UnmarshalBinary(pbMsg.Commitment); err != nil {
+		return fmt.Errorf("unmarshalling commitment: %w", err)
+	}
+
+	// parse signer public key from Any
+	var signerKey *secp256k1.PubKey
+	if pbMsg.SignerPublicKey != nil {
+		// Try to get cached value first
+		cachedValue := pbMsg.SignerPublicKey.GetCachedValue()
+		if cachedValue != nil {
+			var ok bool
+			signerKey, ok = cachedValue.(*secp256k1.PubKey)
+			if !ok {
+				return fmt.Errorf("invalid signer key type: expected *secp256k1.PubKey, got %T", cachedValue)
+			}
+		} else {
+			// Manually unpack the Any type
+			signerKey = &secp256k1.PubKey{}
+			if err := gogoproto.Unmarshal(pbMsg.SignerPublicKey.Value, signerKey); err != nil {
+				return fmt.Errorf("unmarshalling signer key: %w", err)
+			}
+		}
+	}
+
+	*p = PaymentPromise{
+		SignerKey:         signerKey,
+		ChainID:           pbMsg.ChainId,
+		Namespace:         ns,
+		BlobSize:          pbMsg.BlobSize,
+		Commitment:        commitment,
+		BlobVersion:       pbMsg.BlobVersion,
+		CreationTimestamp: pbMsg.CreationTimestamp,
+		Signature:         pbMsg.Signature,
+		Height:            pbMsg.Height,
+	}
+	return nil
+}
+
+// ToProto converts the [PaymentPromise] to its protobuf representation.
+// Returns an error if the signer key cannot be packed into an Any type.
+func (p *PaymentPromise) ToProtoWithErr() (*types.PaymentPromise, error) {
+	var signerAny *codectypes.Any
+	if p.SignerKey != nil {
+		var err error
+		signerAny, err = codectypes.NewAnyWithValue(p.SignerKey)
+		if err != nil {
+			return nil, fmt.Errorf("packing signer key: %w", err)
+		}
+	}
+
+	return &types.PaymentPromise{
+		SignerPublicKey:   signerAny,
+		ChainId:           p.ChainID,
+		Namespace:         p.Namespace.Bytes(),
+		BlobSize:          p.BlobSize,
+		Commitment:        p.Commitment[:],
+		BlobVersion:       p.BlobVersion,
+		CreationTimestamp: p.CreationTimestamp,
+		Signature:         p.Signature,
+		Height:            p.Height,
+	}, nil
+}
+
+// Validate performs stateless validation on the [PaymentPromise].
+// It verifies all field constraints and validates the [PaymentPromise.Signature] using [PaymentPromise.SignerKey].
+func (p *PaymentPromise) Validate() error {
+	// signer key must be valid secp256k1 public key (33 bytes)
+	if p.SignerKey == nil || len(p.SignerKey.Key) != secp256k1.PubKeySize {
+		return fmt.Errorf("signer key must be %d bytes, got %d", secp256k1.PubKeySize, len(p.SignerKey.Key))
+	}
+
+	// chain ID must not be empty
+	if p.ChainID == "" {
+		return errors.New("chain id must not be empty")
+	}
+
+	// blob size must be positive
+	if p.BlobSize == 0 {
+		return errors.New("blob size must be positive")
+	}
+
+	// commitment must be 32 bytes (enforced by type)
+
+	// blob version must be supported (currently only version 1)
+	if p.BlobVersion != 1 {
+		return fmt.Errorf("blob version must be 1, got %d", p.BlobVersion)
+	}
+
+	// creation timestamp must be positive
+	if p.CreationTimestamp.IsZero() {
+		return errors.New("creation timestamp must not be zero")
+	}
+
+	// signature must be present (compact format is 64 bytes: 32 bytes r + 32 bytes s)
+	if len(p.Signature) != 64 {
+		return fmt.Errorf("signature must be 64 bytes, got %d", len(p.Signature))
+	}
+
+	// height must be positive
+	if p.Height <= 0 {
+		return fmt.Errorf("height must be positive, got %d", p.Height)
+	}
+
+	// verify signature
+	signBytes, err := p.SignBytes()
+	if err != nil {
+		return fmt.Errorf("building sign bytes: %w", err)
+	}
+
+	// verify signature using secp256k1
+	if !p.SignerKey.VerifySignature(signBytes, p.Signature) {
+		return errors.New("signature verification failed")
+	}
+
+	return nil
+}
+
+const (
+	// signBytesPrefix is prepended to the sign bytes to ensure the resulting signed message
+	// can't be confused with a consensus message (domain separation).
+	signBytesPrefix = "fibre/pp:v0"
+	// signBytesFixedSize is the size of all the constant fixed size fields.
+	// Format: signerPubKey(33) + namespace(29) + blobSize(4) + commitment(32) + blobVersion(4) + height(8)
+	signBytesFixedSize = secp256k1.PubKeySize + share.NamespaceSize + 4 + 32 + 4 + 8
+)
+
+// SignBytes returns the bytes that should be signed for this [PaymentPromise].
+// Actual signing must be done by the caller.
+// The sign bytes are computed once and cached for subsequent calls.
+// Format: prefix || chainID || signer_bytes || namespace || blob_size_bytes ||
+//
+//	commitment || blob_version_bytes || height_bytes || creation_timestamp_bytes
+//
+// SignBytes caches the result of the computation for subsequent calls,
+// so its not allowed to change the promise after signing.
+func (p *PaymentPromise) SignBytes() ([]byte, error) {
+	p.signBytesOnce.Do(func() {
+		// use MarshalBinary for timestamp
+		timestampBytes, err := p.CreationTimestamp.UTC().MarshalBinary() // this must be UTC
+		if err != nil {
+			p.signBytesErr = fmt.Errorf("marshalling timestamp: %w", err)
+			return
+		}
+
+		// calculate total size including the prefix
+		totalSize := len(signBytesPrefix) + len(p.ChainID) + signBytesFixedSize + len(timestampBytes)
+		buf := make([]byte, 0, totalSize)
+
+		// prepend domain separation prefix
+		buf = append(buf, []byte(signBytesPrefix)...)
+
+		// append chainID
+		buf = append(buf, []byte(p.ChainID)...)
+
+		// append signer_bytes (33 bytes - compressed public key)
+		buf = append(buf, p.SignerKey.Bytes()...)
+
+		// append namespace (29 bytes)
+		buf = append(buf, p.Namespace.Bytes()...)
+
+		// append blob_size (4 bytes, big-endian)
+		buf = binary.BigEndian.AppendUint32(buf, p.BlobSize)
+
+		// append commitment (32 bytes)
+		buf = append(buf, p.Commitment[:]...)
+
+		// append blob_version (4 bytes, big-endian)
+		buf = binary.BigEndian.AppendUint32(buf, p.BlobVersion)
+
+		// append height (8 bytes, big-endian)
+		buf = binary.BigEndian.AppendUint64(buf, uint64(p.Height))
+
+		// append timestamp bytes
+		buf = append(buf, timestampBytes...)
+
+		p.signBytes = buf
+	})
+
+	if p.signBytesErr != nil {
+		return nil, p.signBytesErr
+	}
+	return p.signBytes, nil
+}
+
+// Hash returns the SHA256 hash of the [PaymentPromise] including the signature.
+// The hash is computed once and cached for subsequent calls.
+func (p *PaymentPromise) Hash() (string, error) {
+	p.hashOnce.Do(func() {
+		// get sign bytes
+		signBytes, err := p.SignBytes()
+		if err != nil {
+			p.hashErr = fmt.Errorf("getting sign bytes: %w", err)
+			return
+		}
+
+		// validate signature is present
+		if len(p.Signature) == 0 {
+			p.hashErr = fmt.Errorf("signature must be set before computing hash")
+			return
+		}
+
+		// hash signBytes + signature
+		hasher := sha256.New()
+		hasher.Write(signBytes)
+		hasher.Write(p.Signature)
+		copy(p.hash[:], hasher.Sum(nil))
+	})
+
+	if p.hashErr != nil {
+		return "", p.hashErr
+	}
+	return hex.EncodeToString(p.hash[:]), nil
+}

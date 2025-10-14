@@ -9,7 +9,9 @@ import (
 )
 
 const (
-	RowVersionZero = uint32(0)
+	BlobVersionZero = uint32(0)
+	// RowVersionZero is deprecated, use BlobVersionZero instead
+	RowVersionZero = BlobVersionZero
 )
 
 // ValidateBasic performs stateless validation for MsgDepositToEscrow
@@ -77,8 +79,8 @@ func (msg *PaymentPromise) ValidateBasic() error {
 		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "commitment must be 32 bytes, got %d", len(msg.Commitment))
 	}
 
-	if err := validateRowVersion(msg.RowVersion); err != nil {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid row version: %s", err)
+	if err := validateBlobVersion(msg.BlobVersion); err != nil {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid blob version: %s", err)
 	}
 
 	if msg.Height <= 0 {
@@ -158,9 +160,14 @@ func (msg *MsgUpdateFibreParams) ValidateBasic() error {
 	return nil
 }
 
-func validateRowVersion(rowVersion uint32) error {
-	if rowVersion != RowVersionZero {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "unsupported row version: %d", rowVersion)
+func validateBlobVersion(blobVersion uint32) error {
+	if blobVersion != BlobVersionZero {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "unsupported blob version: %d", blobVersion)
 	}
 	return nil
+}
+
+// validateRowVersion is deprecated, use validateBlobVersion instead
+func validateRowVersion(rowVersion uint32) error {
+	return validateBlobVersion(rowVersion)
 }
