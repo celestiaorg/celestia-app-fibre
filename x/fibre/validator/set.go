@@ -1,6 +1,9 @@
 package validator
 
 import (
+	"math/big"
+
+	"github.com/celestiaorg/rsema1d"
 	core "github.com/cometbft/cometbft/types"
 )
 
@@ -8,4 +11,28 @@ import (
 type Set struct {
 	*core.ValidatorSet
 	Height uint64
+}
+
+// Assign returns a validator for the given commitment and row index using the formula:
+//
+//	validator_index = (commitment + row_index) mod num_validators
+//
+// The commitment is converted to a big.Int, added to the row index, and the result
+// is taken modulo the number of validators to determine the assignment.
+//
+// TODO(@Wondertan): This assignment algorithm is not final and may be changed
+// to improve distribution properties or security guarantees.
+func (s Set) Assign(commitment rsema1d.Commitment, rowIndex int) *core.Validator {
+	if len(s.Validators) == 0 {
+		return nil
+	}
+
+	// TODO(@Wondertan): If we ever end up using this assignment algorithm,
+	// we should move to uint256 libraries for up to 60% speedups per arithmetic operations
+	commitmentInt := new(big.Int).SetBytes(commitment[:])
+	rowIndexInt := big.NewInt(int64(rowIndex))
+	sum := new(big.Int).Add(commitmentInt, rowIndexInt)
+	valLenBig := big.NewInt(int64(len(s.Validators)))
+	idx := new(big.Int).Mod(sum, valLenBig)
+	return s.Validators[idx.Int64()]
 }
