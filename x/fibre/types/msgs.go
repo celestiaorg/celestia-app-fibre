@@ -3,13 +3,13 @@ package types
 import (
 	errorsmod "cosmossdk.io/errors"
 	"github.com/celestiaorg/go-square/v2/share"
-	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
 
 const (
-	RowVersionZero = uint32(0)
+	BlobVersionZero = uint32(0)
 )
 
 // ValidateBasic performs stateless validation for MsgDepositToEscrow
@@ -77,8 +77,8 @@ func (msg *PaymentPromise) ValidateBasic() error {
 		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "commitment must be 32 bytes, got %d", len(msg.Commitment))
 	}
 
-	if err := validateRowVersion(msg.RowVersion); err != nil {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid row version: %s", err)
+	if err := validateBlobVersion(msg.BlobVersion); err != nil {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid blob version: %s", err)
 	}
 
 	if msg.Height <= 0 {
@@ -89,17 +89,8 @@ func (msg *PaymentPromise) ValidateBasic() error {
 		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "creation timestamp cannot be zero")
 	}
 
-	if msg.SignerPublicKey == nil {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "signer public key cannot be nil")
-	}
-
-	pubKey, ok := msg.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
-	if !ok {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "failed to get cached public key")
-	}
-
-	if pubKey == nil {
-		return errorsmod.Wrap(sdkerrors.ErrInvalidPubKey, "signer public key cannot be nil")
+	if len(msg.SignerPublicKey.Key) != secp256k1.PubKeySize {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidPubKey, "signer public key must be %d bytes, got %d", secp256k1.PubKeySize, len(msg.SignerPublicKey.Key))
 	}
 
 	if len(msg.Signature) == 0 {
@@ -158,9 +149,9 @@ func (msg *MsgUpdateFibreParams) ValidateBasic() error {
 	return nil
 }
 
-func validateRowVersion(rowVersion uint32) error {
-	if rowVersion != RowVersionZero {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "unsupported row version: %d", rowVersion)
+func validateBlobVersion(blobVersion uint32) error {
+	if blobVersion != BlobVersionZero {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "unsupported blob version: %d", blobVersion)
 	}
 	return nil
 }

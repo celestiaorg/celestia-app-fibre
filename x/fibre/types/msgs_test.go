@@ -2,13 +2,12 @@ package types
 
 import (
 	"bytes"
-	fmt "fmt"
+	"fmt"
 	"testing"
 	"time"
 
 	"cosmossdk.io/math"
 	"github.com/celestiaorg/go-square/v2/share"
-	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -144,11 +143,11 @@ func TestMsgRequestWithdrawalValidateBasic(t *testing.T) {
 }
 
 func TestPaymentPromiseValidateBasic(t *testing.T) {
-	signerPublicKey := generatePubKeyAny(t)
+	signerPublicKey := generatePubKey(t)
 	namespace := generateNamespace(t)
 	blobSize := uint32(1000)
 	commitment := generateCommitment()
-	rowVersion := RowVersionZero
+	blobVersion := BlobVersionZero
 	creationTimestamp := time.Now()
 	signature := []byte("valid-signature")
 	height := int64(100)
@@ -167,7 +166,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -176,13 +175,13 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "nil signer public key",
+			name: "empty signer public key",
 			msg: PaymentPromise{
-				SignerPublicKey:   nil,
+				SignerPublicKey:   secp256k1.PubKey{},
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -197,7 +196,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         []byte{},
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -212,7 +211,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         []byte{1, 2, 3},
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -227,7 +226,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         share.TxNamespace.Bytes(),
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -242,7 +241,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         namespace,
 				BlobSize:          0,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -257,7 +256,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        []byte{1, 2, 3}, // wrong size
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -266,13 +265,13 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 			wantErr: sdkerrors.ErrInvalidRequest,
 		},
 		{
-			name: "unsupported row version",
+			name: "unsupported blob version",
 			msg: PaymentPromise{
 				SignerPublicKey:   signerPublicKey,
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        999,
+				BlobVersion:       999,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -287,7 +286,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            0,
@@ -302,7 +301,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         []byte{},
 				Height:            height,
@@ -317,7 +316,7 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 				Namespace:         namespace,
 				BlobSize:          blobSize,
 				Commitment:        commitment,
-				RowVersion:        rowVersion,
+				BlobVersion:       blobVersion,
 				CreationTimestamp: creationTimestamp,
 				Signature:         signature,
 				Height:            height,
@@ -436,7 +435,7 @@ func TestMsgPaymentPromiseTimeoutValidateBasic(t *testing.T) {
 				Signer:         signer,
 				PaymentPromise: invalidPaymentPromise,
 			},
-			wantErr: sdkerrors.ErrInvalidAddress,
+			wantErr: sdkerrors.ErrInvalidRequest,
 		},
 	}
 
@@ -517,21 +516,19 @@ func generateCommitment() []byte {
 	return commitment
 }
 
-func generatePubKeyAny(t *testing.T) *types.Any {
+func generatePubKey(t *testing.T) secp256k1.PubKey {
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
-	pubKeyAny, err := types.NewAnyWithValue(pubKey)
-	require.NoError(t, err)
-	return pubKeyAny
+	return *pubKey.(*secp256k1.PubKey)
 }
 
 func generatePaymentPromise(t *testing.T) PaymentPromise {
 	return PaymentPromise{
-		SignerPublicKey:   generatePubKeyAny(t),
+		SignerPublicKey:   generatePubKey(t),
 		Namespace:         generateNamespace(t),
 		BlobSize:          1000,
 		Commitment:        generateCommitment(),
-		RowVersion:        uint32(share.ShareVersionZero),
+		BlobVersion:       uint32(share.ShareVersionZero),
 		CreationTimestamp: time.Now(),
 		Signature:         []byte("valid-signature"),
 		Height:            100,
