@@ -436,7 +436,7 @@ func TestMsgPaymentPromiseTimeoutValidateBasic(t *testing.T) {
 				Signer:         signer,
 				PaymentPromise: invalidPaymentPromise,
 			},
-			wantErr: sdkerrors.ErrInvalidAddress,
+			wantErr: sdkerrors.ErrInvalidRequest,
 		},
 	}
 

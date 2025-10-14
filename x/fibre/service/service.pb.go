@@ -6,7 +6,7 @@ package service
 import (
 	context "context"
 	fmt "fmt"
-	types "github.com/celestiaorg/celestia-app/x/fibre/types"
+	types "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	grpc1 "github.com/cosmos/gogoproto/grpc"
 	proto "github.com/cosmos/gogoproto/proto"
 	grpc "google.golang.org/grpc"
