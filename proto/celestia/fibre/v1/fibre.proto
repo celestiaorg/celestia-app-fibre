@@ -4,7 +4,7 @@ package celestia.fibre.v1;
 import "gogoproto/gogo.proto";
 import "cosmos/base/v1beta1/coin.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/any.proto";
+import "cosmos/crypto/secp256k1/keys.proto";
 import "cosmos_proto/cosmos.proto";
 
 option go_package = "github.com/celestiaorg/celestia-app/x/fibre/types";
@@ -45,7 +45,7 @@ message PaymentPromise {
   // determining when service stops for this blob.
   google.protobuf.Timestamp creation_timestamp = 7 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   // signer_public_key is the public key of the owner of the escrow account to charge
-  google.protobuf.Any signer_public_key = 8 [(cosmos_proto.accepts_interface) = "cosmos.crypto.PubKey"];
+  cosmos.crypto.secp256k1.PubKey signer_public_key = 8 [(gogoproto.nullable) = false];
   // signature is the signer (escrow account owner) signature over the sign bytes
   bytes signature = 9;
 }
