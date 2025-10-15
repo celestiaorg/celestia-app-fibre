@@ -54,10 +54,10 @@ type BlobConfig struct {
 // DefaultBlobConfig returns a [BlobConfig] with default values.
 func DefaultBlobConfig() BlobConfig {
 	return BlobConfig{
-		OriginalRows:  1 << 12,   // 4096
-		ParityRows:    3 << 12,   // 12288 (3 * 4096), total rows = 16384
-		RowSizeMin:    1 << 6,    // 64 bytes
-		MaxBlobSize:   128 << 20, // 128 mib
+		OriginalRows:  4096,
+		ParityRows:    12288, // (3 * OriginalRows, TotalRows = 16384)
+		RowSizeMin:    64,
+		MaxBlobSize:   128 * 1024 * 1024,
 		BlobVersion:   0,
 		CodingWorkers: runtime.GOMAXPROCS(0),
 	}
