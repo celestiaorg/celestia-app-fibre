@@ -5,18 +5,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math"
 	"runtime"
 
 	"github.com/celestiaorg/rsema1d"
 	"github.com/celestiaorg/rsema1d/field"
 )
 
-// ErrBlobTooLarge is returned when the blob size exceeds MaxBlobSize.
-var ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
+var (
+	// ErrBlobTooLarge is returned when the blob size exceeds MaxBlobSize.
+	ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
+)
 
-// Commitment is a commitment to fibre [Blob].
-// TODO(@Wondertan): merge with rsema1d.Commitment and move these methods.
+// Commitment is a commitment to a blob.
+// TODO(@Wondertan): merge with rsema1d.Commitment once it has these methods.
 type Commitment rsema1d.Commitment
 
 // UnmarshalBinary decodes a [Commitment] from bytes.
@@ -47,7 +48,7 @@ type BlobConfig struct {
 	// MaxBlobSize is the maximum allowed blob size.
 	MaxBlobSize int
 	// BlobVersion is the version of the row format.
-	BlobVersion uint32
+	BlobVersion uint8
 	// CodingWorkers is the number of workers to use for encoding and decoding rsema1d.
 	CodingWorkers int
 }
@@ -72,32 +73,34 @@ type Blob struct {
 	commitment   Commitment
 	rlcOrig      []field.GF128
 
-	// rows holds the shards for both encoded data and reconstruction.
-	rows [][]byte
+	// holds meta fields about the blob
+	header blobHeaderV0
+	// data holds the decoded original data (without header).
+	data []byte
 }
 
-// NewBlob creates a new [Blob] instance by encoding the original data.
-// It takes the original data and a [BlobConfig].
-// The data is prefixed with a header containing the blob version and original data size.
-func NewBlob(originalData []byte, cfg BlobConfig) (d *Blob, err error) {
-	if len(originalData) == 0 {
+// NewBlob creates a new [Blob] instance by encoding the data.
+// It takes the data and a [BlobConfig].
+// The data is prefixed with a header containing the blob version and data size.
+func NewBlob(data []byte, cfg BlobConfig) (d *Blob, err error) {
+	if len(data) == 0 {
 		return nil, fmt.Errorf("data cannot be empty")
 	}
-	if len(originalData) > cfg.MaxBlobSize {
-		return nil, fmt.Errorf("%w: data size %d exceeds maximum %d", ErrBlobTooLarge, len(originalData), cfg.MaxBlobSize)
+	if len(data) > cfg.MaxBlobSize {
+		return nil, fmt.Errorf("%w: data size %d exceeds maximum %d", ErrBlobTooLarge, len(data), cfg.MaxBlobSize)
 	}
 
 	d = &Blob{
-		cfg: cfg,
+		cfg:    cfg,
+		header: newBlobHeaderV0(len(data)),
+		data:   data,
 	}
 
-	rowSize := d.calculateRowSize(len(originalData))
-	d.rows = d.splitIntoRows(originalData, rowSize)
-
-	d.extendedData, d.commitment, d.rlcOrig, err = rsema1d.Encode(d.rows, &rsema1d.Config{
+	rows := d.header.encodeToRows(data, cfg)
+	d.extendedData, d.commitment, d.rlcOrig, err = rsema1d.Encode(rows, &rsema1d.Config{
 		K:           cfg.OriginalRows,
 		N:           cfg.ParityRows,
-		RowSize:     rowSize,
+		RowSize:     len(rows[0]),
 		WorkerCount: cfg.CodingWorkers,
 	})
 	if err != nil {
@@ -109,7 +112,7 @@ func NewBlob(originalData []byte, cfg BlobConfig) (d *Blob, err error) {
 
 // Commitment returns the commitment to the blob.
 func (d *Blob) Commitment() Commitment {
-	return d.commitment
+	return Commitment(d.commitment)
 }
 
 // RLCOrig returns the original RLC coefficients.
@@ -118,36 +121,35 @@ func (d *Blob) RLCOrig() []field.GF128 {
 }
 
 // RowSize returns the size of each row in bytes.
+// Returns 0 if no original data available to determine row size.
 func (d *Blob) RowSize() int {
-	if len(d.rows) > 0 && len(d.rows[0]) > 0 {
-		return len(d.rows[0])
+	if len(d.data) == 0 {
+		return 0
 	}
-	return 0
+
+	return d.header.calculateRowSize(len(d.data), d.cfg)
 }
 
 // DataSize returns the size of the original data (without header) by reading from the blob header.
-// Returns 0 if the header cannot be read.
+// Returns 0 if no original data available to determine its size.
 func (d *Blob) DataSize() int {
-	if len(d.rows) == 0 {
-		return 0
-	}
-
-	// extract size from header (first row)
-	if len(d.rows[0]) < blobHeaderSize {
-		return 0
-	}
-
-	return int(binary.BigEndian.Uint32(d.rows[0][math.MaxUint32 : math.MaxUint32*2]))
+	return len(d.data)
 }
 
 // Size returns the total size of the blob including the header overhead.
-// Returns 0 if the size cannot be determined.
+// Returns 0 if no original data available to determine blob size.
 func (d *Blob) Size() int {
 	dataSize := d.DataSize()
 	if dataSize == 0 {
 		return 0
 	}
 	return blobHeaderSize + dataSize
+}
+
+// Data returns the cached original data (without header).
+// Returns nil if the data has not been decoded yet (call Reconstruct first for received blobs).
+func (d *Blob) Data() []byte {
+	return d.data
 }
 
 // Row returns the [rsema1d.RowProof] for the given index from the extended data.
@@ -160,66 +162,148 @@ func (d *Blob) Row(index int) (*rsema1d.RowProof, error) {
 }
 
 const (
+	// uint32SizeBytes is the size of a uint32 in bytes.
+	uint32SizeBytes = 4
+	// uint8SizeBytes is the size of a uint8 in bytes.
+	uint8SizeBytes = 1
 	// blobHeaderSize is the size of the blob header in bytes.
-	// Format: 4 bytes version (uint32) + 4 bytes blob size (uint32)
-	blobHeaderSize = math.MaxUint32 + math.MaxUint32
+	// Format: 1 byte version (uint8) + 4 bytes blob size (uint32)
+	blobHeaderSize = uint8SizeBytes + uint32SizeBytes
 )
 
-// calculateRowSize computes the row size for a given data length.
-// Row size must be a multiple of RowSizeMin and is calculated as:
-// ceil(dataLen / OriginalRows) rounded up to the nearest multiple of RowSizeMin.
-// Prepends blob header size automatically.
-func (d *Blob) calculateRowSize(dataLen int) int {
-	dataLen += blobHeaderSize
-	// calculate minimum row size needed
-	minRowSize := (dataLen + d.cfg.OriginalRows - 1) / d.cfg.OriginalRows // ceil(dataLen / OriginalRows)
-
-	// round up to nearest multiple of RowSizeMin
-	if minRowSize%d.cfg.RowSizeMin != 0 {
-		minRowSize = ((minRowSize / d.cfg.RowSizeMin) + 1) * d.cfg.RowSizeMin
-	}
-
-	return minRowSize
+// blobHeaderV0 represents the version 0 blob header at the start of the first row.
+// Format: 1 byte version (uint8, always 0) + 4 bytes data size (uint32)
+type blobHeaderV0 struct {
+	dataSize uint32
 }
 
-// splitIntoRows splits data into a 2D byte slice where each slice is row data.
-// The first row is prefixed with a header containing the blob version and original data size,
-// avoiding a full data copy. Returns OriginalRows rows of rowSize bytes each, padding with zeros as needed.
-// Uses slices from the original data when possible, only allocating for the header row and padding.
-func (d *Blob) splitIntoRows(data []byte, rowSize int) [][]byte {
-	rows := make([][]byte, d.cfg.OriginalRows)
+// newBlobHeaderV0 creates a new version 0 blob header with the given data size.
+// The version field is implicitly 0 for this header type.
+func newBlobHeaderV0(dataSize int) blobHeaderV0 {
+	return blobHeaderV0{
+		dataSize: uint32(dataSize),
+	}
+}
 
-	// first row: allocate and write header + beginning of data
+// encodeToRows encodes the data into rows with version 0 header format.
+// Returns OriginalRows rows of calculated rowSize bytes each, padding with zeros as needed.
+// The first row contains the header followed by data.
+func (h blobHeaderV0) encodeToRows(data []byte, cfg BlobConfig) [][]byte {
+	rowSize := h.calculateRowSize(len(data), cfg)
+	rows := make([][]byte, cfg.OriginalRows)
+
+	// First row: allocate and write header + beginning of data
 	rows[0] = make([]byte, rowSize)
-	binary.BigEndian.PutUint32(rows[0][0:math.MaxUint32], d.cfg.BlobVersion)
-	binary.BigEndian.PutUint32(rows[0][math.MaxUint32:math.MaxUint32*2], uint32(len(data)))
+	h.encode(rows[0])
 
-	// copy as much data as fits in the first row after the header
+	// Copy as much data as fits in the first row after the header
 	firstRowDataSize := rowSize - blobHeaderSize
 	if firstRowDataSize > len(data) {
 		firstRowDataSize = len(data)
 	}
 	copy(rows[0][blobHeaderSize:], data[:firstRowDataSize])
 
-	// remaining rows: use slices from data (offset by what we already used)
+	// Remaining rows: use slices from data (offset by what we already used)
 	dataOffset := firstRowDataSize
-	for i := 1; i < d.cfg.OriginalRows; i++ {
+	for i := 1; i < cfg.OriginalRows; i++ {
 		start := dataOffset
 		end := start + rowSize
 		dataOffset += rowSize
 
 		if end <= len(data) {
-			// full row available in data - use slice directly
+			// Full row available in data - use slice directly
 			rows[i] = data[start:end:end]
 			continue
 		}
-		// some or no data left - allocate zero-filled padded row
+		// Some or no data left - allocate zero-filled padded row
 		rows[i] = make([]byte, rowSize)
 		if start < len(data) {
-			// partial row - insert the remaining data into the row
+			// Partial row - insert the remaining data into the row
 			copy(rows[i], data[start:])
 		}
 	}
 
 	return rows
+}
+
+// decodeFromRows decodes the data from rows with version 0 header format.
+// Decodes the header from the first row, validates it, then extracts the original data.
+// Returns error if rows are invalid, header cannot be decoded, or data cannot be extracted.
+func (h *blobHeaderV0) decodeFromRows(rows [][]byte, cfg BlobConfig) ([]byte, error) {
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no rows to decode")
+	}
+
+	if len(rows[0]) < blobHeaderSize {
+		return nil, fmt.Errorf("first row too small: need at least %d bytes for header, got %d", blobHeaderSize, len(rows[0]))
+	}
+
+	// decode header from first row
+	if err := h.decode(rows[0]); err != nil {
+		return nil, fmt.Errorf("decoding header: %w", err)
+	}
+
+	size := blobHeaderSize + int(h.dataSize)
+
+	// Pre-allocate the exact size needed
+	data := make([]byte, size)
+
+	// Copy data from rows into the pre-allocated buffer
+	copied := 0
+	for i := 0; i < cfg.OriginalRows && copied < size; i++ {
+		rowData := rows[i]
+		if len(rowData) == 0 {
+			continue
+		}
+
+		// Determine how much to copy from this row
+		toCopy := len(rowData)
+		if copied+toCopy > size {
+			toCopy = size - copied
+		}
+
+		copy(data[copied:], rowData[:toCopy])
+		copied += toCopy
+	}
+
+	if copied < size {
+		return nil, fmt.Errorf("not enough data in rows: copied %d bytes, need %d", copied, size)
+	}
+
+	// Return original data without header
+	return data[blobHeaderSize:size:size], nil
+}
+
+// calculateRowSize computes the row size for the given data length and config.
+// Row size is calculated as ceil((dataLen + headerSize) / OriginalRows),
+// rounded up to the nearest multiple of RowSizeMin.
+func (h blobHeaderV0) calculateRowSize(dataLen int, cfg BlobConfig) int {
+	totalLen := dataLen + blobHeaderSize
+	minRowSize := (totalLen + cfg.OriginalRows - 1) / cfg.OriginalRows // ceil(totalLen / OriginalRows)
+
+	// Round up to nearest multiple of RowSizeMin
+	if minRowSize%cfg.RowSizeMin != 0 {
+		minRowSize = ((minRowSize / cfg.RowSizeMin) + 1) * cfg.RowSizeMin
+	}
+
+	return minRowSize
+}
+
+// encode writes the version 0 blob header into the provided buffer.
+// The buffer must be at least blobHeaderSize bytes long.
+// Always writes version byte as 0.
+func (h blobHeaderV0) encode(buf []byte) {
+	buf[0] = 0 // version 0
+	binary.BigEndian.PutUint32(buf[uint8SizeBytes:blobHeaderSize], h.dataSize)
+}
+
+// decode reads the blob header from the provided buffer.
+// The buffer must be at least blobHeaderSize bytes long.
+// Returns an error if the version byte is not 0.
+func (h *blobHeaderV0) decode(buf []byte) error {
+	if buf[0] != 0 {
+		return fmt.Errorf("invalid blob version: expected 0, got %d", buf[0])
+	}
+	h.dataSize = binary.BigEndian.Uint32(buf[uint8SizeBytes:blobHeaderSize])
+	return nil
 }
