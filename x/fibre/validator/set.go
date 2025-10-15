@@ -13,7 +13,11 @@ type Set struct {
 	Height uint64
 }
 
-// Assign returns a validator for the given commitment and row index using the formula:
+// ShardMap maps validators to the row indices they are assigned.
+type ShardMap map[*core.Validator][]int
+
+// Assign returns a ShardMap containing all validators and their assigned row indices
+// for the given commitment and total number of rows. The assignment uses the formula:
 //
 //	validator_index = (commitment + row_index) mod num_validators
 //
@@ -22,17 +26,25 @@ type Set struct {
 //
 // TODO(@Wondertan): This assignment algorithm is not final and may be changed
 // to improve distribution properties or security guarantees.
-func (s Set) Assign(commitment rsema1d.Commitment, rowIndex int) *core.Validator {
-	if len(s.Validators) == 0 {
-		return nil
+func (s Set) Assign(commitment rsema1d.Commitment, totalRows int) ShardMap {
+	if len(s.Validators) == 0 || totalRows == 0 {
+		return make(ShardMap)
 	}
+
+	shardMap := make(ShardMap)
 
 	// TODO(@Wondertan): If we ever end up using this assignment algorithm,
 	// we should move to uint256 libraries for up to 60% speedups per arithmetic operations
 	commitmentInt := new(big.Int).SetBytes(commitment[:])
-	rowIndexInt := big.NewInt(int64(rowIndex))
-	sum := new(big.Int).Add(commitmentInt, rowIndexInt)
 	valLenBig := big.NewInt(int64(len(s.Validators)))
-	idx := new(big.Int).Mod(sum, valLenBig)
-	return s.Validators[idx.Int64()]
+
+	for rowIndex := range totalRows {
+		rowIndexInt := big.NewInt(int64(rowIndex))
+		sum := new(big.Int).Add(commitmentInt, rowIndexInt)
+		idx := new(big.Int).Mod(sum, valLenBig)
+		validator := s.Validators[idx.Int64()]
+		shardMap[validator] = append(shardMap[validator], rowIndex)
+	}
+
+	return shardMap
 }
