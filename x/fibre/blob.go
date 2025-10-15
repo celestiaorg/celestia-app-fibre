@@ -11,10 +11,8 @@ import (
 	"github.com/celestiaorg/rsema1d/field"
 )
 
-var (
-	// ErrBlobTooLarge is returned when the blob size exceeds MaxBlobSize.
-	ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
-)
+// ErrBlobTooLarge is returned when the blob size exceeds MaxBlobSize.
+var ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
 
 // Commitment is a commitment to a blob.
 // TODO(@Wondertan): merge with rsema1d.Commitment once it has these methods.
@@ -112,7 +110,7 @@ func NewBlob(data []byte, cfg BlobConfig) (d *Blob, err error) {
 
 // Commitment returns the commitment to the blob.
 func (d *Blob) Commitment() Commitment {
-	return Commitment(d.commitment)
+	return d.commitment
 }
 
 // RLCOrig returns the original RLC coefficients.
