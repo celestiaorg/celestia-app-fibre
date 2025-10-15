@@ -6,8 +6,8 @@ require (
 	cosmossdk.io/math v1.5.3
 	github.com/celestiaorg/celestia-app/v6 v6.0.0-rc0
 	github.com/celestiaorg/go-square/v3 v3.0.2
-	github.com/celestiaorg/tastora v0.5.1
-	github.com/cometbft/cometbft v0.38.17
+	github.com/celestiaorg/tastora v0.7.2
+	github.com/cometbft/cometbft v1.0.1
 	github.com/cosmos/cosmos-sdk v0.50.13
 	github.com/cosmos/ibc-go/v8 v8.7.0
 	github.com/docker/docker v28.4.0+incompatible
