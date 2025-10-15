@@ -8,23 +8,23 @@ import (
 	core "github.com/cometbft/cometbft/types"
 )
 
-// ClientCache caches [FibreClientCloser]s per validator using the provided constructor function.
+// ClientCache caches [Client]s per validator using the provided constructor function.
 // TODO(@Wondertan): Needs cleanup strategy, e.g. LRU
 type ClientCache struct {
-	newClient FibreClientCloserFn
+	newClient NewClientFn
 	mu        sync.Mutex
 	clients   map[string]*clientEntry // keyed by validator address string
 }
 
-// clientEntry holds a lazily-initialized [FibreClientCloser].
+// clientEntry holds a lazily-initialized [Client].
 type clientEntry struct {
 	sync.Once
-	clientCloser FibreClientCloser
+	clientCloser Client
 	err          error
 }
 
-// NewClientCache creates a new [ClientCache] with the given [FibreClientCloserFn].
-func NewClientCache(newClient FibreClientCloserFn) *ClientCache {
+// NewClientCache creates a new [ClientCache] with the given [NewClientFn].
+func NewClientCache(newClient NewClientFn) *ClientCache {
 	return &ClientCache{
 		newClient: newClient,
 		clients:   make(map[string]*clientEntry),
@@ -56,7 +56,7 @@ func (cc *ClientCache) GetClient(ctx context.Context, val *core.Validator) (Fibr
 	return entry.clientCloser, entry.err
 }
 
-// Close closes all cached [FibreClientCloser]s.
+// Close closes all cached [Client]s.
 func (cc *ClientCache) Close() (err error) {
 	cc.mu.Lock()
 	defer cc.mu.Unlock()

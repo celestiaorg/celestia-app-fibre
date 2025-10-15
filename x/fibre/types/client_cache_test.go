@@ -82,9 +82,9 @@ func (m *mockFibreClientCloser) Close() error {
 	return nil
 }
 
-// mockClientFn creates a mock types.FibreClientCloserFn for testing
-func mockClientFn(shouldErr bool) types.FibreClientCloserFn {
-	return func(ctx context.Context, val *core.Validator) (types.FibreClientCloser, error) {
+// mockClientFn creates a mock types.NewClientFn for testing
+func mockClientFn(shouldErr bool) types.NewClientFn {
+	return func(ctx context.Context, val *core.Validator) (types.Client, error) {
 		if shouldErr {
 			return nil, errors.New("mock client creation error")
 		}
