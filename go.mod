@@ -59,8 +59,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 )
 
-require github.com/celestiaorg/reedsolomon v1.12.6-0.20250824224240-8b66bda83fd0 // indirect
-
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go v0.120.0 // indirect
