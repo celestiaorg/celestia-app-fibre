@@ -113,6 +113,12 @@ func TestSet_Assign(t *testing.T) {
 	})
 }
 
+// Results for 16,384 rows (K=4096, N=12288):
+//
+//	Validators    Time/op      Memory/op    Allocs/op
+//	10            ~1.47 ms     ~2.87 MB     ~47,649
+//	50            ~1.48 ms     ~2.90 MB     ~49,335
+//	100           ~1.50 ms     ~2.91 MB     ~49,901
 func BenchmarkSet_Assign(b *testing.B) {
 	commitment := rsema1d.Commitment{
 		1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
