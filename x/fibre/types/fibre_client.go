@@ -11,18 +11,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// FibreClientCloser combines [FibreClient] with [io.Closer] to manage the lifecycle
+// Client combines [FibreClient] with [io.Closer] to manage the lifecycle
 // of both the client and its underlying connection.
-type FibreClientCloser interface {
+type Client interface {
 	FibreClient
 	io.Closer
 }
 
-// FibreClientCloserFn is a constructor function that creates a [FibreClientCloser]
+// NewClientFn is a constructor function that creates a [Client]
 // for a given validator. It should handle host resolution and connection establishment.
-type FibreClientCloserFn func(ctx context.Context, val *core.Validator) (FibreClientCloser, error)
+type NewClientFn func(ctx context.Context, val *core.Validator) (Client, error)
 
-// fibreClientCloser wraps a [FibreClient] and [grpc.ClientConn] to implement [FibreClientCloser].
+// fibreClientCloser wraps a [FibreClient] and [grpc.ClientConn] to implement [Client].
 type fibreClientCloser struct {
 	FibreClient
 	conn *grpc.ClientConn
@@ -32,11 +32,11 @@ func (f *fibreClientCloser) Close() error {
 	return f.conn.Close()
 }
 
-// DefaultFibreClientFn returns the default [FibreClientCloserFn] that uses the provided
+// DefaultFibreClientFn returns the default [NewClientFn] that uses the provided
 // [validator.HostRegistry] to resolve validator hosts and establishes insecure gRPC connections
 // with OpenTelemetry instrumentation for distributed tracing.
-func DefaultFibreClientFn(hostReg validator.HostRegistry) FibreClientCloserFn {
-	return func(ctx context.Context, val *core.Validator) (FibreClientCloser, error) {
+func DefaultFibreClientFn(hostReg validator.HostRegistry) NewClientFn {
+	return func(ctx context.Context, val *core.Validator) (Client, error) {
 		host, err := hostReg.GetHost(ctx, val)
 		if err != nil {
 			return nil, err
