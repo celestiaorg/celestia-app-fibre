@@ -197,15 +197,18 @@ This repository includes dependencies on private GitHub repositories. To build t
    Add the following line to your `$HOME/.netrc` file (create it if it doesn't exist):
    
    ```
-   machine github.com login YOUR_GITHUB_USERNAME password YOUR_GITHUB_PAT_TOKEN
+   machine github.com login <YOUR_GITHUB_USERNAME> password <YOUR_GITHUB_PAT_TOKEN>
    ```
    
-   Replace `YOUR_GITHUB_USERNAME` with your GitHub username and `YOUR_GITHUB_PAT_TOKEN` with the token you generated.
+   **Important**: Replace `<YOUR_GITHUB_USERNAME>` with your actual GitHub username and `<YOUR_GITHUB_PAT_TOKEN>` with the token you generated in step 1.
 
-   **Note**: Ensure your `.netrc` file has appropriate permissions:
-   ```shell
-   chmod 600 ~/.netrc
-   ```
+   **Security Notes**: 
+   - Ensure your `.netrc` file has appropriate permissions:
+     ```shell
+     chmod 600 ~/.netrc
+     ```
+   - Never commit your `.netrc` file to version control as it contains sensitive credentials
+   - Verify that `~/.netrc` is in your global `.gitignore` or the repository's `.gitignore`
 
 Without this setup, running `make build` will fail with authentication errors when trying to access private dependencies like `github.com/celestiaorg/rsema1d`.
 
