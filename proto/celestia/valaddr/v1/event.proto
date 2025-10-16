@@ -1,0 +1,15 @@
+syntax = "proto3";
+package celestia.valaddr.v1;
+
+import "gogoproto/gogo.proto";
+import "cosmos_proto/cosmos.proto";
+
+option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
+
+// EventSetFibreProviderInfo is emitted when a validator sets or updates their fibre provider information.
+message EventSetFibreProviderInfo {
+  // validator_consensus_address is the validator consensus address (celestiavalcons...)
+  string validator_consensus_address = 1;
+  // ip_address is the IP address for the fibre service provider
+  string ip_address = 2;
+}

@@ -1,0 +1,12 @@
+syntax = "proto3";
+package celestia.valaddr.v1;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
+
+// Params defines the parameters for the valaddr module.
+message Params {
+  // missing_info_check_height is the height at which to check for validators with missing info
+  int64 missing_info_check_height = 1;
+}
