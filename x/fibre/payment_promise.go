@@ -3,7 +3,6 @@ package fibre
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -11,28 +10,9 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
-	"github.com/celestiaorg/rsema1d"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	gogoproto "github.com/cosmos/gogoproto/proto"
 )
-
-// Commitment is a commitment to fibre [Blob].
-// TODO(@Wondertan): merge with rsema1d.Commitment and move these methods.
-type Commitment rsema1d.Commitment
-
-// UnmarshalBinary decodes a [Commitment] from bytes.
-func (c *Commitment) UnmarshalBinary(data []byte) error {
-	if len(data) != 32 {
-		return fmt.Errorf("commitment must be 32 bytes, got %d", len(data))
-	}
-	copy(c[:], data)
-	return nil
-}
-
-// String returns the hex-encoded string representation of the commitment.
-func (c Commitment) String() string {
-	return hex.EncodeToString(c[:])
-}
 
 // PaymentPromise is a promise to pay for a fibre [Blob].
 type PaymentPromise struct {
