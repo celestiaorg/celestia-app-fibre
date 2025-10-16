@@ -19,12 +19,11 @@ var (
 // SignatureSet collects and validates signatures from validators.
 // It is safe for concurrent use.
 type SignatureSet struct {
-	mu sync.Mutex
-
 	requiredBytesSigned    []byte
 	minRequiredVotingPower int64
 	minRequiredSignatures  int
 
+	mu          sync.Mutex
 	votingPower int64
 	signatures  [][]byte
 	done        chan struct{}
