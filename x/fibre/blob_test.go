@@ -31,7 +31,7 @@ func TestBlobHeaderV0_CalculateRowSize(t *testing.T) {
 	}{
 		{
 			name:         "exact fit",
-			dataLen:      64*8 - blobHeaderSize, // Exactly fits in 8 rows of 64 bytes
+			dataLen:      64*8 - blobHeaderLen, // Exactly fits in 8 rows of 64 bytes
 			originalRows: 8,
 			rowSizeMin:   64,
 			wantRowSize:  64,
@@ -100,6 +100,7 @@ func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
 			cfg: BlobConfig{
 				OriginalRows: 4,
 				RowSizeMin:   64,
+				MaxBlobSize:  10000,
 			},
 		},
 		{
@@ -108,6 +109,7 @@ func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
 			cfg: BlobConfig{
 				OriginalRows: 8,
 				RowSizeMin:   64,
+				MaxBlobSize:  10000,
 			},
 		},
 		{
@@ -116,6 +118,7 @@ func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
 			cfg: BlobConfig{
 				OriginalRows: 16,
 				RowSizeMin:   64,
+				MaxBlobSize:  10000,
 			},
 		},
 		{
@@ -124,14 +127,16 @@ func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
 			cfg: BlobConfig{
 				OriginalRows: 8,
 				RowSizeMin:   64,
+				MaxBlobSize:  10000,
 			},
 		},
 		{
 			name:     "exact multiple",
-			dataSize: 64*8 - blobHeaderSize,
+			dataSize: 64*8 - blobHeaderLen,
 			cfg: BlobConfig{
 				OriginalRows: 8,
 				RowSizeMin:   64,
+				MaxBlobSize:  10000,
 			},
 		},
 	}
