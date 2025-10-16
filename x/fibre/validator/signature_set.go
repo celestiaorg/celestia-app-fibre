@@ -9,13 +9,6 @@ import (
 	core "github.com/cometbft/cometbft/types"
 )
 
-var (
-	// ErrNotEnoughSignatures indicates that not enough signatures were collected to meet the count threshold.
-	ErrNotEnoughSignatures = fmt.Errorf("not enough signatures")
-	// ErrNotEnoughVotingPower indicates that the collected signatures don't have sufficient voting power.
-	ErrNotEnoughVotingPower = fmt.Errorf("not enough voting power")
-)
-
 // SignatureSet collects and validates signatures from validators.
 // It is safe for concurrent use.
 type SignatureSet struct {
@@ -78,18 +71,42 @@ func (ss *SignatureSet) Done() <-chan struct{} {
 }
 
 // Signatures returns all collected signatures if thresholds are met.
-// Returns [ErrNotEnoughSignatures] if count threshold is not met.
-// Returns [ErrNotEnoughVotingPower] if voting power threshold is not met.
+// Returns [NotEnoughSignaturesError] if either count or voting power threshold is not met.
+// The error contains the partially collected signatures and threshold information.
 func (ss *SignatureSet) Signatures() ([][]byte, error) {
 	ss.mu.Lock()
 	defer ss.mu.Unlock()
 
-	if len(ss.signatures) < ss.minRequiredSignatures {
-		return nil, ErrNotEnoughSignatures
-	}
-	if ss.votingPower < ss.minRequiredVotingPower {
-		return nil, ErrNotEnoughVotingPower
+	countNotMet := len(ss.signatures) < ss.minRequiredSignatures
+	powerNotMet := ss.votingPower < ss.minRequiredVotingPower
+	if countNotMet || powerNotMet {
+		return nil, &NotEnoughSignaturesError{
+			Collected:      ss.signatures,
+			RequiredCount:  ss.minRequiredSignatures,
+			CollectedPower: ss.votingPower,
+			RequiredPower:  ss.minRequiredVotingPower,
+		}
 	}
 
 	return ss.signatures, nil
+}
+
+// NotEnoughSignaturesError indicates that signature collection did not meet the required thresholds.
+// It contains the partially collected signatures and threshold information.
+type NotEnoughSignaturesError struct {
+	Collected      [][]byte
+	RequiredCount  int
+	CollectedPower int64
+	RequiredPower  int64
+}
+
+func (e *NotEnoughSignaturesError) Error() string {
+	switch {
+	case len(e.Collected) < e.RequiredCount:
+		return fmt.Sprintf("not enough signatures: collected %d, required %d", len(e.Collected), e.RequiredCount)
+	case e.CollectedPower < e.RequiredPower:
+		return fmt.Sprintf("not enough voting power: collected %d, required %d", e.CollectedPower, e.RequiredPower)
+	default:
+		panic("unreachable")
+	}
 }
