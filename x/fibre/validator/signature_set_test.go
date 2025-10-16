@@ -1,10 +1,8 @@
 package validator_test
 
 import (
-	"context"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/validator"
 	"github.com/cometbft/cometbft/crypto/ed25519"
@@ -57,42 +55,63 @@ func TestSignatureSet(t *testing.T) {
 	t.Run("NotEnoughVotingPower", func(t *testing.T) {
 		s := setupSignatureSet(5, 10, twoThirds, twoThirds)
 
-		// Add 2 signatures (20 voting power, not meeting threshold of 34)
-		for i := range 2 {
+		// 5 validators * 10 voting power = 50 total
+		// 2/3 of 50 = 33 requiredVotingPower
+		// 2/3 of 5 = 3 requiredCount
+		// Add 3 signatures (30 voting power, meets count threshold of 3 but not voting power threshold of 33)
+		for i := 0; i < 3; i++ {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
 		}
 
-		// Mark remaining validators as missing
-		for i := 2; i < 5; i++ {
-			s.sigSet.Miss()
+		sigs, err := s.sigSet.Signatures()
+		require.ErrorIs(t, err, validator.ErrNotEnoughVotingPower)
+		require.Nil(t, sigs)
+	})
+
+	t.Run("NotEnoughSignatures", func(t *testing.T) {
+		s := setupSignatureSet(5, 10, twoThirds, twoThirds)
+
+		// Add only 2 signatures (requiredCount = 3)
+		for i := 0; i < 2; i++ {
+			signature, err := s.privKeys[i].Sign(s.signBytes)
+			require.NoError(t, err)
+			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
 		}
 
-		err := s.sigSet.Await(context.Background())
+		sigs, err := s.sigSet.Signatures()
 		require.ErrorIs(t, err, validator.ErrNotEnoughSignatures)
-		require.Len(t, s.sigSet.Signatures(), 2)
+		require.Nil(t, sigs)
 	})
 
 	t.Run("SuccessSequential", func(t *testing.T) {
 		s := setupSignatureSet(5, 10, twoThirds, twoThirds)
 
-		// Add 4 signatures (40 voting power, meets threshold of 34)
-		for i := range 4 {
+		// Add 4 signatures (40 voting power, meets both thresholds)
+		for i := 0; i < 4; i++ {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
 		}
 
-		require.NoError(t, s.sigSet.Await(context.Background()))
-		require.Len(t, s.sigSet.Signatures(), 4)
+		// Check that Done() is closed
+		select {
+		case <-s.sigSet.Done():
+		default:
+			t.Fatal("Done() should be closed when thresholds are met")
+		}
+
+		sigs, err := s.sigSet.Signatures()
+		require.NoError(t, err)
+		require.Len(t, sigs, 4)
 	})
 
 	t.Run("SuccessConcurrent", func(t *testing.T) {
 		s := setupSignatureSet(10, 10, twoThirds, twoThirds)
 
 		var wg sync.WaitGroup
-		for i := range 10 {
+		for i := 0; i < 10; i++ {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
@@ -103,8 +122,16 @@ func TestSignatureSet(t *testing.T) {
 		}
 		wg.Wait()
 
-		require.NoError(t, s.sigSet.Await(context.Background()))
-		require.Len(t, s.sigSet.Signatures(), 10)
+		// Check that Done() is closed
+		select {
+		case <-s.sigSet.Done():
+		default:
+			t.Fatal("Done() should be closed when thresholds are met")
+		}
+
+		sigs, err := s.sigSet.Signatures()
+		require.NoError(t, err)
+		require.Len(t, sigs, 10)
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
@@ -119,32 +146,25 @@ func TestSignatureSet(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid signature")
 	})
 
-	t.Run("ContextCancellation", func(t *testing.T) {
-		s := setupSignatureSet(3, 10, twoThirds, twoThirds)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-		defer cancel()
-
-		err := s.sigSet.Await(ctx)
-		require.ErrorIs(t, err, context.DeadlineExceeded)
-	})
-
 	t.Run("MixedMissAndValid", func(t *testing.T) {
 		s := setupSignatureSet(5, 10, half, half)
 
 		// Add 3 valid signatures (30 voting power, meets threshold of 25)
-		for i := range 3 {
+		for i := 0; i < 3; i++ {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
 		}
 
-		// Mark 2 as missing
-		for i := 3; i < 5; i++ {
-			s.sigSet.Miss()
+		// Check that Done() is closed
+		select {
+		case <-s.sigSet.Done():
+		default:
+			t.Fatal("Done() should be closed when thresholds are met")
 		}
 
-		require.NoError(t, s.sigSet.Await(context.Background()))
-		require.Len(t, s.sigSet.Signatures(), 3)
+		sigs, err := s.sigSet.Signatures()
+		require.NoError(t, err)
+		require.Len(t, sigs, 3)
 	})
 }
