@@ -15,7 +15,7 @@ import (
 func makeValidators(n int, votingPower int64) ([]*core.Validator, []ed25519.PrivKey) {
 	validators := make([]*core.Validator, n)
 	privKeys := make([]ed25519.PrivKey, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		privKeys[i] = ed25519.GenPrivKey()
 		validators[i] = core.NewValidator(privKeys[i].PubKey(), votingPower)
 	}
@@ -59,37 +59,67 @@ func TestSignatureSet(t *testing.T) {
 		// 2/3 of 50 = 33 requiredVotingPower
 		// 2/3 of 5 = 3 requiredCount
 		// Add 3 signatures (30 voting power, meets count threshold of 3 but not voting power threshold of 33)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
 		}
 
+		// Check that Done() is NOT closed when thresholds are not met
+		select {
+		case <-s.sigSet.Done():
+			t.Fatal("Done() should not be closed when thresholds are not met")
+		default:
+		}
+
 		sigs, err := s.sigSet.Signatures()
-		require.ErrorIs(t, err, validator.ErrNotEnoughVotingPower)
 		require.Nil(t, sigs)
+		require.Error(t, err)
+
+		var sigErr *validator.NotEnoughSignaturesError
+		require.ErrorAs(t, err, &sigErr)
+		require.Len(t, sigErr.Collected, 3)
+		require.Equal(t, int64(30), sigErr.CollectedPower)
+		require.Equal(t, int64(33), sigErr.RequiredPower)
+		require.Equal(t, 3, sigErr.RequiredCount)
+		require.Contains(t, err.Error(), "not enough voting power")
 	})
 
 	t.Run("NotEnoughSignatures", func(t *testing.T) {
 		s := setupSignatureSet(5, 10, twoThirds, twoThirds)
 
 		// Add only 2 signatures (requiredCount = 3)
-		for i := 0; i < 2; i++ {
+		for i := range 2 {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
 		}
 
+		// Check that Done() is NOT closed when thresholds are not met
+		select {
+		case <-s.sigSet.Done():
+			t.Fatal("Done() should not be closed when thresholds are not met")
+		default:
+		}
+
 		sigs, err := s.sigSet.Signatures()
-		require.ErrorIs(t, err, validator.ErrNotEnoughSignatures)
 		require.Nil(t, sigs)
+		require.Error(t, err)
+
+		var sigErr *validator.NotEnoughSignaturesError
+		require.ErrorAs(t, err, &sigErr)
+		require.Len(t, sigErr.Collected, 2)
+		require.Equal(t, 3, sigErr.RequiredCount)
+		require.Equal(t, int64(20), sigErr.CollectedPower)
+		require.Equal(t, int64(33), sigErr.RequiredPower)
+		require.Contains(t, err.Error(), "not enough signatures")
 	})
 
 	t.Run("SuccessSequential", func(t *testing.T) {
 		s := setupSignatureSet(5, 10, twoThirds, twoThirds)
 
 		// Add 4 signatures (40 voting power, meets both thresholds)
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
@@ -111,7 +141,7 @@ func TestSignatureSet(t *testing.T) {
 		s := setupSignatureSet(10, 10, twoThirds, twoThirds)
 
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
@@ -150,7 +180,7 @@ func TestSignatureSet(t *testing.T) {
 		s := setupSignatureSet(5, 10, half, half)
 
 		// Add 3 valid signatures (30 voting power, meets threshold of 25)
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			require.NoError(t, s.sigSet.Add(s.validators[i], signature))
