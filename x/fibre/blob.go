@@ -141,7 +141,7 @@ func (d *Blob) Size() int {
 	if dataSize == 0 {
 		return 0
 	}
-	return blobHeaderSize + dataSize
+	return blobHeaderLen + dataSize
 }
 
 // Data returns the cached original data (without header).
@@ -160,13 +160,13 @@ func (d *Blob) Row(index int) (*rsema1d.RowProof, error) {
 }
 
 const (
-	// uint32SizeBytes is the size of a uint32 in bytes.
-	uint32SizeBytes = 4
-	// uint8SizeBytes is the size of a uint8 in bytes.
-	uint8SizeBytes = 1
-	// blobHeaderSize is the size of the blob header in bytes.
-	// Format: 1 byte version (uint8) + 4 bytes blob size (uint32)
-	blobHeaderSize = uint8SizeBytes + uint32SizeBytes
+	// blobVersionLen is the length of the version field in bytes.
+	blobVersionLen = 1
+	// blobDataSizeLen is the length of the data size field in bytes.
+	blobDataSizeLen = 4
+	// blobHeaderLen is the total length of the blob header in bytes.
+	// Format: 1 byte version + 4 bytes data size
+	blobHeaderLen = blobVersionLen + blobDataSizeLen
 )
 
 // blobHeaderV0 represents the version 0 blob header at the start of the first row.
@@ -195,11 +195,11 @@ func (h blobHeaderV0) encodeToRows(data []byte, cfg BlobConfig) [][]byte {
 	h.encode(rows[0])
 
 	// Copy as much data as fits in the first row after the header
-	firstRowDataSize := rowSize - blobHeaderSize
+	firstRowDataSize := rowSize - blobHeaderLen
 	if firstRowDataSize > len(data) {
 		firstRowDataSize = len(data)
 	}
-	copy(rows[0][blobHeaderSize:], data[:firstRowDataSize])
+	copy(rows[0][blobHeaderLen:], data[:firstRowDataSize])
 
 	// Remaining rows: use slices from data (offset by what we already used)
 	dataOffset := firstRowDataSize
@@ -232,8 +232,8 @@ func (h *blobHeaderV0) decodeFromRows(rows [][]byte, cfg BlobConfig) ([]byte, er
 		return nil, fmt.Errorf("no rows to decode")
 	}
 
-	if len(rows[0]) < blobHeaderSize {
-		return nil, fmt.Errorf("first row too small: need at least %d bytes for header, got %d", blobHeaderSize, len(rows[0]))
+	if len(rows[0]) < blobHeaderLen {
+		return nil, fmt.Errorf("first row too small: need at least %d bytes for header, got %d", blobHeaderLen, len(rows[0]))
 	}
 
 	// decode header from first row
@@ -241,42 +241,41 @@ func (h *blobHeaderV0) decodeFromRows(rows [][]byte, cfg BlobConfig) ([]byte, er
 		return nil, fmt.Errorf("decoding header: %w", err)
 	}
 
-	size := blobHeaderSize + int(h.dataSize)
-
-	// Pre-allocate the exact size needed
-	data := make([]byte, size)
-
-	// Copy data from rows into the pre-allocated buffer
-	copied := 0
-	for i := 0; i < cfg.OriginalRows && copied < size; i++ {
-		rowData := rows[i]
-		if len(rowData) == 0 {
-			continue
-		}
-
-		// Determine how much to copy from this row
-		toCopy := len(rowData)
-		if copied+toCopy > size {
-			toCopy = size - copied
-		}
-
-		copy(data[copied:], rowData[:toCopy])
-		copied += toCopy
+	// validate blob size is within reasonable bounds
+	if h.dataSize == 0 {
+		return nil, fmt.Errorf("invalid blob size in header: must be greater than 0")
+	}
+	if int(h.dataSize) > cfg.MaxBlobSize {
+		return nil, fmt.Errorf("blob size in header (%d bytes) exceeds maximum allowed size (%d bytes)", h.dataSize, cfg.MaxBlobSize)
 	}
 
-	if copied < size {
-		return nil, fmt.Errorf("not enough data in rows: copied %d bytes, need %d", copied, size)
+	dataSize := int(h.dataSize)
+
+	// pre-allocate only the data size (excluding header)
+	data := make([]byte, dataSize)
+	offset := 0
+	for i := 0; i < cfg.OriginalRows && offset < dataSize; i++ {
+		// skip header in first row
+		row := rows[i]
+		if i == 0 {
+			row = row[blobHeaderLen:]
+		}
+
+		offset += copy(data[offset:], row)
 	}
 
-	// Return original data without header
-	return data[blobHeaderSize:size:size], nil
+	if offset != dataSize {
+		return nil, fmt.Errorf("data size mismatch: copied %d bytes, expected %d", offset, dataSize)
+	}
+
+	return data, nil
 }
 
 // calculateRowSize computes the row size for the given data length and config.
 // Row size is calculated as ceil((dataLen + headerSize) / OriginalRows),
 // rounded up to the nearest multiple of RowSizeMin.
 func (h blobHeaderV0) calculateRowSize(dataLen int, cfg BlobConfig) int {
-	totalLen := dataLen + blobHeaderSize
+	totalLen := dataLen + blobHeaderLen
 	minRowSize := (totalLen + cfg.OriginalRows - 1) / cfg.OriginalRows // ceil(totalLen / OriginalRows)
 
 	// Round up to nearest multiple of RowSizeMin
@@ -288,20 +287,20 @@ func (h blobHeaderV0) calculateRowSize(dataLen int, cfg BlobConfig) int {
 }
 
 // encode writes the version 0 blob header into the provided buffer.
-// The buffer must be at least blobHeaderSize bytes long.
+// The buffer must be at least blobHeaderLen bytes long.
 // Always writes version byte as 0.
 func (h blobHeaderV0) encode(buf []byte) {
 	buf[0] = 0 // version 0
-	binary.BigEndian.PutUint32(buf[uint8SizeBytes:blobHeaderSize], h.dataSize)
+	binary.BigEndian.PutUint32(buf[blobVersionLen:blobHeaderLen], h.dataSize)
 }
 
 // decode reads the blob header from the provided buffer.
-// The buffer must be at least blobHeaderSize bytes long.
+// The buffer must be at least blobHeaderLen bytes long.
 // Returns an error if the version byte is not 0.
 func (h *blobHeaderV0) decode(buf []byte) error {
 	if buf[0] != 0 {
 		return fmt.Errorf("invalid blob version: expected 0, got %d", buf[0])
 	}
-	h.dataSize = binary.BigEndian.Uint32(buf[uint8SizeBytes:blobHeaderSize])
+	h.dataSize = binary.BigEndian.Uint32(buf[blobVersionLen:blobHeaderLen])
 	return nil
 }
