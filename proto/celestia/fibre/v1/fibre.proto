@@ -4,7 +4,7 @@ package celestia.fibre.v1;
 import "gogoproto/gogo.proto";
 import "cosmos/base/v1beta1/coin.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/any.proto";
+import "cosmos/crypto/secp256k1/keys.proto";
 import "cosmos_proto/cosmos.proto";
 
 option go_package = "github.com/celestiaorg/celestia-app/x/fibre/types";
@@ -30,23 +30,23 @@ message PaymentPromise {
   // chain_id is the chain ID that this payment promise is valid for.
   // Example: arabica-11, mocha-4, or celestia.
   string chain_id = 1;
-  // namespace is the namespace the blob is associated with.
-  bytes namespace = 2;
-  // blob_size is the size of the blob in bytes
-  uint32 blob_size = 3;
-  // commitment is the hash of the row root and the Random Linear Combination (RLC) root
-  bytes commitment = 4;
-  // row_version is the version of the row format
-  uint32 row_version = 5;
   // height is the height that is used to determine the validator set that is used
-  int64 height = 6;
+  int64 height = 2;
+  // namespace is the namespace the blob is associated with.
+  bytes namespace = 3;
+  // blob_size is the size of the blob in bytes
+  uint32 blob_size = 4;
+  // blob_version is the version of the blob format
+  uint32 blob_version = 5;
+  // commitment is the hash of the row root and the Random Linear Combination (RLC) root
+  bytes commitment = 6;
   // creation_timestamp is the timestamp when this promise was created. This
   // is critical for determining which validators sign the commitment and
   // determining when service stops for this blob.
   google.protobuf.Timestamp creation_timestamp = 7 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
   // signer_public_key is the public key of the owner of the escrow account to charge
-  google.protobuf.Any signer_public_key = 8 [(cosmos_proto.accepts_interface) = "cosmos.crypto.PubKey"];
-  // signature is the signer (escrow account owner) secp256k1 signature over the sign bytes
+  cosmos.crypto.secp256k1.PubKey signer_public_key = 8 [(gogoproto.nullable) = false];
+  // signature is the signer (escrow account owner) signature over the sign bytes
   bytes signature = 9;
 }
 

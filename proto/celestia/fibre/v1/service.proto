@@ -1,0 +1,36 @@
+syntax = "proto3";
+package celestia.fibre.v1;
+
+option go_package = "github.com/celestiaorg/celestia-app/x/fibre/types";
+
+import "celestia/fibre/v1/fibre.proto";
+
+message Row {
+  uint32 index = 1;
+  bytes data = 2;
+  repeated bytes proof = 3;
+  optional bytes rlc_root = 4; // const len == 32 when present
+}
+
+message UploadRowsRequest {
+  celestia.fibre.v1.PaymentPromise promise = 1;
+  repeated Row rows = 2;
+  repeated bytes rlc_orig = 3; // each const len == 16
+}
+
+message UploadRowsResponse {
+  bytes validator_signature = 1; // const len == 32
+}
+
+message DownloadRowsRequest {
+  bytes commitment = 1; // const len == 32
+}
+
+message DownloadRowsResponse {
+  repeated Row rows = 1;
+}
+
+service Fibre {
+  rpc UploadRows(UploadRowsRequest) returns (UploadRowsResponse);
+  rpc DownloadRows(DownloadRowsRequest) returns (DownloadRowsResponse);
+}
