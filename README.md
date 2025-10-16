@@ -181,6 +181,34 @@ This repo attempts to conform to [conventional commits](https://www.conventional
 
 This repo contains multiple go modules. When using it, rename `go.work.example` to `go.work` and run `go work sync`.
 
+### Prerequisites for Contributors
+
+This repository includes dependencies on private GitHub repositories. To build the project successfully, you need to configure authentication for accessing private repositories.
+
+#### Required Setup
+
+1. **Generate a GitHub Personal Access Token (PAT)**:
+   - Go to [GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens)
+   - Click "Generate new token (classic)"
+   - Select the `repo` scope (Full control of private repositories)
+   - Copy the generated token
+
+2. **Configure Git authentication**:
+   Add the following line to your `$HOME/.netrc` file (create it if it doesn't exist):
+   
+   ```
+   machine github.com login YOUR_GITHUB_USERNAME password YOUR_GITHUB_PAT_TOKEN
+   ```
+   
+   Replace `YOUR_GITHUB_USERNAME` with your GitHub username and `YOUR_GITHUB_PAT_TOKEN` with the token you generated.
+
+   **Note**: Ensure your `.netrc` file has appropriate permissions:
+   ```shell
+   chmod 600 ~/.netrc
+   ```
+
+Without this setup, running `make build` will fail with authentication errors when trying to access private dependencies like `github.com/celestiaorg/rsema1d`.
+
 ### Tools
 
 1. Install [golangci-lint](https://golangci-lint.run/welcome/install) 2.1.2
