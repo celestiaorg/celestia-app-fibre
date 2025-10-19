@@ -18,7 +18,7 @@ jobs:
         run: echo "GORELEASER_CURRENT_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
 
       - name: Configure Git for private modules
-        run: git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
         with:
@@ -52,7 +52,7 @@ jobs:
         run: echo "GORELEASER_CURRENT_TAG=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
 
       - name: Configure Git for private modules
-        run: git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/".insteadOf "https://github.com/"
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
         with:
