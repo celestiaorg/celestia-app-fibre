@@ -17,6 +17,14 @@ RUN apk update && apk add --no-cache \
 COPY . /celestia-app
 WORKDIR /celestia-app
 
+# Configure git for private modules. GITHUB_TOKEN should be passed as a build secret.
+ARG GITHUB_TOKEN
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
+        git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
+    fi
+
+ENV GOPRIVATE=github.com/celestiaorg/*
+
 RUN uname -a &&\
     CGO_ENABLED=${CGO_ENABLED} GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     make txsim-build
