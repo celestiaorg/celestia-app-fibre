@@ -14,6 +14,14 @@ import (
 	gogoproto "github.com/cosmos/gogoproto/proto"
 )
 
+// SignedPaymentPromise contains a [PaymentPromise] along with validator signatures confirming the promise.
+type SignedPaymentPromise struct {
+	// PaymentPromise is the payment commitment promise that was signed by validators.
+	*PaymentPromise
+	// ValidatorSignatures are the signatures from validators confirming they received and stored the [Blob] to be paid for.
+	ValidatorSignatures [][]byte
+}
+
 // PaymentPromise is a promise to pay for a fibre [Blob].
 type PaymentPromise struct {
 	// SignerKey is the secp256k1 public key of the signer (escrow account owner).
@@ -60,6 +68,7 @@ func (p *PaymentPromise) UnmarshalBinary(data []byte) error {
 	return p.FromProto(pbMsg)
 }
 
+// FromProto converts the [PaymentPromise] from its protobuf representation.
 func (p *PaymentPromise) FromProto(pbMsg *types.PaymentPromise) error {
 	// parse namespace
 	ns, err := share.NewNamespaceFromBytes(pbMsg.Namespace)
