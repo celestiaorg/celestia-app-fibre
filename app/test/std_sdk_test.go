@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
 	minfeetypes "github.com/celestiaorg/celestia-app/v6/x/minfee/types"
 	signal "github.com/celestiaorg/celestia-app/v6/x/signal/types"
+	valaddrtypes "github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
 	"github.com/celestiaorg/go-square/v3/share"
 	abci "github.com/cometbft/cometbft/abci/types"
 	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
@@ -332,6 +334,18 @@ func (s *StandardSDKIntegrationTestSuite) TestStandardSDK() {
 			},
 			expectedCode: abci.CodeTypeOK,
 		},
+		{
+			name: "set fibre provider IP address",
+			msgFunc: func() (msgs []sdk.Msg, signer string) {
+				valAccount := s.getValidatorAccount()
+				msg := &valaddrtypes.MsgSetFibreProviderInfo{
+					Signer:    valAccount.String(),
+					IpAddress: "192.168.1.100",
+				}
+				return []sdk.Msg{msg}, s.getValidatorName()
+			},
+			expectedCode: abci.CodeTypeOK,
+		},
 	}
 
 	// sign and submit the transactions
@@ -408,5 +422,34 @@ func (s *StandardSDKIntegrationTestSuite) TestGRPCQueries() {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, resp.Status, "COMMITTED")
+	})
+
+	t.Run("query valaddr fibre provider info", func(t *testing.T) {
+		valAccount := s.getValidatorAccount()
+		testIP := "192.168.1.100"
+		msg := &valaddrtypes.MsgSetFibreProviderInfo{
+			Signer:    valAccount.String(),
+			IpAddress: testIP,
+		}
+		txClient, err := user.SetupTxClient(s.cctx.GoContext(), s.cctx.Keyring, s.cctx.GRPCClient, s.ecfg, user.WithDefaultAccount(s.getValidatorName()))
+		require.NoError(t, err)
+		res, err := txClient.SubmitTx(s.cctx.GoContext(), []sdk.Msg{msg}, blobfactory.DefaultTxOpts()...)
+		require.NoError(t, err)
+		require.Equal(t, abci.CodeTypeOK, res.Code)
+		queryClient := valaddrtypes.NewQueryClient(s.cctx.GRPCClient)
+		allProvidersResp, err := queryClient.AllActiveFibreProviders(s.cctx.GoContext(), &valaddrtypes.QueryAllActiveFibreProvidersRequest{})
+		require.NoError(t, err)
+		require.NotNil(t, allProvidersResp)
+		require.Equal(t, slices.IndexFunc(allProvidersResp.Providers, func(provider valaddrtypes.FibreProvider) bool {
+			return provider.Info.IpAddress == testIP
+		}), 0)
+
+		infoResp, err := queryClient.FibreProviderInfo(s.cctx.GoContext(), &valaddrtypes.QueryFibreProviderInfoRequest{
+			ValidatorConsensusAddress: allProvidersResp.Providers[0].ValidatorConsensusAddress,
+		})
+		require.NoError(t, err)
+		require.True(t, infoResp.Found)
+		require.NotNil(t, infoResp.Info)
+		assert.Equal(t, testIP, infoResp.Info.IpAddress)
 	})
 }
