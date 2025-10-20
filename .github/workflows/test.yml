@@ -1,6 +1,9 @@
 name: test
 on:
   workflow_call:
+    secrets:
+      GH_PRIVATE_MODULES_TOKEN:
+        required: true
 
 jobs:
   test-short:

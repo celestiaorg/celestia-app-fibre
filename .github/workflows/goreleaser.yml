@@ -4,6 +4,8 @@ on:
     secrets:
       GORELEASER_ACCESS_TOKEN:
         required: true
+      GH_PRIVATE_MODULES_TOKEN:
+        required: true
 
 jobs:
   goreleaser-check:
