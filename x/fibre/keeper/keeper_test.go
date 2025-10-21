@@ -257,60 +257,28 @@ func (suite *KeeperTestSuite) TestIterators() {
 }
 
 func (suite *KeeperTestSuite) TestGetPaymentPromiseHash() {
-	// Create a test payment promise with known values
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
 	signerPublicKey := *pubKey.(*secp256k1.PubKey)
-
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	promise := testPaymentPromise(signerPublicKey, testTime)
 
-	promise := &types.PaymentPromise{
-		SignerPublicKey:   signerPublicKey,
-		Namespace:         make([]byte, 29), // All zeros for simplicity
-		BlobSize:          1000,
-		Commitment:        make([]byte, 32), // All zeros for simplicity
-		BlobVersion:       0,
-		CreationTimestamp: testTime,
-		Height:            100,
-		ChainId:           "test-chain",
-		Signature:         make([]byte, 64), // All zeros for simplicity
-	}
+	want := calculateExpectedHash(promise, pubKey)
+	got := suite.keeper.GetPaymentPromiseHash(promise)
 
-	// Calculate hash using our implementation
-	actualHash := suite.keeper.GetPaymentPromiseHash(promise)
-
-	// Calculate expected hash manually according to spec
-	expectedHash := calculateExpectedHash(promise, pubKey)
-
-	// Verify they match
-	suite.Equal(expectedHash, actualHash, "Hash should match the sdk_module spec implementation")
-	suite.Len(actualHash, 32, "Hash should be 32 bytes (SHA256)")
+	suite.Equal(want, got)
+	suite.Len(got, 32)
 }
 
 func (suite *KeeperTestSuite) TestGetPaymentPromiseSignBytes() {
-	// Create a test payment promise
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
 	signerPublicKey := *pubKey.(*secp256k1.PubKey)
-
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	promise := &types.PaymentPromise{
-		SignerPublicKey:   signerPublicKey,
-		Namespace:         make([]byte, 29),
-		BlobSize:          1000,
-		Commitment:        make([]byte, 32),
-		BlobVersion:       0,
-		CreationTimestamp: testTime,
-		Height:            100,
-		ChainId:           "test-chain",
-		Signature:         make([]byte, 64),
-	}
-
-	// Get sign bytes
+	promise := testPaymentPromise(signerPublicKey, testTime)
 	signBytes := suite.keeper.GetPaymentPromiseSignBytes(promise)
 
-	// Verify structure according to spec
 	expectedLength := len("test-chain") + 29 + 4 + 32 + 4 + 8 + 15 + 20
 	suite.Equal(expectedLength, len(signBytes), "Sign bytes should have expected length")
 
@@ -399,4 +367,18 @@ func calculateExpectedHash(promise *types.PaymentPromise, pubKey cryptotypes.Pub
 	hashInput := append(signBytes, promise.Signature...)
 	hash := sha256.Sum256(hashInput)
 	return hash[:]
+}
+
+func testPaymentPromise(signerPublicKey secp256k1.PubKey, testTime time.Time) *types.PaymentPromise {
+	return &types.PaymentPromise{
+		SignerPublicKey:   signerPublicKey,
+		Namespace:         make([]byte, 29),
+		BlobSize:          1000,
+		Commitment:        make([]byte, 32),
+		BlobVersion:       0,
+		CreationTimestamp: testTime,
+		Height:            100,
+		ChainId:           "test-chain",
+		Signature:         make([]byte, 64),
+	}
 }
