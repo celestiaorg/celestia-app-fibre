@@ -213,6 +213,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromise() {
 
 	// Test would continue with creating a valid PaymentPromise and testing validation
 	// This requires more complex setup with cryptographic keys and signatures
+	// TODO: @rootulp
 }
 
 func (suite *KeeperTestSuite) TestIterators() {
