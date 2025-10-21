@@ -9,13 +9,19 @@ message Row {
   uint32 index = 1;
   bytes data = 2;
   repeated bytes proof = 3;
-  optional bytes rlc_root = 4; // const len == 32 when present
+}
+
+message Rows {
+  repeated Row rows = 1;
+  oneof rlc {
+    bytes coefficients = 2; // serialized rlc coefficients, 16 bytes per original row
+    bytes root = 3; // const len == 32 when present
+  }
 }
 
 message UploadRowsRequest {
   celestia.fibre.v1.PaymentPromise promise = 1;
-  repeated Row rows = 2;
-  repeated bytes rlc_orig = 3; // each const len == 16
+  Rows rows = 2; // with rlc coefficients
 }
 
 message UploadRowsResponse {
@@ -27,7 +33,7 @@ message DownloadRowsRequest {
 }
 
 message DownloadRowsResponse {
-  repeated Row rows = 1;
+  Rows rows = 1; // with rlc root
 }
 
 service Fibre {
