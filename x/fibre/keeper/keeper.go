@@ -1,14 +1,13 @@
 package keeper
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"fmt"
 	"time"
 
 	"cosmossdk.io/errors"
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
+	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -141,7 +140,12 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 // IsPaymentPromiseProcessed returns true if a payment promise has been processed.
 func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
-	hash := k.GetPaymentPromiseHash(promise)
+	pp := fibre.PaymentPromise{}
+	pp.FromProto(promise)
+	hash, err := pp.Hash()
+	if err != nil {
+		return false
+	}
 	key := types.PaymentPromiseKey(hash)
 	return store.Has(key)
 }
@@ -152,63 +156,6 @@ func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromi
 	key := types.PaymentPromiseKey(entry.PaymentPromiseHash)
 	bz := k.cdc.MustMarshal(&entry)
 	store.Set(key, bz)
-}
-
-// GetPaymentPromiseHash calculates the hash of a payment promise according to the sdk_module spec.
-// The hash is calculated as: SHA256(sign_bytes || signature)
-// where sign_bytes = chain_id || namespace || blob_size || commitment || row_version || height || creation_timestamp || signer_public_key
-func (k Keeper) GetPaymentPromiseHash(promise *types.PaymentPromise) []byte {
-	signBytes := k.GetPaymentPromiseSignBytes(promise)
-
-	// Concatenate sign_bytes || signature
-	hashInput := append(signBytes, promise.Signature...)
-
-	hash := sha256.Sum256(hashInput)
-	return hash[:]
-}
-
-// GetPaymentPromiseSignBytes constructs the sign bytes for a payment promise according to the sdk_module spec.
-// Format: chain_id || namespace || blob_size || commitment || row_version || height || creation_timestamp || signer_public_key
-func (k Keeper) GetPaymentPromiseSignBytes(promise *types.PaymentPromise) []byte {
-	var signBytes []byte
-
-	// chain_id: Raw chain ID bytes (variable length)
-	signBytes = append(signBytes, []byte(promise.ChainId)...)
-
-	// namespace: Raw namespace bytes (fixed 29 bytes)
-	signBytes = append(signBytes, promise.Namespace...)
-
-	// blob_size: Big-endian encoded uint32 (4 bytes)
-	blobSizeBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(blobSizeBytes, promise.BlobSize)
-	signBytes = append(signBytes, blobSizeBytes...)
-
-	// commitment: Raw commitment bytes (32 bytes)
-	signBytes = append(signBytes, promise.Commitment...)
-
-	// blob_version: Big-endian encoded uint32 (4 bytes)
-	blobVersionBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(blobVersionBytes, promise.BlobVersion)
-	signBytes = append(signBytes, blobVersionBytes...)
-
-	// height: Big-endian encoded int64 (8 bytes)
-	heightBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(heightBytes, uint64(promise.Height))
-	signBytes = append(signBytes, heightBytes...)
-
-	// creation_timestamp: UTC timestamp encoded using Go's time.Time.MarshalBinary() (15 bytes)
-	timestampBytes, err := promise.CreationTimestamp.MarshalBinary()
-	if err != nil {
-		// This should never happen with a valid timestamp, but handle gracefully
-		panic(fmt.Sprintf("failed to marshal timestamp: %v", err))
-	}
-	signBytes = append(signBytes, timestampBytes...)
-
-	// signer_public_key: Raw bytes of signer address secp256k1 (20 bytes)
-	// Get the 20-byte address from the public key
-	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
-	signBytes = append(signBytes, signerAddr.Bytes()...)
-	return signBytes
 }
 
 // isValidUnprocessedPaymentPromise returns nil if the payment promise is valid

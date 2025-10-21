@@ -1,8 +1,6 @@
 package keeper_test
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"testing"
 	"time"
 
@@ -10,14 +8,13 @@ import (
 	"cosmossdk.io/store"
 	"cosmossdk.io/store/metrics"
 	storetypes "cosmossdk.io/store/types"
+	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
-	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
-	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/stretchr/testify/require"
@@ -37,12 +34,6 @@ func TestKeeperTestSuite(t *testing.T) {
 }
 
 func (suite *KeeperTestSuite) SetupTest() {
-	// Set up SDK config for celestia addresses
-	config := sdk.GetConfig()
-	config.SetBech32PrefixForAccount("celestia", "celestiapub")
-	config.SetBech32PrefixForValidator("celestiavaloper", "celestiavaloperpub")
-	config.SetBech32PrefixForConsensusNode("celestiavalcons", "celestiavalconspub")
-
 	key := storetypes.NewKVStoreKey(types.StoreKey)
 	tkey := storetypes.NewTransientStoreKey("transient_test")
 
@@ -185,8 +176,13 @@ func (suite *KeeperTestSuite) TestPaymentPromiseProcessed() {
 	suite.False(processed)
 
 	// Test setting processed payment promise
-	hash := suite.keeper.GetPaymentPromiseHash(promise)
 	processedTime := suite.ctx.BlockTime()
+	pp := fibre.PaymentPromise{}
+	pp.FromProto(promise)
+	hash, err := pp.Hash()
+	if err != nil {
+		suite.FailNow("failed to hash payment promise", err)
+	}
 	entry := types.PaymentPromiseEntry{
 		PaymentPromiseHash: hash,
 		ProcessedAt:        processedTime,
@@ -254,131 +250,4 @@ func (suite *KeeperTestSuite) TestIterators() {
 	}
 	suite.True(signers[signer1])
 	suite.True(signers[signer2])
-}
-
-func (suite *KeeperTestSuite) TestGetPaymentPromiseHash() {
-	privKey := secp256k1.GenPrivKey()
-	pubKey := privKey.PubKey()
-	signerPublicKey := *pubKey.(*secp256k1.PubKey)
-	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	promise := testPaymentPromise(signerPublicKey, testTime)
-
-	want := calculateExpectedHash(promise, pubKey)
-	got := suite.keeper.GetPaymentPromiseHash(promise)
-
-	suite.Equal(want, got)
-	suite.Len(got, 32)
-}
-
-func (suite *KeeperTestSuite) TestGetPaymentPromiseSignBytes() {
-	privKey := secp256k1.GenPrivKey()
-	pubKey := privKey.PubKey()
-	signerPublicKey := *pubKey.(*secp256k1.PubKey)
-	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	promise := testPaymentPromise(signerPublicKey, testTime)
-	signBytes := suite.keeper.GetPaymentPromiseSignBytes(promise)
-
-	expectedLength := len("test-chain") + 29 + 4 + 32 + 4 + 8 + 15 + 20
-	suite.Equal(expectedLength, len(signBytes), "Sign bytes should have expected length")
-
-	// Verify individual components
-	offset := 0
-
-	// chain_id
-	chainIdLen := len("test-chain")
-	suite.Equal([]byte("test-chain"), signBytes[offset:offset+chainIdLen])
-	offset += chainIdLen
-
-	// namespace (29 bytes of zeros)
-	suite.Equal(make([]byte, 29), signBytes[offset:offset+29])
-	offset += 29
-
-	// blob_size (4 bytes, big-endian uint32)
-	expectedBlobSize := make([]byte, 4)
-	binary.BigEndian.PutUint32(expectedBlobSize, 1000)
-	suite.Equal(expectedBlobSize, signBytes[offset:offset+4])
-	offset += 4
-
-	// commitment (32 bytes of zeros)
-	suite.Equal(make([]byte, 32), signBytes[offset:offset+32])
-	offset += 32
-
-	// blob_version (4 bytes, big-endian uint32)
-	expectedBlobVersion := make([]byte, 4)
-	binary.BigEndian.PutUint32(expectedBlobVersion, 0)
-	suite.Equal(expectedBlobVersion, signBytes[offset:offset+4])
-	offset += 4
-
-	// height (8 bytes, big-endian int64)
-	expectedHeight := make([]byte, 8)
-	binary.BigEndian.PutUint64(expectedHeight, 100)
-	suite.Equal(expectedHeight, signBytes[offset:offset+8])
-	offset += 8
-
-	// creation_timestamp (15 bytes)
-	expectedTimestamp, err := testTime.MarshalBinary()
-	suite.NoError(err)
-	suite.Equal(expectedTimestamp, signBytes[offset:offset+15])
-	offset += 15
-
-	// signer_public_key (20 bytes - address from public key)
-	expectedSignerAddr := sdk.AccAddress(pubKey.Address())
-	suite.Equal(expectedSignerAddr.Bytes(), signBytes[offset:offset+20])
-}
-
-// calculateExpectedHash manually implements the spec for comparison
-func calculateExpectedHash(promise *types.PaymentPromise, pubKey cryptotypes.PubKey) []byte {
-	var signBytes []byte
-
-	// chain_id
-	signBytes = append(signBytes, []byte(promise.ChainId)...)
-
-	// namespace
-	signBytes = append(signBytes, promise.Namespace...)
-
-	// blob_size (big-endian uint32)
-	blobSizeBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(blobSizeBytes, promise.BlobSize)
-	signBytes = append(signBytes, blobSizeBytes...)
-
-	// commitment
-	signBytes = append(signBytes, promise.Commitment...)
-
-	// blob_version (big-endian uint32)
-	blobVersionBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(blobVersionBytes, promise.BlobVersion)
-	signBytes = append(signBytes, blobVersionBytes...)
-
-	// height (big-endian int64)
-	heightBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(heightBytes, uint64(promise.Height))
-	signBytes = append(signBytes, heightBytes...)
-
-	// creation_timestamp
-	timestampBytes, _ := promise.CreationTimestamp.MarshalBinary()
-	signBytes = append(signBytes, timestampBytes...)
-
-	// signer_public_key (20-byte address)
-	signerAddr := sdk.AccAddress(pubKey.Address())
-	signBytes = append(signBytes, signerAddr.Bytes()...)
-
-	// payment_promise_hash = SHA256(sign_bytes || signature)
-	hashInput := append(signBytes, promise.Signature...)
-	hash := sha256.Sum256(hashInput)
-	return hash[:]
-}
-
-func testPaymentPromise(signerPublicKey secp256k1.PubKey, testTime time.Time) *types.PaymentPromise {
-	return &types.PaymentPromise{
-		SignerPublicKey:   signerPublicKey,
-		Namespace:         make([]byte, 29),
-		BlobSize:          1000,
-		Commitment:        make([]byte, 32),
-		BlobVersion:       0,
-		CreationTimestamp: testTime,
-		Height:            100,
-		ChainId:           "test-chain",
-		Signature:         make([]byte, 64),
-	}
 }
