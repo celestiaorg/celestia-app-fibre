@@ -11,7 +11,6 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/codec"
-	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
@@ -187,10 +186,10 @@ func (k Keeper) GetPaymentPromiseSignBytes(promise *types.PaymentPromise) []byte
 	// commitment: Raw commitment bytes (32 bytes)
 	signBytes = append(signBytes, promise.Commitment...)
 
-	// row_version: Big-endian encoded uint32 (4 bytes)
-	rowVersionBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(rowVersionBytes, promise.RowVersion)
-	signBytes = append(signBytes, rowVersionBytes...)
+	// blob_version: Big-endian encoded uint32 (4 bytes)
+	blobVersionBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(blobVersionBytes, promise.BlobVersion)
+	signBytes = append(signBytes, blobVersionBytes...)
 
 	// height: Big-endian encoded int64 (8 bytes)
 	heightBytes := make([]byte, 8)
@@ -206,15 +205,9 @@ func (k Keeper) GetPaymentPromiseSignBytes(promise *types.PaymentPromise) []byte
 	signBytes = append(signBytes, timestampBytes...)
 
 	// signer_public_key: Raw bytes of signer address secp256k1 (20 bytes)
-	if promise.SignerPublicKey != nil {
-		pubKey, ok := promise.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
-		if ok && pubKey != nil {
-			// Get the 20-byte address from the public key
-			signerAddr := sdk.AccAddress(pubKey.Address())
-			signBytes = append(signBytes, signerAddr.Bytes()...)
-		}
-	}
-
+	// Get the 20-byte address from the public key
+	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
+	signBytes = append(signBytes, signerAddr.Bytes()...)
 	return signBytes
 }
 
@@ -225,12 +218,7 @@ func (k Keeper) isValidUnprocessedPaymentPromise(ctx sdk.Context, promise *types
 		return errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise already processed")
 	}
 
-	pubKey, ok := promise.SignerPublicKey.GetCachedValue().(cryptotypes.PubKey)
-	if !ok {
-		return errors.Wrap(sdkerrors.ErrInvalidPubKey, "failed to get cached public key")
-	}
-	signerAddr := sdk.AccAddress(pubKey.Address())
-
+	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddr.String())
 	if !found {
 		return errors.Wrap(sdkerrors.ErrNotFound, "escrow account not found")

@@ -171,7 +171,7 @@ func (suite *KeeperTestSuite) TestPaymentPromiseProcessed() {
 		Namespace:         make([]byte, 29), // Valid namespace size
 		BlobSize:          1000,
 		Commitment:        make([]byte, 32), // Valid commitment size
-		RowVersion:        0,
+		BlobVersion:       0,
 		Height:            100,
 		ChainId:           "test-chain",
 		CreationTimestamp: suite.ctx.BlockTime(),

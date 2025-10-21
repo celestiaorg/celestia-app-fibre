@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
@@ -20,15 +19,13 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
-	signerPublicKey, err := codectypes.NewAnyWithValue(pubKey)
-	require.NoError(t, err)
 
 	namespace := make([]byte, 29)
 	namespace[0] = 0x01 // Set first byte to 0x01 for testing
 	blobSize := uint32(1000)
 	commitment := make([]byte, 32)
 	commitment[0] = 0xFF // Set first byte to 0xFF for testing
-	rowVersion := uint32(0)
+	blobVersion := uint32(0)
 	creationTimestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	height := int64(100)
 	chainId := "test-chain"
@@ -36,11 +33,11 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 	signature[0] = 0x02 // Set first byte to 0x02 for testing
 
 	paymentPromise := types.PaymentPromise{
-		SignerPublicKey:   signerPublicKey,
+		SignerPublicKey:   *pubKey.(*secp256k1.PubKey),
 		Namespace:         namespace,
 		BlobSize:          blobSize,
 		Commitment:        commitment,
-		RowVersion:        rowVersion,
+		BlobVersion:       blobVersion,
 		CreationTimestamp: creationTimestamp,
 		Height:            height,
 		ChainId:           chainId,
@@ -74,11 +71,9 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 	require.Equal(t, commitment, signBytes[offset:offset+32], "Commitment should match")
 	offset += 32
 
-	expectedRowVersion := make([]byte, 4)
-	binary.BigEndian.PutUint32(expectedRowVersion, 0)
-	require.Equal(t, expectedRowVersion, signBytes[offset:offset+4], "Row version should be big-endian encoded")
-	actualRowVersion := binary.BigEndian.Uint32(signBytes[offset : offset+4])
-	require.Equal(t, uint32(0), actualRowVersion, "Decoded row version should match")
+	expectedBlobVersion := uint32(0)
+	actualBlobVersion := binary.BigEndian.Uint32(signBytes[offset : offset+4])
+	require.Equal(t, expectedBlobVersion, actualBlobVersion)
 	offset += 4
 
 	expectedHeight := make([]byte, 8)
@@ -108,26 +103,24 @@ func TestPaymentPromiseSignBytes(t *testing.T) {
 }
 
 func TestPaymentPromiseSignBytesWithNilPublicKey(t *testing.T) {
-	paymentPromise := getPaymentPromise(t)
-	paymentPromise.SignerPublicKey = nil
+	paymentPromise := getPaymentPromise()
+	paymentPromise.SignerPublicKey = secp256k1.PubKey{}
 
 	signBytes, err := paymentPromise.SignBytes()
 	require.Error(t, err)
 	require.Empty(t, signBytes)
 }
 
-func getPaymentPromise(t *testing.T) types.PaymentPromise {
+func getPaymentPromise() types.PaymentPromise {
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
-	signerPublicKey, err := codectypes.NewAnyWithValue(pubKey)
-	require.NoError(t, err)
 
 	namespace := make([]byte, 29)
 	namespace[0] = 0x01 // Set first byte to 0x01 for testing
 	blobSize := uint32(1000)
 	commitment := make([]byte, 32)
 	commitment[0] = 0xFF // Set first byte to 0xFF for testing
-	rowVersion := uint32(0)
+	blobVersion := uint32(0)
 	creationTimestamp := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	height := int64(100)
 	chainId := "test-chain"
@@ -135,11 +128,11 @@ func getPaymentPromise(t *testing.T) types.PaymentPromise {
 	signature[0] = 0x02 // Set first byte to 0x02 for testing
 
 	return types.PaymentPromise{
-		SignerPublicKey:   signerPublicKey,
+		SignerPublicKey:   *pubKey.(*secp256k1.PubKey),
 		Namespace:         namespace,
 		BlobSize:          blobSize,
 		Commitment:        commitment,
-		RowVersion:        rowVersion,
+		BlobVersion:       blobVersion,
 		CreationTimestamp: creationTimestamp,
 		Height:            height,
 		ChainId:           chainId,

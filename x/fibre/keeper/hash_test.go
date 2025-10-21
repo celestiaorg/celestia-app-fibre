@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	cryptotypes "github.com/cosmos/cosmos-sdk/crypto/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -16,19 +15,16 @@ func (suite *KeeperTestSuite) TestGetPaymentPromiseHash() {
 	// Create a test payment promise with known values
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
-
-	// Pack the public key into Any
-	pubKeyAny, err := codectypes.NewAnyWithValue(pubKey)
-	suite.NoError(err)
+	signerPublicKey := *pubKey.(*secp256k1.PubKey)
 
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	promise := &types.PaymentPromise{
-		SignerPublicKey:   pubKeyAny,
+		SignerPublicKey:   signerPublicKey,
 		Namespace:         make([]byte, 29), // All zeros for simplicity
 		BlobSize:          1000,
 		Commitment:        make([]byte, 32), // All zeros for simplicity
-		RowVersion:        0,
+		BlobVersion:       0,
 		CreationTimestamp: testTime,
 		Height:            100,
 		ChainId:           "test-chain",
@@ -50,18 +46,16 @@ func (suite *KeeperTestSuite) TestGetPaymentPromiseSignBytes() {
 	// Create a test payment promise
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
-
-	pubKeyAny, err := codectypes.NewAnyWithValue(pubKey)
-	suite.NoError(err)
+	signerPublicKey := *pubKey.(*secp256k1.PubKey)
 
 	testTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	promise := &types.PaymentPromise{
-		SignerPublicKey:   pubKeyAny,
+		SignerPublicKey:   signerPublicKey,
 		Namespace:         make([]byte, 29),
 		BlobSize:          1000,
 		Commitment:        make([]byte, 32),
-		RowVersion:        0,
+		BlobVersion:       0,
 		CreationTimestamp: testTime,
 		Height:            100,
 		ChainId:           "test-chain",
@@ -97,10 +91,10 @@ func (suite *KeeperTestSuite) TestGetPaymentPromiseSignBytes() {
 	suite.Equal(make([]byte, 32), signBytes[offset:offset+32])
 	offset += 32
 
-	// row_version (4 bytes, big-endian uint32)
-	expectedRowVersion := make([]byte, 4)
-	binary.BigEndian.PutUint32(expectedRowVersion, 0)
-	suite.Equal(expectedRowVersion, signBytes[offset:offset+4])
+	// blob_version (4 bytes, big-endian uint32)
+	expectedBlobVersion := make([]byte, 4)
+	binary.BigEndian.PutUint32(expectedBlobVersion, 0)
+	suite.Equal(expectedBlobVersion, signBytes[offset:offset+4])
 	offset += 4
 
 	// height (8 bytes, big-endian int64)
@@ -138,10 +132,10 @@ func calculateExpectedHash(promise *types.PaymentPromise, pubKey cryptotypes.Pub
 	// commitment
 	signBytes = append(signBytes, promise.Commitment...)
 
-	// row_version (big-endian uint32)
-	rowVersionBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(rowVersionBytes, promise.RowVersion)
-	signBytes = append(signBytes, rowVersionBytes...)
+	// blob_version (big-endian uint32)
+	blobVersionBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(blobVersionBytes, promise.BlobVersion)
+	signBytes = append(signBytes, blobVersionBytes...)
 
 	// height (big-endian int64)
 	heightBytes := make([]byte, 8)
