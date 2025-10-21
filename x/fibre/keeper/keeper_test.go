@@ -15,6 +15,7 @@ import (
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	"github.com/stretchr/testify/require"
@@ -159,38 +160,36 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	suite.False(found)
 }
 
-func (suite *KeeperTestSuite) TestPaymentPromiseProcessed() {
-	// Create a test payment promise
-	promise := &types.PaymentPromise{
+func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
+	signerPublicKey := generatePubKey()
+	paymentPromise := &types.PaymentPromise{
+		ChainId:           "test-chain",
+		Height:            100,
 		Namespace:         make([]byte, 29), // Valid namespace size
 		BlobSize:          1000,
-		Commitment:        make([]byte, 32), // Valid commitment size
 		BlobVersion:       0,
-		Height:            100,
-		ChainId:           "test-chain",
+		Commitment:        make([]byte, 32), // Valid commitment size
 		CreationTimestamp: suite.ctx.BlockTime(),
+		SignerPublicKey:   signerPublicKey,
+		Signature:         make([]byte, 64),
 	}
 
-	// Test checking non-existent processed payment promise
-	processed := suite.keeper.IsPaymentPromiseProcessed(suite.ctx, promise)
-	suite.False(processed)
+	isProcessed := suite.keeper.IsPaymentPromiseProcessed(suite.ctx, paymentPromise)
+	suite.False(isProcessed)
 
-	// Test setting processed payment promise
-	processedTime := suite.ctx.BlockTime()
 	pp := fibre.PaymentPromise{}
-	pp.FromProto(promise)
-	hash, err := pp.Hash()
+	pp.FromProto(paymentPromise)
+	paymentPromiseHash, err := pp.Hash()
 	if err != nil {
 		suite.FailNow("failed to hash payment promise", err)
 	}
-	entry := types.PaymentPromiseEntry{
-		PaymentPromiseHash: hash,
-		ProcessedAt:        processedTime,
-	}
-	suite.keeper.SetPaymentPromiseEntry(suite.ctx, entry)
+	suite.keeper.SetPaymentPromiseEntry(suite.ctx, types.PaymentPromiseEntry{
+		PaymentPromiseHash: paymentPromiseHash,
+		ProcessedAt:        suite.ctx.BlockTime(),
+	})
 
-	processed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, promise)
-	suite.True(processed)
+	isProcessed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, paymentPromise)
+	suite.True(isProcessed)
 }
 
 // TestGetNextWithdrawalID is no longer needed since withdrawals are keyed by timestamp
@@ -250,4 +249,10 @@ func (suite *KeeperTestSuite) TestIterators() {
 	}
 	suite.True(signers[signer1])
 	suite.True(signers[signer2])
+}
+
+func generatePubKey() secp256k1.PubKey {
+	privKey := secp256k1.GenPrivKey()
+	pubKey := privKey.PubKey()
+	return *pubKey.(*secp256k1.PubKey)
 }
