@@ -3,7 +3,6 @@ package fibre
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -11,27 +10,16 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
-	"github.com/celestiaorg/rsema1d"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	gogoproto "github.com/cosmos/gogoproto/proto"
 )
 
-// Commitment is a commitment to fibre [Blob].
-// TODO(@Wondertan): merge with rsema1d.Commitment and move these methods.
-type Commitment rsema1d.Commitment
-
-// UnmarshalBinary decodes a [Commitment] from bytes.
-func (c *Commitment) UnmarshalBinary(data []byte) error {
-	if len(data) != 32 {
-		return fmt.Errorf("commitment must be 32 bytes, got %d", len(data))
-	}
-	copy(c[:], data)
-	return nil
-}
-
-// String returns the hex-encoded string representation of the commitment.
-func (c Commitment) String() string {
-	return hex.EncodeToString(c[:])
+// SignedPaymentPromise contains a [PaymentPromise] along with validator signatures confirming the promise.
+type SignedPaymentPromise struct {
+	// PaymentPromise is the payment commitment promise that was signed by validators.
+	*PaymentPromise
+	// ValidatorSignatures are the signatures from validators confirming they received and stored the [Blob] to be paid for.
+	ValidatorSignatures [][]byte
 }
 
 // PaymentPromise is a promise to pay for a fibre [Blob].
@@ -80,6 +68,7 @@ func (p *PaymentPromise) UnmarshalBinary(data []byte) error {
 	return p.FromProto(pbMsg)
 }
 
+// FromProto converts the [PaymentPromise] from its protobuf representation.
 func (p *PaymentPromise) FromProto(pbMsg *types.PaymentPromise) error {
 	// parse namespace
 	ns, err := share.NewNamespaceFromBytes(pbMsg.Namespace)
