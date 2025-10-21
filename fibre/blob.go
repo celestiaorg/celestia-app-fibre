@@ -113,7 +113,7 @@ func (d *Blob) Commitment() Commitment {
 	return d.commitment
 }
 
-// RLCCoeffs returns the original RLC coefficients.
+// RLCCoeffs returns RLC coefficients of the original data.
 func (d *Blob) RLCCoeffs() []field.GF128 {
 	return d.rlcCoeffs
 }
