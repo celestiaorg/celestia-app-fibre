@@ -146,48 +146,48 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	})
 }
 
-func (suite *KeeperTestSuite) TestPaymentPromiseEntry() {
-	suite.T().Run("keeper should return false for non-existent payment promise entry", func(t *testing.T) {
-		_, found := suite.keeper.GetPaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+func (suite *KeeperTestSuite) TestProcessedPayment() {
+	suite.T().Run("keeper should return false for non-existent processed payment", func(t *testing.T) {
+		_, found := suite.keeper.GetProcessedPayment(suite.ctx, []byte("test-hash"))
 		suite.False(found)
 	})
 
-	suite.T().Run("keeper should set and get payment promise entry", func(t *testing.T) {
-		want := types.PaymentPromiseEntry{
+	suite.T().Run("keeper should set and get processed payment", func(t *testing.T) {
+		want := types.ProcessedPayment{
 			PaymentPromiseHash: []byte("test-hash"),
 			ProcessedAt:        suite.ctx.BlockTime(),
 		}
-		suite.keeper.SetPaymentPromiseEntry(suite.ctx, want)
+		suite.keeper.SetProcessedPayment(suite.ctx, want)
 
-		got, found := suite.keeper.GetPaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+		got, found := suite.keeper.GetProcessedPayment(suite.ctx, []byte("test-hash"))
 		suite.True(found)
 		suite.Equal(want, got)
 	})
 
-	suite.T().Run("keeper should delete payment promise entry", func(t *testing.T) {
-		suite.keeper.DeletePaymentPromiseEntry(suite.ctx, []byte("test-hash"))
-		_, found := suite.keeper.GetPaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+	suite.T().Run("keeper should delete processed payment", func(t *testing.T) {
+		suite.keeper.DeleteProcessedPayment(suite.ctx, []byte("test-hash"))
+		_, found := suite.keeper.GetProcessedPayment(suite.ctx, []byte("test-hash"))
 		suite.False(found)
 	})
 
-	suite.T().Run("isPaymentPromiseProcessed should return false for non-existent payment promise", func(t *testing.T) {
+	suite.T().Run("isPaymentProcessed should return false for non-existent payment promise", func(t *testing.T) {
 		paymentPromise := testPaymentPromise()
-		suite.False(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
+		suite.False(suite.keeper.IsPaymentProcessed(suite.ctx, &paymentPromise))
 	})
 
-	suite.T().Run("isPaymentPromiseProcessed should return true for existing payment promise", func(t *testing.T) {
+	suite.T().Run("isPaymentProcessed should return true for existing payment promise", func(t *testing.T) {
 		paymentPromise := testPaymentPromise()
 		pp := fibre.PaymentPromise{}
 		pp.FromProto(&paymentPromise)
 		paymentPromiseHash, err := pp.Hash()
 		suite.NoError(err)
 
-		suite.keeper.SetPaymentPromiseEntry(suite.ctx, types.PaymentPromiseEntry{
+		suite.keeper.SetProcessedPayment(suite.ctx, types.ProcessedPayment{
 			PaymentPromiseHash: paymentPromiseHash,
 			ProcessedAt:        suite.ctx.BlockTime(),
 		})
 
-		suite.True(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
+		suite.True(suite.keeper.IsPaymentProcessed(suite.ctx, &paymentPromise))
 	})
 }
 

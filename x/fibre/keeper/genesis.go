@@ -18,8 +18,8 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genesisState types.GenesisState) {
 		k.SetWithdrawal(ctx, withdrawal)
 	}
 
-	for _, entry := range genesisState.PaymentPromiseEntries {
-		k.SetPaymentPromiseEntry(ctx, entry)
+	for _, entry := range genesisState.ProcessedPayments {
+		k.SetProcessedPayment(ctx, entry)
 	}
 }
 
@@ -38,8 +38,8 @@ func (k Keeper) ExportGenesis(ctx sdk.Context) *types.GenesisState {
 		return false
 	})
 
-	k.IteratePaymentPromises(ctx, func(entry types.PaymentPromiseEntry) bool {
-		genesis.PaymentPromiseEntries = append(genesis.PaymentPromiseEntries, entry)
+	k.IterateProcessedPayments(ctx, func(entry types.ProcessedPayment) bool {
+		genesis.ProcessedPayments = append(genesis.ProcessedPayments, entry)
 		return false
 	})
 
@@ -76,14 +76,14 @@ func (k Keeper) IterateWithdrawals(ctx sdk.Context, callback func(withdrawal typ
 	}
 }
 
-// IteratePaymentPromises iterates over all payment promises and calls the provided callback function
-func (k Keeper) IteratePaymentPromises(ctx sdk.Context, callback func(entry types.PaymentPromiseEntry) bool) {
+// IterateProcessedPayments iterates over all processed payments and calls the provided callback function
+func (k Keeper) IterateProcessedPayments(ctx sdk.Context, callback func(entry types.ProcessedPayment) bool) {
 	store := ctx.KVStore(k.storeKey)
 	iterator := storetypes.KVStorePrefixIterator(store, types.PaymentPromiseKeyPrefix)
 	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {
-		var entry types.PaymentPromiseEntry
+		var entry types.ProcessedPayment
 		k.cdc.MustUnmarshal(iterator.Value(), &entry)
 		if callback(entry) {
 			break

@@ -135,35 +135,35 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 	return withdrawals
 }
 
-// GetPaymentPromiseEntry retrieves a payment promise entry by hash
-func (k Keeper) GetPaymentPromiseEntry(ctx sdk.Context, promiseHash []byte) (entry types.PaymentPromiseEntry, isFound bool) {
+// GetProcessedPayment retrieves a processed payment by promiseHash
+func (k Keeper) GetProcessedPayment(ctx sdk.Context, promiseHash []byte) (payment types.ProcessedPayment, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.PaymentPromiseKey(promiseHash)
 	bz := store.Get(key)
 	if bz == nil {
-		return types.PaymentPromiseEntry{}, false
+		return types.ProcessedPayment{}, false
 	}
-	k.cdc.MustUnmarshal(bz, &entry)
-	return entry, true
+	k.cdc.MustUnmarshal(bz, &payment)
+	return payment, true
 }
 
-// SetPaymentPromiseEntry saves a payment promise entry to the store as processed
-func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromiseEntry) {
+// SetProcessedPayment saves a processed payment to the store
+func (k Keeper) SetProcessedPayment(ctx sdk.Context, payment types.ProcessedPayment) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(entry.PaymentPromiseHash)
-	bz := k.cdc.MustMarshal(&entry)
+	key := types.PaymentPromiseKey(payment.PaymentPromiseHash)
+	bz := k.cdc.MustMarshal(&payment)
 	store.Set(key, bz)
 }
 
-// DeletePaymentPromiseEntry removes a payment promise entry from the store
-func (k Keeper) DeletePaymentPromiseEntry(ctx sdk.Context, promiseHash []byte) {
+// DeleteProcessedPayment removes a processed payment from the store
+func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, promiseHash []byte) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.PaymentPromiseKey(promiseHash)
 	store.Delete(key)
 }
 
-// IsPaymentPromiseProcessed returns true if a payment promise has been processed.
-func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
+// IsPaymentProcessed returns true if a payment has been processed for the given promise.
+func (k Keeper) IsPaymentProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
 	pp := fibre.PaymentPromise{}
 	pp.FromProto(promise)
