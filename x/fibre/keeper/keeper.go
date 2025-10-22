@@ -135,6 +135,7 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 	return withdrawals
 }
 
+// GetPaymentPromiseEntry retrieves a payment promise entry by hash
 func (k Keeper) GetPaymentPromiseEntry(ctx sdk.Context, promiseHash []byte) (entry types.PaymentPromiseEntry, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.PaymentPromiseKey(promiseHash)
