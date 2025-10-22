@@ -174,12 +174,12 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 	})
 
 	suite.T().Run("isPaymentProcessed should return false for non-existent payment promise", func(t *testing.T) {
-		paymentPromise := testPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 		suite.False(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
 	})
 
 	suite.T().Run("isPaymentProcessed should return true for existing payment promise", func(t *testing.T) {
-		paymentPromise := testPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 		pp := fibre.PaymentPromise{}
 		pp.FromProto(&paymentPromise)
 		paymentPromiseHash, err := pp.Hash()
@@ -327,22 +327,4 @@ func (suite *KeeperTestSuite) createEscrowAccountForPaymentPromise(paymentPromis
 		AvailableBalance: availableBalance,
 	}
 	suite.keeper.SetEscrowAccount(suite.ctx, escrowAccount)
-}
-
-func testPaymentPromise() types.PaymentPromise {
-	privKey := secp256k1.GenPrivKey()
-	pubKey := privKey.PubKey()
-	signerPublicKey := *pubKey.(*secp256k1.PubKey)
-
-	return types.PaymentPromise{
-		ChainId:           "test-chain",
-		Height:            100,
-		Namespace:         make([]byte, 29),
-		BlobSize:          1000,
-		BlobVersion:       0,
-		Commitment:        make([]byte, 32),
-		CreationTimestamp: time.Now().UTC().Truncate(time.Second),
-		SignerPublicKey:   signerPublicKey,
-		Signature:         make([]byte, 64),
-	}
 }
