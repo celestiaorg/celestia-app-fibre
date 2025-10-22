@@ -18,7 +18,7 @@ message GenesisState {
 
 // PaymentPromiseEntry represents a processed PaymentPromise in genesis state.
 // PaymentPromiseEntry intentionally omits many fields from the original
-// PaymentPromise to avoid bloading the state.
+// PaymentPromise to avoid bloating the state. This exists for replay protection.
 message PaymentPromiseEntry {
   bytes payment_promise_hash = 1;
   google.protobuf.Timestamp processed_at = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
