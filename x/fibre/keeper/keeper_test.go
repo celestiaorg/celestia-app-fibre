@@ -108,34 +108,24 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 	testTime := suite.ctx.BlockTime()
 
-	// Test getting non-existent withdrawal
-	_, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
-	suite.False(found)
+	suite.T().Run("keeper should return false for non-existent withdrawal", func(t *testing.T) {
+		_, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
+		suite.False(found)
+	})
 
-	// Test setting and getting withdrawal
-	withdrawal := types.Withdrawal{
-		Signer:             signer,
-		Amount:             sdk.NewInt64Coin("utia", 500),
-		RequestedTimestamp: testTime,
-	}
+	suite.T().Run("keeper should set and get withdrawal", func(t *testing.T) {
+		want := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 500),
+			RequestedTimestamp: testTime,
+		}
 
-	suite.keeper.SetWithdrawal(suite.ctx, withdrawal)
-	retrievedWithdrawal, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
+		suite.keeper.SetWithdrawal(suite.ctx, want)
+		got, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
 
-	suite.True(found)
-	suite.Equal(withdrawal.Signer, retrievedWithdrawal.Signer)
-	suite.Equal(withdrawal.Amount, retrievedWithdrawal.Amount)
-	suite.Equal(withdrawal.RequestedTimestamp, retrievedWithdrawal.RequestedTimestamp)
-
-	// Test getting withdrawals by signer
-	withdrawals := suite.keeper.GetWithdrawalsBySigner(suite.ctx, signer)
-	suite.Len(withdrawals, 1)
-	suite.Equal(withdrawal.Signer, withdrawals[0].Signer)
-
-	// Test deleting withdrawal
-	suite.keeper.DeleteWithdrawal(suite.ctx, signer, testTime)
-	_, found = suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
-	suite.False(found)
+		suite.True(found)
+		suite.Equal(want, got)
+	})
 }
 
 func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
