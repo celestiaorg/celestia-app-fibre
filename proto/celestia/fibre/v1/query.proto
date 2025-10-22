@@ -31,7 +31,7 @@ service Query {
 
   // IsPaymentProcessed queries whether a payment promise has been processed.
   rpc IsPaymentProcessed(QueryIsPaymentProcessedRequest) returns (QueryIsPaymentProcessedResponse) {
-    option (google.api.http).get = "/fibre/v1/processed-payment-promise/{promise_hash}";
+    option (google.api.http).get = "/fibre/v1/is-payment-processed/{promise_hash}";
   }
 
   // ValidatePaymentPromise validates a payment promise for server use.
@@ -93,10 +93,5 @@ message QueryValidatePaymentPromiseRequest {
 
 // QueryValidatePaymentPromiseResponse is the response type for the Query/ValidatePaymentPromise RPC method.
 message QueryValidatePaymentPromiseResponse {
-  bool valid = 1;
-  string error_message = 2;
-  bool sufficient_balance = 3;
-  bool already_processed = 4;
-  cosmos.base.v1beta1.Coin required_payment = 5 [(gogoproto.nullable) = false];
-  cosmos.base.v1beta1.Coin available_balance = 6 [(gogoproto.nullable) = false];
+  bool is_valid = 1;
 }

@@ -94,15 +94,9 @@ func (k Keeper) ValidatePaymentPromise(c context.Context, req *types.QueryValida
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	// Delegate to keeper method
-	isValid, errorMessage, hasSufficientBalance, isProcessed, requiredAmount, availableBalance := k.ValidatePaymentPromiseInternal(ctx, &req.Promise)
-
-	return &types.QueryValidatePaymentPromiseResponse{
-		Valid:             isValid,
-		ErrorMessage:      errorMessage,
-		SufficientBalance: hasSufficientBalance,
-		AlreadyProcessed:  isProcessed,
-		RequiredPayment:   requiredAmount,
-		AvailableBalance:  availableBalance,
-	}, nil
+	isValid, err := k.ValidatePaymentPromiseInternal(ctx, &req.Promise)
+	if err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &types.QueryValidatePaymentPromiseResponse{IsValid: isValid}, nil
 }

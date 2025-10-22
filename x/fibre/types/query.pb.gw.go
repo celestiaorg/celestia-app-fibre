@@ -537,7 +537,7 @@ var (
 
 	pattern_Query_Withdrawals_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"fibre", "v1", "withdrawals", "signer"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_IsPaymentProcessed_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"fibre", "v1", "processed-payment-promise", "promise_hash"}, "", runtime.AssumeColonVerbOpt(false)))
+	pattern_Query_IsPaymentProcessed_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"fibre", "v1", "is-payment-processed", "promise_hash"}, "", runtime.AssumeColonVerbOpt(false)))
 
 	pattern_Query_ValidatePaymentPromise_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"fibre", "v1", "validate-payment-promise"}, "", runtime.AssumeColonVerbOpt(false)))
 )
