@@ -126,6 +126,24 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 		suite.True(found)
 		suite.Equal(want, got)
 	})
+
+	suite.T().Run("keeper should delete withdrawal", func(t *testing.T) {
+		suite.keeper.DeleteWithdrawal(suite.ctx, signer, testTime)
+		_, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
+		suite.False(found)
+	})
+
+	suite.T().Run("keeper should get withdrawals by signer", func(t *testing.T) {
+		want := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 100),
+			RequestedTimestamp: testTime.Add(2 * time.Hour),
+		}
+		suite.keeper.SetWithdrawal(suite.ctx, want)
+		withdrawals := suite.keeper.GetWithdrawalsBySigner(suite.ctx, signer)
+		suite.Len(withdrawals, 1)
+		suite.Equal(want, withdrawals[0])
+	})
 }
 
 func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
