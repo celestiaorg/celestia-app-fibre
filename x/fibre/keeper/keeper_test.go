@@ -196,23 +196,22 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 
 func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	suite.T().Run("valid payment promise should pass validation", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise, _ := suite.createValidPaymentPromise()
 		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.NoError(err)
 	})
 
 	suite.T().Run("invalid payment promise format should fail", func(t *testing.T) {
-		invalidNamespace := make([]byte, 10) // Invalid size (should be 29)
-		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
-		paymentPromise.Namespace = invalidNamespace
+		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise.Namespace = make([]byte, 10) // Invalid size (should be 29)
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.Error(err)
 		suite.Contains(err.Error(), "invalid payment promise format")
 	})
 
 	suite.T().Run("invalid payment promise should fail validation", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise, _ := suite.createValidPaymentPromise()
 		paymentPromise.BlobSize = 0 // Invalid: zero blob size
 
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
@@ -221,7 +220,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 
 	suite.T().Run("already processed payment promise should fail", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise, _ := suite.createValidPaymentPromise()
 		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
 
 		// Mark payment promise as already processed
@@ -245,7 +244,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 
 	suite.T().Run("escrow account not found should fail", func(t *testing.T) {
 		// Create a valid payment promise but don't create escrow account
-		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise, _ := suite.createValidPaymentPromise()
 
 		// Validate should fail because escrow account doesn't exist
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
@@ -255,7 +254,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 
 	suite.T().Run("insufficient balance should fail", func(t *testing.T) {
 		// Create a valid payment promise
-		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise, _ := suite.createValidPaymentPromise()
 
 		signerAddr := sdk.AccAddress(paymentPromise.SignerPublicKey.Address())
 		signerAddrStr := signerAddr.String()
@@ -282,55 +281,17 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 }
 
-// testPaymentPromiseConfig holds configuration for creating test payment promises
-type testPaymentPromiseConfig struct {
-	privKey   *secp256k1.PrivKey
-	blobSize  uint32
-	namespace []byte
-	chainId   string
-	height    int64
-}
-
 // createValidPaymentPromise creates a properly signed and valid payment promise for testing
-func (suite *KeeperTestSuite) createValidPaymentPromise(config testPaymentPromiseConfig) (types.PaymentPromise, *secp256k1.PrivKey) {
-	// Use provided private key or generate a new one
-	privKey := config.privKey
-	if privKey == nil {
-		privKey = secp256k1.GenPrivKey()
-	}
-
+func (suite *KeeperTestSuite) createValidPaymentPromise() (types.PaymentPromise, *secp256k1.PrivKey) {
+	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
 	signerPublicKey := *pubKey.(*secp256k1.PubKey)
 
-	// Set defaults if not provided
-	blobSize := config.blobSize
-	if blobSize == 0 {
-		blobSize = 1000
-	}
-
-	namespace := config.namespace
-	if namespace == nil {
-		// Create a valid v0 namespace using the share package
-		ns := share.MustNewV0Namespace(bytes.Repeat([]byte{0x1}, share.NamespaceVersionZeroIDSize))
-		namespace = ns.Bytes()
-	}
-
-	chainId := config.chainId
-	if chainId == "" {
-		chainId = "test-chain"
-	}
-
-	height := config.height
-	if height == 0 {
-		height = 100
-	}
-
-	// Create payment promise
 	paymentPromise := types.PaymentPromise{
-		ChainId:           chainId,
-		Height:            height,
-		Namespace:         namespace,
-		BlobSize:          blobSize,
+		ChainId:           "test-chain",
+		Height:            int64(100),
+		Namespace:         share.MustNewV0Namespace(bytes.Repeat([]byte{0x1}, share.NamespaceVersionZeroIDSize)).Bytes(),
+		BlobSize:          uint32(1000),
 		BlobVersion:       0,
 		Commitment:        make([]byte, 32),
 		CreationTimestamp: time.Now().UTC().Truncate(time.Second),
