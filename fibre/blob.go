@@ -32,34 +32,51 @@ func (c Commitment) String() string {
 	return hex.EncodeToString(c[:])
 }
 
-// BlobConfig contains configuration for erasure coding and data handling.
-type BlobConfig struct {
-	// OriginalRows is the number of original rows before erasure coding.
-	// Here we use explicit naming: OriginalRows (K in rsema1d) and ParityRows (N in rsema1d).
+// Equals returns true if the two commitments are equal.
+func (c Commitment) Equals(other Commitment) bool {
+	return c == other
+}
+
+// CodingConfig contains rsema1d constant config parameters, excluding variable RowSize.
+type CodingConfig struct {
+	// OriginalRows is the number of original rows before erasure coding (K in rsema1d).
 	// SPECDO: The spec uses N to represent total rows (original + parity), while rsema1d defines N as parity only.
 	OriginalRows int
-	// ParityRows is the number of parity rows added by erasure coding.
+	// ParityRows is the number of parity rows added by erasure coding (N in rsema1d).
 	// Total rows = OriginalRows + ParityRows.
 	ParityRows int
+	// CodingWorkers is the number of workers to use for encoding and decoding rsema1d.
+	CodingWorkers int
+}
+
+// DefaultCodingConfig returns a [CodingConfig] with default values.
+func DefaultCodingConfig() CodingConfig {
+	return CodingConfig{
+		OriginalRows:  4096,
+		ParityRows:    12288, // (3 * OriginalRows, TotalRows = 16384)
+		CodingWorkers: runtime.GOMAXPROCS(0),
+	}
+}
+
+// BlobConfig contains constant configuration parameters for blob encoding and decoding.
+type BlobConfig struct {
+	CodingConfig
+
 	// RowSizeMin is the minimum row size in bytes.
 	RowSizeMin int
 	// MaxBlobSize is the maximum allowed blob size.
 	MaxBlobSize int
 	// BlobVersion is the version of the row format.
 	BlobVersion uint8
-	// CodingWorkers is the number of workers to use for encoding and decoding rsema1d.
-	CodingWorkers int
 }
 
 // DefaultBlobConfig returns a [BlobConfig] with default values.
 func DefaultBlobConfig() BlobConfig {
 	return BlobConfig{
-		OriginalRows:  4096,
-		ParityRows:    12288, // (3 * OriginalRows, TotalRows = 16384)
-		RowSizeMin:    64,
-		MaxBlobSize:   128 * 1024 * 1024,
-		BlobVersion:   0,
-		CodingWorkers: runtime.GOMAXPROCS(0),
+		CodingConfig: DefaultCodingConfig(),
+		RowSizeMin:   64,
+		MaxBlobSize:  128 * 1024 * 1024,
+		BlobVersion:  0,
 	}
 }
 

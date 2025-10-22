@@ -70,6 +70,10 @@ func (p *PaymentPromise) UnmarshalBinary(data []byte) error {
 
 // FromProto converts the [PaymentPromise] from its protobuf representation.
 func (p *PaymentPromise) FromProto(pbMsg *types.PaymentPromise) error {
+	if pbMsg == nil {
+		return fmt.Errorf("nil proto spayment promise")
+	}
+
 	// parse namespace
 	ns, err := share.NewNamespaceFromBytes(pbMsg.Namespace)
 	if err != nil {
