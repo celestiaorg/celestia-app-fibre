@@ -76,29 +76,32 @@ func (suite *KeeperTestSuite) TestSetGetParams() {
 func (suite *KeeperTestSuite) TestEscrowAccount() {
 	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
 
-	// Test getting non-existent account
-	_, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
-	suite.False(found)
+	suite.T().Run("keeper should return false for non-existent account", func(t *testing.T) {
+		_, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
+		suite.False(found)
+	})
 
-	// Test setting and getting account
-	account := types.EscrowAccount{
-		Signer:           signer,
-		Balance:          sdk.NewInt64Coin("utia", 1000),
-		AvailableBalance: sdk.NewInt64Coin("utia", 800),
-	}
+	suite.T().Run("keeper should set and get account", func(t *testing.T) {
+		want := types.EscrowAccount{
+			Signer:           signer,
+			Balance:          sdk.NewInt64Coin("utia", 1000),
+			AvailableBalance: sdk.NewInt64Coin("utia", 800),
+		}
 
-	suite.keeper.SetEscrowAccount(suite.ctx, account)
-	retrievedAccount, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
+		suite.keeper.SetEscrowAccount(suite.ctx, want)
+		got, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
 
-	suite.True(found)
-	suite.Equal(account.Signer, retrievedAccount.Signer)
-	suite.Equal(account.Balance, retrievedAccount.Balance)
-	suite.Equal(account.AvailableBalance, retrievedAccount.AvailableBalance)
+		suite.True(found)
+		suite.Equal(want.Signer, got.Signer)
+		suite.Equal(want.Balance, got.Balance)
+		suite.Equal(want.AvailableBalance, got.AvailableBalance)
+	})
 
-	// Test deleting account
-	suite.keeper.DeleteEscrowAccount(suite.ctx, signer)
-	_, found = suite.keeper.GetEscrowAccount(suite.ctx, signer)
-	suite.False(found)
+	suite.T().Run("keeper should delete account", func(t *testing.T) {
+		suite.keeper.DeleteEscrowAccount(suite.ctx, signer)
+		_, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
+		suite.False(found)
+	})
 }
 
 func (suite *KeeperTestSuite) TestWithdrawal() {
