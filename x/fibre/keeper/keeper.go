@@ -135,6 +135,32 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 	return withdrawals
 }
 
+func (k Keeper) GetPaymentPromiseEntry(ctx sdk.Context, promiseHash []byte) (entry types.PaymentPromiseEntry, isFound bool) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.PaymentPromiseKey(promiseHash)
+	bz := store.Get(key)
+	if bz == nil {
+		return types.PaymentPromiseEntry{}, false
+	}
+	k.cdc.MustUnmarshal(bz, &entry)
+	return entry, true
+}
+
+// SetPaymentPromiseEntry saves a payment promise entry to the store as processed
+func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromiseEntry) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.PaymentPromiseKey(entry.PaymentPromiseHash)
+	bz := k.cdc.MustMarshal(&entry)
+	store.Set(key, bz)
+}
+
+// DeletePaymentPromiseEntry removes a payment promise entry from the store
+func (k Keeper) DeletePaymentPromiseEntry(ctx sdk.Context, promiseHash []byte) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.PaymentPromiseKey(promiseHash)
+	store.Delete(key)
+}
+
 // IsPaymentPromiseProcessed returns true if a payment promise has been processed.
 func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
@@ -146,12 +172,4 @@ func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.Paymen
 	}
 	key := types.PaymentPromiseKey(hash)
 	return store.Has(key)
-}
-
-// SetPaymentPromiseEntry saves a payment promise entry to the store as processed
-func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromiseEntry) {
-	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(entry.PaymentPromiseHash)
-	bz := k.cdc.MustMarshal(&entry)
-	store.Set(key, bz)
 }

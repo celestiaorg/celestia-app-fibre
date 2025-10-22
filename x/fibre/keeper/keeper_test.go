@@ -146,39 +146,65 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	})
 }
 
-func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
-	signerPublicKey := generatePubKey()
-	paymentPromise := &types.PaymentPromise{
+func (suite *KeeperTestSuite) TestPaymentPromiseEntry() {
+	suite.T().Run("keeper should return false for non-existent payment promise entry", func(t *testing.T) {
+		_, found := suite.keeper.GetPaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+		suite.False(found)
+	})
+
+	suite.T().Run("keeper should set and get payment promise entry", func(t *testing.T) {
+		want := types.PaymentPromiseEntry{
+			PaymentPromiseHash: []byte("test-hash"),
+			ProcessedAt:        suite.ctx.BlockTime(),
+		}
+		suite.keeper.SetPaymentPromiseEntry(suite.ctx, want)
+
+		got, found := suite.keeper.GetPaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+		suite.True(found)
+		suite.Equal(want, got)
+	})
+
+	suite.T().Run("keeper should delete payment promise entry", func(t *testing.T) {
+		suite.keeper.DeletePaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+		_, found := suite.keeper.GetPaymentPromiseEntry(suite.ctx, []byte("test-hash"))
+		suite.False(found)
+	})
+
+	suite.T().Run("isPaymentPromiseProcessed should return false for non-existent payment promise", func(t *testing.T) {
+		paymentPromise := testPaymentPromise()
+		suite.False(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
+	})
+
+	suite.T().Run("isPaymentPromiseProcessed should return true for existing payment promise", func(t *testing.T) {
+		paymentPromise := testPaymentPromise()
+		pp := fibre.PaymentPromise{}
+		pp.FromProto(&paymentPromise)
+		paymentPromiseHash, err := pp.Hash()
+		suite.NoError(err)
+
+		suite.keeper.SetPaymentPromiseEntry(suite.ctx, types.PaymentPromiseEntry{
+			PaymentPromiseHash: paymentPromiseHash,
+			ProcessedAt:        suite.ctx.BlockTime(),
+		})
+
+		suite.True(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
+	})
+}
+
+func testPaymentPromise() types.PaymentPromise {
+	privKey := secp256k1.GenPrivKey()
+	pubKey := privKey.PubKey()
+	signerPublicKey := *pubKey.(*secp256k1.PubKey)
+
+	return types.PaymentPromise{
 		ChainId:           "test-chain",
 		Height:            100,
 		Namespace:         make([]byte, 29),
 		BlobSize:          1000,
 		BlobVersion:       0,
 		Commitment:        make([]byte, 32),
-		CreationTimestamp: suite.ctx.BlockTime(),
+		CreationTimestamp: time.Now().UTC().Truncate(time.Second),
 		SignerPublicKey:   signerPublicKey,
 		Signature:         make([]byte, 64),
 	}
-
-	isProcessed := suite.keeper.IsPaymentPromiseProcessed(suite.ctx, paymentPromise)
-	suite.False(isProcessed)
-
-	pp := fibre.PaymentPromise{}
-	pp.FromProto(paymentPromise)
-	paymentPromiseHash, err := pp.Hash()
-	suite.NoError(err)
-
-	suite.keeper.SetPaymentPromiseEntry(suite.ctx, types.PaymentPromiseEntry{
-		PaymentPromiseHash: paymentPromiseHash,
-		ProcessedAt:        suite.ctx.BlockTime(),
-	})
-
-	isProcessed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, paymentPromise)
-	suite.True(isProcessed)
-}
-
-func generatePubKey() secp256k1.PubKey {
-	privKey := secp256k1.GenPrivKey()
-	pubKey := privKey.PubKey()
-	return *pubKey.(*secp256k1.PubKey)
 }
