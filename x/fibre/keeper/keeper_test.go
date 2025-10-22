@@ -197,7 +197,7 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	suite.T().Run("valid payment promise should pass validation", func(t *testing.T) {
 		paymentPromise := suite.createPaymentPromise()
-		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
+		suite.createEscrowAccount(paymentPromise, 1000)
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.NoError(err)
 	})
@@ -221,7 +221,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 
 	suite.T().Run("already processed payment promise should fail", func(t *testing.T) {
 		paymentPromise := suite.createPaymentPromise()
-		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
+		suite.createEscrowAccount(paymentPromise, 1000)
 
 		// Mark payment promise as already processed
 		pp := fibre.PaymentPromise{}
@@ -297,23 +297,12 @@ func (suite *KeeperTestSuite) createPaymentPromise() types.PaymentPromise {
 		Signature:         make([]byte, 64),
 	}
 
-	// Create fibre payment promise to get proper signature
-	pp := fibre.PaymentPromise{}
-	err := pp.FromProto(&paymentPromise)
-	suite.NoError(err)
-
-	signBytes, err := pp.SignBytes()
-	suite.NoError(err)
-
-	signature, err := privKey.Sign(signBytes)
-	suite.NoError(err)
-	paymentPromise.Signature = signature
-
+	paymentPromise = *suite.signPaymentPromise(&paymentPromise, privKey)
 	return paymentPromise
 }
 
-// createEscrowAccountForPaymentPromise creates an escrow account for the given payment promise with sufficient balance
-func (suite *KeeperTestSuite) createEscrowAccountForPaymentPromise(paymentPromise types.PaymentPromise, extraBalance int64) {
+// createEscrowAccount creates an escrow account for the given payment promise with sufficient balance
+func (suite *KeeperTestSuite) createEscrowAccount(paymentPromise types.PaymentPromise, extraBalance int64) {
 	signerAddr := sdk.AccAddress(paymentPromise.SignerPublicKey.Address())
 	signerAddrStr := signerAddr.String()
 
@@ -327,4 +316,18 @@ func (suite *KeeperTestSuite) createEscrowAccountForPaymentPromise(paymentPromis
 		AvailableBalance: availableBalance,
 	}
 	suite.keeper.SetEscrowAccount(suite.ctx, escrowAccount)
+}
+
+func (suite *KeeperTestSuite) signPaymentPromise(paymentPromise *types.PaymentPromise, privKey *secp256k1.PrivKey) *types.PaymentPromise {
+	pp := fibre.PaymentPromise{}
+	err := pp.FromProto(paymentPromise)
+	suite.NoError(err)
+
+	signBytes, err := pp.SignBytes()
+	suite.NoError(err)
+
+	signature, err := privKey.Sign(signBytes)
+	suite.NoError(err)
+	paymentPromise.Signature = signature
+	return paymentPromise
 }
