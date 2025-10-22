@@ -49,26 +49,28 @@ func (suite *KeeperTestSuite) SetupTest() {
 
 	mockBankKeeper := &MockBankKeeper{}
 	authority := authtypes.NewModuleAddress("gov").String()
+	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC()}, false, nil)
 	suite.keeper = keeper.NewKeeper(suite.cdc, storeKey, mockBankKeeper, authority)
 	suite.keeper.SetParams(suite.ctx, types.DefaultParams())
-	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC()}, false, nil)
 }
 
 func (suite *KeeperTestSuite) TestSetGetParams() {
-	params := types.NewParams(
-		2,            // GasPerBlobByte
-		48*time.Hour, // WithdrawalDelay
-		2*time.Hour,  // PaymentPromiseTimeout
-		48*time.Hour, // PaymentPromiseRetentionWindow
-	)
+	suite.T().Run("keeper should have default params", func(t *testing.T) {
+		params := suite.keeper.GetParams(suite.ctx)
+		suite.Equal(types.DefaultParams(), params)
+	})
 
-	suite.keeper.SetParams(suite.ctx, params)
-	retrievedParams := suite.keeper.GetParams(suite.ctx)
-
-	suite.Equal(params.GasPerBlobByte, retrievedParams.GasPerBlobByte)
-	suite.Equal(params.WithdrawalDelay, retrievedParams.WithdrawalDelay)
-	suite.Equal(params.PaymentPromiseTimeout, retrievedParams.PaymentPromiseTimeout)
-	suite.Equal(params.PaymentPromiseRetentionWindow, retrievedParams.PaymentPromiseRetentionWindow)
+	suite.T().Run("keeper should set and get params", func(t *testing.T) {
+		want := types.NewParams(
+			2,            // GasPerBlobByte
+			48*time.Hour, // WithdrawalDelay
+			2*time.Hour,  // PaymentPromiseTimeout
+			48*time.Hour, // PaymentPromiseRetentionWindow
+		)
+		suite.keeper.SetParams(suite.ctx, want)
+		got := suite.keeper.GetParams(suite.ctx)
+		suite.Equal(want, got)
+	})
 }
 
 func (suite *KeeperTestSuite) TestEscrowAccount() {
