@@ -148,9 +148,8 @@ func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
 	pp := fibre.PaymentPromise{}
 	pp.FromProto(paymentPromise)
 	paymentPromiseHash, err := pp.Hash()
-	if err != nil {
-		suite.FailNow("failed to hash payment promise", err)
-	}
+	suite.NoError(err)
+
 	suite.keeper.SetPaymentPromiseEntry(suite.ctx, types.PaymentPromiseEntry{
 		PaymentPromiseHash: paymentPromiseHash,
 		ProcessedAt:        suite.ctx.BlockTime(),
@@ -159,8 +158,6 @@ func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
 	isProcessed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, paymentPromise)
 	suite.True(isProcessed)
 }
-
-// TestGetNextWithdrawalID is no longer needed since withdrawals are keyed by timestamp
 
 func (suite *KeeperTestSuite) TestValidatePaymentPromise() {
 	// This test would require more setup including creating a valid PaymentPromise
