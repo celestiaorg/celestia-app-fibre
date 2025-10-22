@@ -4,14 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"cosmossdk.io/errors"
 	"cosmossdk.io/log"
 	storetypes "cosmossdk.io/store/types"
 	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
 
 // Keeper handles all the state changes for the fibre module.
@@ -156,43 +154,4 @@ func (k Keeper) SetPaymentPromiseEntry(ctx sdk.Context, entry types.PaymentPromi
 	key := types.PaymentPromiseKey(entry.PaymentPromiseHash)
 	bz := k.cdc.MustMarshal(&entry)
 	store.Set(key, bz)
-}
-
-// isValidUnprocessedPaymentPromise returns nil if the payment promise is valid
-// and unprocessed.
-func (k Keeper) isValidUnprocessedPaymentPromise(ctx sdk.Context, promise *types.PaymentPromise) error {
-	if k.IsPaymentPromiseProcessed(ctx, promise) {
-		return errors.Wrap(sdkerrors.ErrInvalidRequest, "payment promise already processed")
-	}
-
-	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
-	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddr.String())
-	if !found {
-		return errors.Wrap(sdkerrors.ErrNotFound, "escrow account not found")
-	}
-
-	// Calculate required payment based on blob size and gas per blob byte
-	params := k.GetParams(ctx)
-	// TODO: this doesn't account for the padding that is added to the blob.
-	requiredAmount := sdk.NewInt64Coin("utia", int64(promise.BlobSize*params.GasPerBlobByte))
-
-	// Check if available balance is sufficient
-	if escrowAccount.AvailableBalance.IsLT(requiredAmount) {
-		return errors.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient available balance: have %s, need %s", escrowAccount.AvailableBalance, requiredAmount)
-	}
-
-	// Check timestamp is within valid window
-	now := ctx.BlockTime()
-	params = k.GetParams(ctx)
-
-	// Payment promise should not be too old or too far in the future
-	if promise.CreationTimestamp.Before(now.Add(-params.WithdrawalDelay)) {
-		return errors.Wrap(sdkerrors.ErrInvalidRequest, "Payment promise creation timestamp must be after the current block time minus withdrawal delay.")
-	}
-
-	if promise.CreationTimestamp.After(now) {
-		return errors.Wrap(sdkerrors.ErrInvalidRequest, "Payment promise creation timestamp must be before than the current block time.")
-	}
-
-	return nil
 }
