@@ -196,14 +196,14 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 
 func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	suite.T().Run("valid payment promise should pass validation", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.NoError(err)
 	})
 
 	suite.T().Run("invalid payment promise format should fail", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 		paymentPromise.Namespace = make([]byte, 10) // Invalid size (should be 29)
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.Error(err)
@@ -211,7 +211,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 
 	suite.T().Run("invalid payment promise should fail validation", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 		paymentPromise.BlobSize = 0 // Invalid: zero blob size
 
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
@@ -220,7 +220,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 
 	suite.T().Run("already processed payment promise should fail", func(t *testing.T) {
-		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
 
 		// Mark payment promise as already processed
@@ -243,8 +243,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 
 	suite.T().Run("escrow account not found should fail", func(t *testing.T) {
-		// Create a valid payment promise but don't create escrow account
-		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 
 		// Validate should fail because escrow account doesn't exist
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
@@ -253,8 +252,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 
 	suite.T().Run("insufficient balance should fail", func(t *testing.T) {
-		// Create a valid payment promise
-		paymentPromise, _ := suite.createValidPaymentPromise()
+		paymentPromise := suite.createPaymentPromise()
 
 		signerAddr := sdk.AccAddress(paymentPromise.SignerPublicKey.Address())
 		signerAddrStr := signerAddr.String()
@@ -281,8 +279,8 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 }
 
-// createValidPaymentPromise creates a properly signed and valid payment promise for testing
-func (suite *KeeperTestSuite) createValidPaymentPromise() (types.PaymentPromise, *secp256k1.PrivKey) {
+// createPaymentPromise creates a properly signed and valid payment promise for testing
+func (suite *KeeperTestSuite) createPaymentPromise() types.PaymentPromise {
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
 	signerPublicKey := *pubKey.(*secp256k1.PubKey)
@@ -311,7 +309,7 @@ func (suite *KeeperTestSuite) createValidPaymentPromise() (types.PaymentPromise,
 	suite.NoError(err)
 	paymentPromise.Signature = signature
 
-	return paymentPromise, privKey
+	return paymentPromise
 }
 
 // createEscrowAccountForPaymentPromise creates an escrow account for the given payment promise with sufficient balance
