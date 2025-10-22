@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"cosmossdk.io/log"
+	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -162,8 +163,8 @@ func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, promiseHash []byte) {
 	store.Delete(key)
 }
 
-// IsPaymentProcessed returns true if a payment has been processed for the given promise.
-func (k Keeper) IsPaymentProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
+// IsPaymentPromiseProcessed returns true if a payment has been processed for the given promise.
+func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
 	pp := fibre.PaymentPromise{}
 	pp.FromProto(promise)
@@ -173,4 +174,48 @@ func (k Keeper) IsPaymentProcessed(ctx sdk.Context, promise *types.PaymentPromis
 	}
 	key := types.PaymentPromiseKey(hash)
 	return store.Has(key)
+}
+
+// IsPaymentProcessedByHash returns true if a payment has been processed for the given promise hash.
+func (k Keeper) IsPaymentProcessedByHash(ctx sdk.Context, promiseHash []byte) bool {
+	store := ctx.KVStore(k.storeKey)
+	key := types.PaymentPromiseKey(promiseHash)
+	return store.Has(key)
+}
+
+// ValidatePaymentPromiseInternal validates a payment promise and returns an error if the promise is invalid.
+func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) error {
+	pp := fibre.PaymentPromise{}
+	if err := pp.FromProto(promise); err != nil {
+		return fmt.Errorf("invalid payment promise format: %v", err)
+	}
+
+	if err := pp.Validate(); err != nil {
+		return fmt.Errorf("invalid payment promise: %v", err)
+	}
+
+	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
+		return fmt.Errorf("payment promise has already been processed")
+	}
+
+	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
+	signerAddrStr := signerAddr.String()
+	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
+	if !found {
+		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
+	}
+
+	params := k.GetParams(ctx)
+	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
+
+	// TODO: This assumes 1 gas = 1 utia but the minimum gas price could be
+	// different.
+	requiredAmount := sdk.NewCoin("utia", math.NewInt(int64(gasRequired)))
+
+	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
+	if !hasSufficientBalance {
+		return fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
+	}
+
+	return nil
 }
