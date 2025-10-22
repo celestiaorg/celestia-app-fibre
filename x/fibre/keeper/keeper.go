@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"cosmossdk.io/log"
+	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -162,8 +163,8 @@ func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, promiseHash []byte) {
 	store.Delete(key)
 }
 
-// IsPaymentProcessed returns true if a payment has been processed for the given promise.
-func (k Keeper) IsPaymentProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
+// IsPaymentPromiseProcessed returns true if a payment has been processed for the given promise.
+func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
 	pp := fibre.PaymentPromise{}
 	pp.FromProto(promise)
@@ -173,4 +174,59 @@ func (k Keeper) IsPaymentProcessed(ctx sdk.Context, promise *types.PaymentPromis
 	}
 	key := types.PaymentPromiseKey(hash)
 	return store.Has(key)
+}
+
+// IsPaymentProcessedByHash returns true if a payment has been processed for the given promise hash.
+func (k Keeper) IsPaymentProcessedByHash(ctx sdk.Context, promiseHash []byte) bool {
+	store := ctx.KVStore(k.storeKey)
+	key := types.PaymentPromiseKey(promiseHash)
+	return store.Has(key)
+}
+
+// ValidatePaymentPromiseInternal validates a payment promise and returns detailed validation information.
+func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) (bool, string, bool, bool, sdk.Coin, sdk.Coin) {
+	// Convert proto to fibre PaymentPromise for validation
+	pp := fibre.PaymentPromise{}
+	if err := pp.FromProto(promise); err != nil {
+		return false, fmt.Sprintf("invalid payment promise format: %v", err), false, false, sdk.Coin{}, sdk.Coin{}
+	}
+
+	// Validate the payment promise
+	if err := pp.Validate(); err != nil {
+		return false, err.Error(), false, false, sdk.Coin{}, sdk.Coin{}
+	}
+
+	// Check if the payment promise has already been processed
+	isProcessed := k.IsPaymentPromiseProcessed(ctx, promise)
+
+	// Get signer address from public key
+	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
+	signerAddrStr := signerAddr.String()
+
+	// Check if the escrow account exists and has sufficient balance
+	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
+	if !found {
+		return false, "escrow account not found for signer", false, isProcessed, sdk.Coin{}, sdk.Coin{}
+	}
+
+	// Calculate required payment based on blob size and gas parameters
+	params := k.GetParams(ctx)
+	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
+
+	// For simplicity, assume 1 gas = 1 utia (this should be configurable in a real implementation)
+	// In a real implementation, you'd need to get the gas price from somewhere
+	requiredAmount := sdk.NewCoin("utia", math.NewInt(int64(gasRequired)))
+
+	// Check if the escrow account has sufficient balance
+	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
+
+	isValid := !isProcessed && hasSufficientBalance && found
+	errorMessage := ""
+	if isProcessed {
+		errorMessage = "payment promise has already been processed"
+	} else if !hasSufficientBalance {
+		errorMessage = "insufficient balance in escrow account"
+	}
+
+	return isValid, errorMessage, hasSufficientBalance, isProcessed, requiredAmount, escrowAccount.AvailableBalance
 }

@@ -2,11 +2,8 @@ package keeper
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	"cosmossdk.io/math"
-	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"google.golang.org/grpc/codes"
@@ -62,8 +59,8 @@ func (k Keeper) Withdrawals(c context.Context, req *types.QueryWithdrawalsReques
 	return &types.QueryWithdrawalsResponse{Withdrawals: withdrawals}, nil
 }
 
-// ProcessedPaymentPromise queries whether a payment promise has been processed.
-func (k Keeper) ProcessedPaymentPromise(c context.Context, req *types.QueryProcessedPaymentPromiseRequest) (*types.QueryProcessedPaymentPromiseResponse, error) {
+// IsPaymentProcessed queries whether a payment promise has been processed.
+func (k Keeper) IsPaymentProcessed(c context.Context, req *types.QueryIsPaymentProcessedRequest) (*types.QueryIsPaymentProcessedResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid request")
 	}
@@ -73,14 +70,17 @@ func (k Keeper) ProcessedPaymentPromise(c context.Context, req *types.QueryProce
 	}
 
 	ctx := sdk.UnwrapSDKContext(c)
-	processedPayment, found := k.GetProcessedPayment(ctx, req.PromiseHash)
+
+	// Delegate to keeper method
+	found := k.IsPaymentProcessedByHash(ctx, req.PromiseHash)
 
 	var processedAt *time.Time
 	if found {
+		processedPayment, _ := k.GetProcessedPayment(ctx, req.PromiseHash)
 		processedAt = &processedPayment.ProcessedAt
 	}
 
-	return &types.QueryProcessedPaymentPromiseResponse{
+	return &types.QueryIsPaymentProcessedResponse{
 		ProcessedAt: processedAt,
 		Found:       found,
 	}, nil
@@ -94,59 +94,8 @@ func (k Keeper) ValidatePaymentPromise(c context.Context, req *types.QueryValida
 
 	ctx := sdk.UnwrapSDKContext(c)
 
-	// Convert proto to fibre PaymentPromise for validation
-	pp := fibre.PaymentPromise{}
-	if err := pp.FromProto(&req.Promise); err != nil {
-		return &types.QueryValidatePaymentPromiseResponse{
-			Valid:        false,
-			ErrorMessage: fmt.Sprintf("invalid payment promise format: %v", err),
-		}, nil
-	}
-
-	// Validate the payment promise
-	if err := pp.Validate(); err != nil {
-		return &types.QueryValidatePaymentPromiseResponse{
-			Valid:        false,
-			ErrorMessage: err.Error(),
-		}, nil
-	}
-
-	// Check if the payment promise has already been processed
-	isProcessed := k.IsPaymentProcessed(ctx, &req.Promise)
-
-	// Get signer address from public key
-	signerAddr := sdk.AccAddress(req.Promise.SignerPublicKey.Address())
-	signerAddrStr := signerAddr.String()
-
-	// Additional validation: check if the escrow account exists and has sufficient balance
-	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
-	if !found {
-		return &types.QueryValidatePaymentPromiseResponse{
-			Valid:             false,
-			ErrorMessage:      "escrow account not found for signer",
-			AlreadyProcessed:  isProcessed,
-			SufficientBalance: false,
-		}, nil
-	}
-
-	// Calculate required payment based on blob size and gas parameters
-	params := k.GetParams(ctx)
-	gasRequired := uint64(req.Promise.BlobSize) * uint64(params.GasPerBlobByte)
-
-	// For simplicity, assume 1 gas = 1 utia (this should be configurable in a real implementation)
-	// In a real implementation, you'd need to get the gas price from somewhere
-	requiredAmount := sdk.NewCoin("utia", math.NewInt(int64(gasRequired)))
-
-	// Check if the escrow account has sufficient balance
-	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
-
-	isValid := !isProcessed && hasSufficientBalance && found
-	errorMessage := ""
-	if isProcessed {
-		errorMessage = "payment promise has already been processed"
-	} else if !hasSufficientBalance {
-		errorMessage = "insufficient balance in escrow account"
-	}
+	// Delegate to keeper method
+	isValid, errorMessage, hasSufficientBalance, isProcessed, requiredAmount, availableBalance := k.ValidatePaymentPromiseInternal(ctx, &req.Promise)
 
 	return &types.QueryValidatePaymentPromiseResponse{
 		Valid:             isValid,
@@ -154,6 +103,6 @@ func (k Keeper) ValidatePaymentPromise(c context.Context, req *types.QueryValida
 		SufficientBalance: hasSufficientBalance,
 		AlreadyProcessed:  isProcessed,
 		RequiredPayment:   requiredAmount,
-		AvailableBalance:  escrowAccount.AvailableBalance,
+		AvailableBalance:  availableBalance,
 	}, nil
 }

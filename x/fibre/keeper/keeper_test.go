@@ -172,7 +172,7 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 
 	suite.T().Run("isPaymentProcessed should return false for non-existent payment promise", func(t *testing.T) {
 		paymentPromise := testPaymentPromise()
-		suite.False(suite.keeper.IsPaymentProcessed(suite.ctx, &paymentPromise))
+		suite.False(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
 	})
 
 	suite.T().Run("isPaymentProcessed should return true for existing payment promise", func(t *testing.T) {
@@ -187,7 +187,7 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 			ProcessedAt:        suite.ctx.BlockTime(),
 		})
 
-		suite.True(suite.keeper.IsPaymentProcessed(suite.ctx, &paymentPromise))
+		suite.True(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
 	})
 }
 
