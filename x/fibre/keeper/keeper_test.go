@@ -35,50 +35,23 @@ func TestKeeperTestSuite(t *testing.T) {
 }
 
 func (suite *KeeperTestSuite) SetupTest() {
-	key := storetypes.NewKVStoreKey(types.StoreKey)
+	storeKey := storetypes.NewKVStoreKey(types.StoreKey)
 	tkey := storetypes.NewTransientStoreKey("transient_test")
 
 	db := dbm.NewMemDB()
 	stateStore := store.NewCommitMultiStore(db, log.NewNopLogger(), metrics.NewNoOpMetrics())
-	stateStore.MountStoreWithDB(key, storetypes.StoreTypeIAVL, db)
+	stateStore.MountStoreWithDB(storeKey, storetypes.StoreTypeIAVL, db)
 	stateStore.MountStoreWithDB(tkey, storetypes.StoreTypeTransient, nil)
 	require.NoError(suite.T(), stateStore.LoadLatestVersion())
 
 	registry := codectypes.NewInterfaceRegistry()
-	// types.RegisterInterfaces(registry) // Skip for now as this function may not exist
-	cdc := codec.NewProtoCodec(registry)
+	suite.cdc = codec.NewProtoCodec(registry)
 
-	// Create a mock bank keeper
 	mockBankKeeper := &MockBankKeeper{}
-
-	suite.keeper = keeper.NewKeeper(
-		cdc,
-		key,
-		mockBankKeeper,
-		authtypes.NewModuleAddress("gov").String(),
-	)
-
+	authority := authtypes.NewModuleAddress("gov").String()
+	suite.keeper = keeper.NewKeeper(suite.cdc, storeKey, mockBankKeeper, authority)
+	suite.keeper.SetParams(suite.ctx, types.DefaultParams())
 	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC()}, false, nil)
-	suite.cdc = cdc
-
-	// Initialize with default params
-	params := types.DefaultParams()
-	suite.keeper.SetParams(suite.ctx, params)
-}
-
-// MockBankKeeper implements the expected BankKeeper interface for testing
-type MockBankKeeper struct{}
-
-func (m *MockBankKeeper) SendCoinsFromAccountToModule(ctx sdk.Context, senderAddr sdk.AccAddress, recipientModule string, amt sdk.Coins) error {
-	return nil
-}
-
-func (m *MockBankKeeper) SendCoinsFromModuleToAccount(ctx sdk.Context, senderModule string, recipientAddr sdk.AccAddress, amt sdk.Coins) error {
-	return nil
-}
-
-func (m *MockBankKeeper) GetModuleAddress(moduleName string) sdk.AccAddress {
-	return authtypes.NewModuleAddress(moduleName)
 }
 
 func (suite *KeeperTestSuite) TestSetGetParams() {
