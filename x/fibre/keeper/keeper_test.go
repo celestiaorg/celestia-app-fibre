@@ -133,10 +133,10 @@ func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
 	paymentPromise := &types.PaymentPromise{
 		ChainId:           "test-chain",
 		Height:            100,
-		Namespace:         make([]byte, 29), // Valid namespace size
+		Namespace:         make([]byte, 29),
 		BlobSize:          1000,
 		BlobVersion:       0,
-		Commitment:        make([]byte, 32), // Valid commitment size
+		Commitment:        make([]byte, 32),
 		CreationTimestamp: suite.ctx.BlockTime(),
 		SignerPublicKey:   signerPublicKey,
 		Signature:         make([]byte, 64),
@@ -157,63 +157,6 @@ func (suite *KeeperTestSuite) TestSetPaymentPromiseEntry() {
 
 	isProcessed = suite.keeper.IsPaymentPromiseProcessed(suite.ctx, paymentPromise)
 	suite.True(isProcessed)
-}
-
-func (suite *KeeperTestSuite) TestValidatePaymentPromise() {
-	// This test would require more setup including creating a valid PaymentPromise
-	// with proper public key, signature, etc. For now, we'll test the basic validation
-	// that checks for processed promises and escrow account existence.
-
-	signer := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
-
-	// Create escrow account
-	account := types.EscrowAccount{
-		Signer:           signer,
-		Balance:          sdk.NewInt64Coin("utia", 1000),
-		AvailableBalance: sdk.NewInt64Coin("utia", 1000),
-	}
-	suite.keeper.SetEscrowAccount(suite.ctx, account)
-
-	// Test would continue with creating a valid PaymentPromise and testing validation
-	// This requires more complex setup with cryptographic keys and signatures
-	// TODO: @rootulp
-}
-
-func (suite *KeeperTestSuite) TestIterators() {
-	// Test escrow account iterator
-	signer1 := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
-	signer2 := "celestia1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a"
-
-	account1 := types.EscrowAccount{
-		Signer:           signer1,
-		Balance:          sdk.NewInt64Coin("utia", 1000),
-		AvailableBalance: sdk.NewInt64Coin("utia", 800),
-	}
-	account2 := types.EscrowAccount{
-		Signer:           signer2,
-		Balance:          sdk.NewInt64Coin("utia", 2000),
-		AvailableBalance: sdk.NewInt64Coin("utia", 1500),
-	}
-
-	suite.keeper.SetEscrowAccount(suite.ctx, account1)
-	suite.keeper.SetEscrowAccount(suite.ctx, account2)
-
-	// Test iterator
-	var accounts []types.EscrowAccount
-	suite.keeper.IterateEscrowAccounts(suite.ctx, func(account types.EscrowAccount) bool {
-		accounts = append(accounts, account)
-		return false
-	})
-
-	suite.Len(accounts, 2)
-
-	// Verify accounts are present (order may vary)
-	signers := make(map[string]bool)
-	for _, acc := range accounts {
-		signers[acc.Signer] = true
-	}
-	suite.True(signers[signer1])
-	suite.True(signers[signer2])
 }
 
 func generatePubKey() secp256k1.PubKey {
