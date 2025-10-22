@@ -93,10 +93,8 @@ func (k Keeper) ValidatePaymentPromise(c context.Context, req *types.QueryValida
 	}
 
 	ctx := sdk.UnwrapSDKContext(c)
-
-	isValid, err := k.ValidatePaymentPromiseInternal(ctx, &req.Promise)
-	if err != nil {
+	if err := k.ValidatePaymentPromiseInternal(ctx, &req.Promise); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &types.QueryValidatePaymentPromiseResponse{IsValid: isValid}, nil
+	return &types.QueryValidatePaymentPromiseResponse{IsValid: true}, nil
 }

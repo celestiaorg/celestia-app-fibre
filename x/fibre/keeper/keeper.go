@@ -183,38 +183,39 @@ func (k Keeper) IsPaymentProcessedByHash(ctx sdk.Context, promiseHash []byte) bo
 	return store.Has(key)
 }
 
-// ValidatePaymentPromiseInternal validates a payment promise and returns detailed validation information.
-func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) (isValid bool, error error) {
+// ValidatePaymentPromiseInternal validates a payment promise and returns an error if the promise is invalid.
+func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) error {
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(promise); err != nil {
-		return false, fmt.Errorf("invalid payment promise format: %v", err)
+		return fmt.Errorf("invalid payment promise format: %v", err)
 	}
 
 	if err := pp.Validate(); err != nil {
-		return false, fmt.Errorf("invalid payment promise: %v", err)
+		return fmt.Errorf("invalid payment promise: %v", err)
 	}
 
 	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
-		return false, fmt.Errorf("payment promise has already been processed")
+		return fmt.Errorf("payment promise has already been processed")
 	}
 
 	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
 	signerAddrStr := signerAddr.String()
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
 	if !found {
-		return false, fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
+		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
 	}
 
 	params := k.GetParams(ctx)
 	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
 
-	// NOTE: this assumes 1 gas = 1 utia (this should be configurable in a real implementation)
+	// TODO: This assumes 1 gas = 1 utia but the minimum gas price could be
+	// different.
 	requiredAmount := sdk.NewCoin("utia", math.NewInt(int64(gasRequired)))
 
 	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
 	if !hasSufficientBalance {
-		return false, fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
+		return fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
 	}
 
-	return true, nil
+	return nil
 }
