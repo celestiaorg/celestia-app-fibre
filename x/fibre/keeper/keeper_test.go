@@ -1,6 +1,8 @@
 package keeper_test
 
 import (
+	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/go-square/v3/share"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -189,6 +192,182 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 
 		suite.True(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
 	})
+}
+
+func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
+	suite.T().Run("valid payment promise should pass validation", func(t *testing.T) {
+		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
+		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
+		suite.NoError(err)
+	})
+
+	suite.T().Run("invalid payment promise format should fail", func(t *testing.T) {
+		invalidNamespace := make([]byte, 10) // Invalid size (should be 29)
+		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise.Namespace = invalidNamespace
+		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "invalid payment promise format")
+	})
+
+	suite.T().Run("invalid payment promise should fail validation", func(t *testing.T) {
+		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		paymentPromise.BlobSize = 0 // Invalid: zero blob size
+
+		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "invalid payment promise")
+	})
+
+	suite.T().Run("already processed payment promise should fail", func(t *testing.T) {
+		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+		suite.createEscrowAccountForPaymentPromise(paymentPromise, 1000)
+
+		// Mark payment promise as already processed
+		pp := fibre.PaymentPromise{}
+		err := pp.FromProto(&paymentPromise)
+		suite.NoError(err)
+
+		promiseHash, err := pp.Hash()
+		suite.NoError(err)
+		processedPayment := types.ProcessedPayment{
+			PaymentPromiseHash: promiseHash,
+			ProcessedAt:        suite.ctx.BlockTime(),
+		}
+		suite.keeper.SetProcessedPayment(suite.ctx, processedPayment)
+
+		// Validate should fail because it's already processed
+		err = suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "payment promise has already been processed")
+	})
+
+	suite.T().Run("escrow account not found should fail", func(t *testing.T) {
+		// Create a valid payment promise but don't create escrow account
+		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+
+		// Validate should fail because escrow account doesn't exist
+		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "escrow account not found for signer")
+	})
+
+	suite.T().Run("insufficient balance should fail", func(t *testing.T) {
+		// Create a valid payment promise
+		paymentPromise, _ := suite.createValidPaymentPromise(testPaymentPromiseConfig{})
+
+		signerAddr := sdk.AccAddress(paymentPromise.SignerPublicKey.Address())
+		signerAddrStr := signerAddr.String()
+
+		// Create escrow account with insufficient balance
+		params := suite.keeper.GetParams(suite.ctx)
+		gasRequired := uint64(paymentPromise.BlobSize) * uint64(params.GasPerBlobByte)
+		requiredAmount := sdk.NewInt64Coin("utia", int64(gasRequired))
+		insufficientBalance := sdk.NewInt64Coin("utia", int64(gasRequired)-1) // Less than required
+
+		escrowAccount := types.EscrowAccount{
+			Signer:           signerAddrStr,
+			Balance:          insufficientBalance,
+			AvailableBalance: insufficientBalance,
+		}
+		suite.keeper.SetEscrowAccount(suite.ctx, escrowAccount)
+
+		// Validate should fail because of insufficient balance
+		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "insufficient balance in escrow account")
+		suite.Contains(err.Error(), fmt.Sprintf("required: %v", requiredAmount))
+		suite.Contains(err.Error(), fmt.Sprintf("available: %v", insufficientBalance))
+	})
+}
+
+// testPaymentPromiseConfig holds configuration for creating test payment promises
+type testPaymentPromiseConfig struct {
+	privKey   *secp256k1.PrivKey
+	blobSize  uint32
+	namespace []byte
+	chainId   string
+	height    int64
+}
+
+// createValidPaymentPromise creates a properly signed and valid payment promise for testing
+func (suite *KeeperTestSuite) createValidPaymentPromise(config testPaymentPromiseConfig) (types.PaymentPromise, *secp256k1.PrivKey) {
+	// Use provided private key or generate a new one
+	privKey := config.privKey
+	if privKey == nil {
+		privKey = secp256k1.GenPrivKey()
+	}
+
+	pubKey := privKey.PubKey()
+	signerPublicKey := *pubKey.(*secp256k1.PubKey)
+
+	// Set defaults if not provided
+	blobSize := config.blobSize
+	if blobSize == 0 {
+		blobSize = 1000
+	}
+
+	namespace := config.namespace
+	if namespace == nil {
+		// Create a valid v0 namespace using the share package
+		ns := share.MustNewV0Namespace(bytes.Repeat([]byte{0x1}, share.NamespaceVersionZeroIDSize))
+		namespace = ns.Bytes()
+	}
+
+	chainId := config.chainId
+	if chainId == "" {
+		chainId = "test-chain"
+	}
+
+	height := config.height
+	if height == 0 {
+		height = 100
+	}
+
+	// Create payment promise
+	paymentPromise := types.PaymentPromise{
+		ChainId:           chainId,
+		Height:            height,
+		Namespace:         namespace,
+		BlobSize:          blobSize,
+		BlobVersion:       0,
+		Commitment:        make([]byte, 32),
+		CreationTimestamp: time.Now().UTC().Truncate(time.Second),
+		SignerPublicKey:   signerPublicKey,
+		Signature:         make([]byte, 64),
+	}
+
+	// Create fibre payment promise to get proper signature
+	pp := fibre.PaymentPromise{}
+	err := pp.FromProto(&paymentPromise)
+	suite.NoError(err)
+
+	signBytes, err := pp.SignBytes()
+	suite.NoError(err)
+
+	signature, err := privKey.Sign(signBytes)
+	suite.NoError(err)
+	paymentPromise.Signature = signature
+
+	return paymentPromise, privKey
+}
+
+// createEscrowAccountForPaymentPromise creates an escrow account for the given payment promise with sufficient balance
+func (suite *KeeperTestSuite) createEscrowAccountForPaymentPromise(paymentPromise types.PaymentPromise, extraBalance int64) {
+	signerAddr := sdk.AccAddress(paymentPromise.SignerPublicKey.Address())
+	signerAddrStr := signerAddr.String()
+
+	params := suite.keeper.GetParams(suite.ctx)
+	gasRequired := uint64(paymentPromise.BlobSize) * uint64(params.GasPerBlobByte)
+	availableBalance := sdk.NewInt64Coin("utia", int64(gasRequired)+extraBalance)
+
+	escrowAccount := types.EscrowAccount{
+		Signer:           signerAddrStr,
+		Balance:          availableBalance,
+		AvailableBalance: availableBalance,
+	}
+	suite.keeper.SetEscrowAccount(suite.ctx, escrowAccount)
 }
 
 func testPaymentPromise() types.PaymentPromise {
