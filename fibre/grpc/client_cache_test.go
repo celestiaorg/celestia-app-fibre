@@ -1,4 +1,4 @@
-package types_test
+package grpc_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	core "github.com/cometbft/cometbft/types"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ func TestClientCache(t *testing.T) {
 			Address: []byte("validator-2"),
 		},
 	}
-	cache := types.NewClientCache(mockClientFn(false))
+	cache := grpc.NewClientCache(mockClientFn(false), len(validators))
 
 	clients := make([]types.FibreClient, numGoroutines)
 	errors := make([]error, numGoroutines)
@@ -82,9 +83,9 @@ func (m *mockFibreClientCloser) Close() error {
 	return nil
 }
 
-// mockClientFn creates a mock types.NewClientFn for testing
-func mockClientFn(shouldErr bool) types.NewClientFn {
-	return func(ctx context.Context, val *core.Validator) (types.Client, error) {
+// mockClientFn creates a mock grpc.NewClientFn for testing
+func mockClientFn(shouldErr bool) grpc.NewClientFn {
+	return func(ctx context.Context, val *core.Validator) (grpc.Client, error) {
 		if shouldErr {
 			return nil, errors.New("mock client creation error")
 		}

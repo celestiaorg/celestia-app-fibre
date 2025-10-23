@@ -1,4 +1,4 @@
-package types
+package grpc
 
 import (
 	"context"
@@ -24,16 +24,16 @@ type clientEntry struct {
 }
 
 // NewClientCache creates a new [ClientCache] with the given [NewClientFn].
-func NewClientCache(newClient NewClientFn) *ClientCache {
+func NewClientCache(newClient NewClientFn, expectedSize int) *ClientCache {
 	return &ClientCache{
 		newClient: newClient,
-		clients:   make(map[string]*clientEntry),
+		clients:   make(map[string]*clientEntry, expectedSize),
 	}
 }
 
-// GetClient returns a cached [FibreClient] for the validator, creating one if needed.
+// GetClient returns a cached [Client] for the validator, creating one if needed.
 // Uses the constructor function provided to [NewClientCache]. Only one dial per validator will occur.
-func (cc *ClientCache) GetClient(ctx context.Context, val *core.Validator) (FibreClient, error) {
+func (cc *ClientCache) GetClient(ctx context.Context, val *core.Validator) (Client, error) {
 	addr := val.Address.String()
 
 	cc.mu.Lock()

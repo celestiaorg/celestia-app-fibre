@@ -143,7 +143,7 @@ func TestMsgRequestWithdrawalValidateBasic(t *testing.T) {
 }
 
 func TestPaymentPromiseValidateBasic(t *testing.T) {
-	signerPublicKey := generatePubKey(t)
+	signerPublicKey := generatePubKey()
 	namespace := generateNamespace(t)
 	blobSize := uint32(1000)
 	commitment := generateCommitment()
@@ -516,7 +516,7 @@ func generateCommitment() []byte {
 	return commitment
 }
 
-func generatePubKey(t *testing.T) secp256k1.PubKey {
+func generatePubKey() secp256k1.PubKey {
 	privKey := secp256k1.GenPrivKey()
 	pubKey := privKey.PubKey()
 	return *pubKey.(*secp256k1.PubKey)
@@ -524,7 +524,7 @@ func generatePubKey(t *testing.T) secp256k1.PubKey {
 
 func generatePaymentPromise(t *testing.T) PaymentPromise {
 	return PaymentPromise{
-		SignerPublicKey:   generatePubKey(t),
+		SignerPublicKey:   generatePubKey(),
 		Namespace:         generateNamespace(t),
 		BlobSize:          1000,
 		Commitment:        generateCommitment(),
