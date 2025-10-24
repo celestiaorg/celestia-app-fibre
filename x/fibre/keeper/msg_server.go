@@ -266,13 +266,12 @@ func (ms msgServer) UpdateFibreParams(goCtx context.Context, msg *types.MsgUpdat
 	// Set the new parameters
 	ms.SetParams(ctx, msg.Params)
 
-	// Emit event (using simple event for param updates to match other modules)
-	ctx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			"fibre_update_params",
-			sdk.NewAttribute("authority", msg.Authority),
-		),
-	)
+	// Emit event
+	if err := ctx.EventManager().EmitTypedEvent(
+		types.NewEventUpdateFibreParams(msg.Authority, msg.Params),
+	); err != nil {
+		return nil, err
+	}
 
 	return &types.MsgUpdateFibreParamsResponse{}, nil
 }

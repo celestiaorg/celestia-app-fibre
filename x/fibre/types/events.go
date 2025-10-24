@@ -8,11 +8,12 @@ import (
 )
 
 var (
-	EventTypeDepositToEscrow              = proto.MessageName(&EventDepositToEscrow{})
-	EventTypeWithdrawFromEscrowRequest    = proto.MessageName(&EventWithdrawFromEscrowRequest{})
-	EventTypeWithdrawFromEscrowExecuted   = proto.MessageName(&EventWithdrawFromEscrowExecuted{})
-	EventTypePayForFibre                  = proto.MessageName(&EventPayForFibre{})
-	EventTypePaymentPromiseTimeout        = proto.MessageName(&EventPaymentPromiseTimeout{})
+	EventTypeDepositToEscrow            = proto.MessageName(&EventDepositToEscrow{})
+	EventTypeWithdrawFromEscrowRequest  = proto.MessageName(&EventWithdrawFromEscrowRequest{})
+	EventTypeWithdrawFromEscrowExecuted = proto.MessageName(&EventWithdrawFromEscrowExecuted{})
+	EventTypePayForFibre                = proto.MessageName(&EventPayForFibre{})
+	EventTypePaymentPromiseTimeout      = proto.MessageName(&EventPaymentPromiseTimeout{})
+	EventTypeUpdateFibreParams          = proto.MessageName(&EventUpdateFibreParams{})
 )
 
 // NewEventDepositToEscrow returns a new EventDepositToEscrow
@@ -55,5 +56,13 @@ func NewEventPaymentPromiseTimeout(processor string, escrowSigner string, paymen
 		Processor:          processor,
 		EscrowSigner:       escrowSigner,
 		PaymentPromiseHash: paymentPromiseHash,
+	}
+}
+
+// NewEventUpdateFibreParams returns a new EventUpdateFibreParams
+func NewEventUpdateFibreParams(authority string, params Params) *EventUpdateFibreParams {
+	return &EventUpdateFibreParams{
+		Signer: authority,
+		Params: params,
 	}
 }
