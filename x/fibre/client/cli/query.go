@@ -26,7 +26,6 @@ func GetQueryCmd() *cobra.Command {
 		CmdQueryEscrowAccount(),
 		CmdQueryWithdrawals(),
 		CmdQueryIsPaymentProcessed(),
-		CmdQueryValidatePaymentPromise(),
 	)
 
 	return cmd
@@ -151,46 +150,6 @@ $ celestia-appd query fibre is-payment-processed 0x1234...
 
 			res, err := queryClient.IsPaymentProcessed(context.Background(), &types.QueryIsPaymentProcessedRequest{
 				PromiseHash: []byte(args[0]),
-			})
-			if err != nil {
-				return err
-			}
-
-			return clientCtx.PrintProto(res)
-		},
-	}
-
-	flags.AddQueryFlagsToCmd(cmd)
-
-	return cmd
-}
-
-// CmdQueryValidatePaymentPromise implements the validate-payment-promise query command.
-func CmdQueryValidatePaymentPromise() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "validate-payment-promise [payment-promise-json]",
-		Args:  cobra.ExactArgs(1),
-		Short: "Validate a payment promise for server use",
-		Long: `Validate a payment promise for server use by providing the payment promise as JSON.
-
-Example:
-$ celestia-appd query fibre validate-payment-promise '{"signer_public_key": "...", "namespace": "...", "commitment": "...", "blob_size": 1024, "signature": "..."}'
-`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientQueryContext(cmd)
-			if err != nil {
-				return err
-			}
-
-			var paymentPromise types.PaymentPromise
-			if err := clientCtx.Codec.UnmarshalJSON([]byte(args[0]), &paymentPromise); err != nil {
-				return fmt.Errorf("failed to unmarshal payment promise: %w", err)
-			}
-
-			queryClient := types.NewQueryClient(clientCtx)
-
-			res, err := queryClient.ValidatePaymentPromise(context.Background(), &types.QueryValidatePaymentPromiseRequest{
-				Promise: paymentPromise,
 			})
 			if err != nil {
 				return err
