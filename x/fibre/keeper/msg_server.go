@@ -6,6 +6,7 @@ import (
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
@@ -26,7 +27,7 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 // calculatePaymentAmount calculates the payment amount for a fibre blob based on its size and gas parameters
 func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk.Coin {
 	params := ms.GetParams(ctx)
-	return sdk.NewInt64Coin("utia", int64(blobSize*params.GasPerBlobByte))
+	return sdk.NewInt64Coin(appconsts.BondDenom, int64(blobSize*params.GasPerBlobByte))
 }
 
 // DepositToEscrow deposits funds to the signer's escrow account
