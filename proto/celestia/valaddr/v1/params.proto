@@ -1,8 +1,6 @@
 syntax = "proto3";
 package celestia.valaddr.v1;
 
-import "gogoproto/gogo.proto";
-
 option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
 
 // Params defines the parameters for the valaddr module.

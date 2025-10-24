@@ -40,7 +40,7 @@ func (ms msgServer) SetFibreProviderInfo(goCtx context.Context, msg *types.MsgSe
 	}
 	consAddr := sdk.ConsAddress(consPubKey.Address())
 
-	if len(msg.IpAddress) > types.MaxIpLen {
+	if len(msg.IpAddress) > types.MaxIPLen {
 		return nil, errors.Wrapf(types.ErrInvalidIPAddress, "IP address must be less than 90 characters, got %d", len(msg.IpAddress))
 	}
 	if net.ParseIP(msg.IpAddress) == nil {

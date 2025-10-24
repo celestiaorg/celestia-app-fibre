@@ -16,8 +16,8 @@ const (
 	// AttributeKeyIPAddress is the attribute key for IP address
 	AttributeKeyIPAddress = "ip_address"
 
-	// MaxIpLen is defined in x/valaddr spec
-	MaxIpLen = 90
+	// MaxIPLen is defined in x/valaddr spec
+	MaxIPLen = 90
 )
 
 var _ sdk.Msg = &MsgSetFibreProviderInfo{}
@@ -34,7 +34,7 @@ func (m *MsgSetFibreProviderInfo) ValidateBasic() error {
 	}
 
 	// this was in the spec, though it is not necessary because net.ParseIP uses RFC 4291 and it will reject it anyway
-	if len(m.IpAddress) > MaxIpLen {
+	if len(m.IpAddress) > MaxIPLen {
 		return errorsmod.Wrapf(ErrInvalidIPAddress, "IP address must be less than 90 characters, got %d", len(m.IpAddress))
 	}
 	if net.ParseIP(m.IpAddress) == nil {

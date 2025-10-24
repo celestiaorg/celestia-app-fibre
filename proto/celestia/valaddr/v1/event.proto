@@ -1,9 +1,6 @@
 syntax = "proto3";
 package celestia.valaddr.v1;
 
-import "gogoproto/gogo.proto";
-import "cosmos_proto/cosmos.proto";
-
 option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
 
 // EventSetFibreProviderInfo is emitted when a validator sets or updates their fibre provider information.
