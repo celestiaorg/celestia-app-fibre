@@ -3,6 +3,7 @@ package keeper_test
 import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 )
 
 // MockBankKeeper implements the expected BankKeeper interface for testing
@@ -18,4 +19,11 @@ func (m *MockBankKeeper) SendCoinsFromModuleToAccount(ctx sdk.Context, senderMod
 
 func (m *MockBankKeeper) GetModuleAddress(moduleName string) sdk.AccAddress {
 	return authtypes.NewModuleAddress(moduleName)
+}
+
+// MockStakingKeeper implements the expected StakingKeeper interface for testing
+type MockStakingKeeper struct{}
+
+func (m *MockStakingKeeper) GetHistoricalInfo(ctx sdk.Context, height int64) (stakingtypes.HistoricalInfo, error) {
+	return stakingtypes.HistoricalInfo{}, nil
 }

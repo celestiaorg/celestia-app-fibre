@@ -15,21 +15,23 @@ import (
 
 // Keeper handles all the state changes for the fibre module.
 type Keeper struct {
-	cdc        codec.Codec
-	storeKey   storetypes.StoreKey
-	bankKeeper types.BankKeeper
+	cdc           codec.Codec
+	storeKey      storetypes.StoreKey
+	bankKeeper    types.BankKeeper
+	stakingKeeper types.StakingKeeper
 	// authority is the address that has the authority to update module parameters.
 	// This is typically the governance module address.
 	authority string
 }
 
 // NewKeeper creates a new fibre Keeper instance
-func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, bankKeeper types.BankKeeper, authority string) *Keeper {
+func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, bankKeeper types.BankKeeper, stakingKeeper types.StakingKeeper, authority string) *Keeper {
 	return &Keeper{
-		cdc:        cdc,
-		storeKey:   storeKey,
-		bankKeeper: bankKeeper,
-		authority:  authority,
+		cdc:           cdc,
+		storeKey:      storeKey,
+		bankKeeper:    bankKeeper,
+		stakingKeeper: stakingKeeper,
+		authority:     authority,
 	}
 }
 

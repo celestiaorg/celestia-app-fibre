@@ -6,8 +6,12 @@ import (
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/cometbft/cometbft/crypto/ed25519"
+	cmtmath "github.com/cometbft/cometbft/libs/math"
+	core "github.com/cometbft/cometbft/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
@@ -139,10 +143,10 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
 	}
 
-	// TODO: Validate validator signatures using existing fibre/validator.SignatureSet
-	// This should verify that the signatures are from valid validators at the specified height
-	// and that they collectively represent sufficient stake/voting power (2/3+ threshold)
-	// The existing SignatureSet in fibre/validator package already handles this logic
+	// Validate validator signatures using existing fibre/validator.SignatureSet
+	if err := ms.validateValidatorSignatures(ctx, &msg.PaymentPromise, msg.ValidatorSignatures); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
+	}
 
 	// Convert payment promise to internal format to get hash
 	pp := fibre.PaymentPromise{}
@@ -295,4 +299,77 @@ func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk
 	params := ms.GetParams(ctx)
 	// TODO: this assumes 1 utia per gas which may not be correct.
 	return sdk.NewInt64Coin(appconsts.BondDenom, int64(blobSize*params.GasPerBlobByte))
+}
+
+// validateValidatorSignatures validates validator signatures using the existing SignatureSet infrastructure
+func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, paymentPromise *types.PaymentPromise, signatures [][]byte) error {
+	// Get historical validator set at the height specified in the payment promise
+	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, paymentPromise.Height)
+	if err != nil {
+		return errorsmod.Wrapf(err, "failed to get historical validator set at height %d", paymentPromise.Height)
+	}
+
+	// Convert SDK validators to CometBFT validators
+	cmtValidators := make([]*core.Validator, len(historicalInfo.Valset))
+	for i, val := range historicalInfo.Valset {
+		consPubKey, err := val.ConsPubKey()
+		if err != nil {
+			return errorsmod.Wrapf(err, "failed to get consensus public key for validator %s", val.GetOperator())
+		}
+
+		// Create CometBFT ed25519 public key from bytes
+		pubKeyBytes := consPubKey.Bytes()
+		if len(pubKeyBytes) != ed25519.PubKeySize {
+			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid ed25519 public key size for validator %s", val.GetOperator())
+		}
+
+		cmtPubKey := ed25519.PubKey(pubKeyBytes)
+		cmtValidators[i] = core.NewValidator(cmtPubKey, val.Tokens.Int64())
+	}
+
+	// Create validator set
+	cmtValSet := core.NewValidatorSet(cmtValidators)
+	valSet := validator.Set{
+		ValidatorSet: cmtValSet,
+		Height:       uint64(paymentPromise.Height),
+	}
+
+	// Convert payment promise to get sign bytes
+	pp := fibre.PaymentPromise{}
+	if err := pp.FromProto(paymentPromise); err != nil {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
+	}
+
+	signBytes, err := pp.SignBytes()
+	if err != nil {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
+	}
+
+	// Create signature set with 2/3+ thresholds
+	twoThirds := cmtmath.Fraction{Numerator: 2, Denominator: 3}
+	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, signBytes)
+
+	// Add all provided signatures to the signature set
+	for i, signature := range signatures {
+		if len(signature) == 0 {
+			continue // Skip empty signatures
+		}
+
+		if i >= len(cmtValidators) {
+			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "signature index %d exceeds validator count %d", i, len(cmtValidators))
+		}
+
+		// Add signature to set (this validates the signature internally)
+		if err := sigSet.Add(cmtValidators[i], signature); err != nil {
+			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid signature at index %d: %s", i, err)
+		}
+	}
+
+	// Check if thresholds are met
+	_, err = sigSet.Signatures()
+	if err != nil {
+		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "signature validation failed: %s", err)
+	}
+
+	return nil
 }
