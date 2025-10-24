@@ -202,6 +202,23 @@ build-docker-multiplexer:
 		-f docker/multiplexer.Dockerfile .
 .PHONY: build-docker-multiplexer
 
+## build-docker-multiplexer-local: Build the multiplexer Docker image locally with private repo access. Requires GH_PRIVATE_REPO env var.
+build-docker-multiplexer-local:
+	@echo "--> Building Multiplexer Docker image locally with private repo access"
+	@if [ -z "$$GH_PRIVATE_REPO" ]; then \
+		echo "ERROR: GH_PRIVATE_REPO environment variable is not set"; \
+		echo "Please run: export GH_PRIVATE_REPO=<your_github_token>"; \
+		exit 1; \
+	fi
+	@export DOCKER_BUILDKIT=0 && \
+	$(DOCKER) build \
+		--build-arg GITHUB_TOKEN="$$GH_PRIVATE_REPO" \
+		--build-arg TARGETOS=$(DOCKER_GOOS) \
+		--build-arg TARGETARCH=$(DOCKER_GOARCH) \
+		-t ghcr.io/celestiaorg/celestia-app:$(CELESTIA_TAG) \
+		-f docker/multiplexer-local.Dockerfile .
+.PHONY: build-docker-multiplexer-local
+
 ## build-ghcr-docker: Build the celestia-appd Docker image tagged with the current commit hash for GitHub Container Registry.
 build-ghcr-docker:
 	@echo "--> Building Docker image"
