@@ -23,6 +23,12 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 	return &msgServer{Keeper: keeper}
 }
 
+// calculatePaymentAmount calculates the payment amount for a fibre blob based on its size and gas parameters
+func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk.Coin {
+	params := ms.GetParams(ctx)
+	return sdk.NewInt64Coin("utia", int64(blobSize*params.GasPerBlobByte))
+}
+
 // DepositToEscrow deposits funds to the signer's escrow account
 func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDepositToEscrow) (*types.MsgDepositToEscrowResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
@@ -163,8 +169,7 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	}
 
 	// Calculate payment amount based on blob size and gas per byte
-	params := ms.GetParams(ctx)
-	paymentAmount := sdk.NewInt64Coin("utia", int64(msg.PaymentPromise.BlobSize*params.GasPerBlobByte))
+	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
 
 	// Check if sufficient available balance
 	if escrowAccount.AvailableBalance.IsLT(paymentAmount) {
@@ -236,7 +241,7 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 	}
 
 	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)
-	paymentAmount := sdk.NewInt64Coin("utia", int64(msg.PaymentPromise.BlobSize*params.GasPerBlobByte))
+	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
 
 	// Check if sufficient balance (should always be true since promise was validated, but safety check)
 	if escrowAccount.Balance.IsLT(paymentAmount) {
