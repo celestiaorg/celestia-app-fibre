@@ -3,7 +3,6 @@ package celestia.valaddr.v1;
 
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
-import "celestia/valaddr/v1/tx.proto";
 
 option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
 
