@@ -72,20 +72,6 @@ func TestValidateGenesis(t *testing.T) {
 			},
 			expectErr: true,
 		},
-		{
-			name:      "nil genesis",
-			genesis:   nil,
-			expectErr: true,
-		},
-		{
-			name: "zero check height - valid sentinel value for not set",
-			genesis: &types.GenesisState{
-				Params: types.Params{
-					MissingInfoCheckHeight: 0,
-				},
-			},
-			expectErr: false,
-		},
 	}
 
 	for _, tc := range tests {

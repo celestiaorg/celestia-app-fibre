@@ -15,6 +15,9 @@ const (
 	AttributeKeyValidatorAddress = "validator_consensus_address"
 	// AttributeKeyIPAddress is the attribute key for IP address
 	AttributeKeyIPAddress = "ip_address"
+
+	// MaxIpLen is defined in x/valaddr spec
+	MaxIpLen = 90
 )
 
 var _ sdk.Msg = &MsgSetFibreProviderInfo{}
@@ -30,11 +33,8 @@ func (m *MsgSetFibreProviderInfo) ValidateBasic() error {
 		return errorsmod.Wrapf(ErrInvalidSigner, "invalid validator address: %v", err)
 	}
 
-	// Validate IP address
-	if m.IpAddress == "" {
-		return errorsmod.Wrap(ErrInvalidIPAddress, "IP address cannot be empty")
-	}
-	if len(m.IpAddress) > 90 {
+	// this was in the spec, though it is not necessary because net.ParseIP uses RFC 4291 and it will reject it anyway
+	if len(m.IpAddress) > MaxIpLen {
 		return errorsmod.Wrapf(ErrInvalidIPAddress, "IP address must be less than 90 characters, got %d", len(m.IpAddress))
 	}
 	if net.ParseIP(m.IpAddress) == nil {

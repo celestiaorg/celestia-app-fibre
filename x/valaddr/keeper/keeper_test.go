@@ -79,7 +79,7 @@ func TestIterateFibreProviderInfo(t *testing.T) {
 	}
 
 	count := 0
-	err := keeper.IterateFibreProviderInfo(ctx, func(consAddr sdk.ConsAddress, info types.FibreProviderInfo) bool {
+	err := keeper.IterateFibreProviderInfo(ctx, func(_ sdk.ConsAddress, _ types.FibreProviderInfo) bool {
 		count++
 		return false
 	})
@@ -102,4 +102,30 @@ func TestSetGetParams(t *testing.T) {
 	retrieved, err := keeper.GetParams(ctx)
 	require.NoError(t, err)
 	require.Equal(t, params.MissingInfoCheckHeight, retrieved.MissingInfoCheckHeight)
+}
+
+func TestSetParamsInvalid(t *testing.T) {
+	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+	ctx := testApp.NewContext(true)
+	keeper := testApp.ValaddrKeeper
+
+	tests := []struct {
+		name   string
+		params types.Params
+	}{
+		{
+			name: "negative height",
+			params: types.Params{
+				MissingInfoCheckHeight: -1,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := keeper.SetParams(ctx, tc.params)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "missing_info_check_height must be non-negative")
+		})
+	}
 }

@@ -67,7 +67,7 @@ func CmdQueryAllActiveFibreProviders() *cobra.Command {
 		Use:   "providers",
 		Short: "Query all active fibre providers",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			clientCtx, err := client.GetClientQueryContext(cmd)
 			if err != nil {
 				return err
