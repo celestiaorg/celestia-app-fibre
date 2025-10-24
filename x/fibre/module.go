@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"cosmossdk.io/core/appmodule"
+	"github.com/celestiaorg/celestia-app/v6/x/fibre/client/cli"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -83,20 +84,12 @@ func (am AppModule) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *run
 
 // GetTxCmd returns the fibre module's root tx command.
 func (AppModule) GetTxCmd() *cobra.Command {
-	// TODO: Implement CLI commands for fibre module
-	return &cobra.Command{
-		Use:   types.ModuleName,
-		Short: fmt.Sprintf("%s transactions subcommands", types.ModuleName),
-	}
+	return cli.GetTxCmd()
 }
 
 // GetQueryCmd returns the fibre module's root query command.
 func (AppModule) GetQueryCmd() *cobra.Command {
-	// TODO: Implement CLI commands for fibre module
-	return &cobra.Command{
-		Use:   types.ModuleName,
-		Short: fmt.Sprintf("Querying commands for the %s module", types.ModuleName),
-	}
+	return cli.GetQueryCmd()
 }
 
 // RegisterServices registers module services.
