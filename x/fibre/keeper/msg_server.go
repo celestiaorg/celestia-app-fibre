@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"fmt"
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
@@ -62,13 +61,11 @@ func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDeposit
 	ms.SetEscrowAccount(ctx, escrowAccount)
 
 	// Emit event
-	ctx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			"fibre_deposit_to_escrow",
-			sdk.NewAttribute("signer", msg.Signer),
-			sdk.NewAttribute("amount", msg.Amount.String()),
-		),
-	)
+	if err := ctx.EventManager().EmitTypedEvent(
+		types.NewEventDepositToEscrow(msg.Signer, msg.Amount),
+	); err != nil {
+		return nil, err
+	}
 
 	return &types.MsgDepositToEscrowResponse{}, nil
 }
@@ -111,16 +108,15 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 	// Save withdrawal request
 	ms.SetWithdrawal(ctx, withdrawal)
 
+	// Calculate available timestamp
+	availableAt := requestedTimestamp.Add(params.WithdrawalDelay)
+
 	// Emit event
-	ctx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			"fibre_request_withdrawal",
-			sdk.NewAttribute("signer", msg.Signer),
-			sdk.NewAttribute("amount", msg.Amount.String()),
-			sdk.NewAttribute("requested_timestamp", requestedTimestamp.String()),
-			sdk.NewAttribute("withdrawal_delay", params.WithdrawalDelay.String()),
-		),
-	)
+	if err := ctx.EventManager().EmitTypedEvent(
+		types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, availableAt),
+	); err != nil {
+		return nil, err
+	}
 
 	return &types.MsgRequestWithdrawalResponse{}, nil
 }
@@ -190,16 +186,11 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	ms.SetProcessedPayment(ctx, processedPayment)
 
 	// Emit event
-	ctx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			"fibre_pay_for_fibre",
-			sdk.NewAttribute("signer", msg.Signer),
-			sdk.NewAttribute("payment_signer", signerAddr),
-			sdk.NewAttribute("amount", paymentAmount.String()),
-			sdk.NewAttribute("blob_size", fmt.Sprintf("%d", msg.PaymentPromise.BlobSize)),
-			sdk.NewAttribute("promise_hash", fmt.Sprintf("%x", promiseHash)),
-		),
-	)
+	if err := ctx.EventManager().EmitTypedEvent(
+		types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment),
+	); err != nil {
+		return nil, err
+	}
 
 	return &types.MsgPayForFibreResponse{}, nil
 }
@@ -244,15 +235,16 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 	}
 	ms.SetProcessedPayment(ctx, processedPayment)
 
+	// Get escrow signer from payment promise
+	signerPubKey := msg.PaymentPromise.SignerPublicKey
+	escrowSigner := sdk.AccAddress(signerPubKey.Address()).String()
+
 	// Emit event
-	ctx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			"fibre_payment_promise_timeout",
-			sdk.NewAttribute("signer", msg.Signer),
-			sdk.NewAttribute("promise_hash", fmt.Sprintf("%x", promiseHash)),
-			sdk.NewAttribute("timeout_at", timeoutDeadline.String()),
-		),
-	)
+	if err := ctx.EventManager().EmitTypedEvent(
+		types.NewEventPaymentPromiseTimeout(msg.Signer, escrowSigner, promiseHash),
+	); err != nil {
+		return nil, err
+	}
 
 	return &types.MsgPaymentPromiseTimeoutResponse{}, nil
 }
@@ -274,7 +266,7 @@ func (ms msgServer) UpdateFibreParams(goCtx context.Context, msg *types.MsgUpdat
 	// Set the new parameters
 	ms.SetParams(ctx, msg.Params)
 
-	// Emit event
+	// Emit event (using simple event for param updates to match other modules)
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"fibre_update_params",
