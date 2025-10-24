@@ -1,6 +1,7 @@
 package keeper_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/celestiaorg/celestia-app/v6/app"
@@ -52,7 +53,7 @@ func TestMsgSetFibreProviderInfoInvalidIP(t *testing.T) {
 
 	err := msg.ValidateBasic()
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid IP address")
+	require.True(t, errors.Is(err, types.ErrInvalidIPAddress))
 }
 
 func TestMsgSetFibreProviderInfoEmptyIP(t *testing.T) {
@@ -65,7 +66,7 @@ func TestMsgSetFibreProviderInfoEmptyIP(t *testing.T) {
 
 	err := msg.ValidateBasic()
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "cannot be empty")
+	require.True(t, errors.Is(err, types.ErrInvalidIPAddress))
 }
 
 func TestMsgSetFibreProviderInfoNonValidator(t *testing.T) {
@@ -87,7 +88,7 @@ func TestMsgSetFibreProviderInfoNonValidator(t *testing.T) {
 	msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
 	_, err = msgServer.SetFibreProviderInfo(ctx, msg)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "validator not found")
+	require.True(t, errors.Is(err, types.ErrIncorrectValidator))
 }
 
 func TestMsgSetFibreProviderInfoTooLongIP(t *testing.T) {
@@ -103,5 +104,5 @@ func TestMsgSetFibreProviderInfoTooLongIP(t *testing.T) {
 
 	err := msg.ValidateBasic()
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "must be less than 90 characters")
+	require.True(t, errors.Is(err, types.ErrInvalidIPAddress))
 }

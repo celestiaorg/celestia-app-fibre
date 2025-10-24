@@ -26,11 +26,11 @@ var _ sdk.Msg = &MsgSetFibreProviderInfo{}
 func (m *MsgSetFibreProviderInfo) ValidateBasic() error {
 	// Validate validator address
 	if m.Signer == "" {
-		return errorsmod.Wrap(ErrInvalidSigner, "validator address cannot be empty")
+		return errorsmod.Wrap(ErrIncorrectValidator, "validator address cannot be empty")
 	}
 	_, err := sdk.ValAddressFromBech32(m.Signer)
 	if err != nil {
-		return errorsmod.Wrapf(ErrInvalidSigner, "invalid validator address: %v", err)
+		return errorsmod.Wrapf(ErrIncorrectValidator, "invalid validator address: %v", err)
 	}
 
 	// this was in the spec, though it is not necessary because net.ParseIP uses RFC 4291 and it will reject it anyway

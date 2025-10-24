@@ -26,17 +26,17 @@ func (ms msgServer) SetFibreProviderInfo(goCtx context.Context, msg *types.MsgSe
 
 	valAddr, err := sdk.ValAddressFromBech32(msg.Signer)
 	if err != nil {
-		return nil, errors.Wrapf(types.ErrInvalidSigner, "invalid validator address: %v", err)
+		return nil, errors.Wrapf(types.ErrIncorrectValidator, "invalid validator address: %v", err)
 	}
 
 	validator, err := ms.stakingKeeper.GetValidator(ctx, valAddr)
 	if err != nil {
-		return nil, errors.Wrapf(types.ErrInvalidSigner, "validator not found: %v", err)
+		return nil, errors.Wrapf(types.ErrIncorrectValidator, "validator not found: %v", err)
 	}
 
 	consPubKey, err := validator.ConsPubKey()
 	if err != nil {
-		return nil, errors.Wrapf(types.ErrInvalidSigner, "failed to get consensus public key: %v", err)
+		return nil, errors.Wrapf(types.ErrIncorrectValidator, "failed to get consensus public key: %v", err)
 	}
 	consAddr := sdk.ConsAddress(consPubKey.Address())
 

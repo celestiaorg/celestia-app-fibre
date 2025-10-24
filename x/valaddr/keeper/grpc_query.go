@@ -13,12 +13,12 @@ var _ types.QueryServer = Keeper{}
 // FibreProviderInfo queries the fibre provider information for a specific validator
 func (k Keeper) FibreProviderInfo(goCtx context.Context, req *types.QueryFibreProviderInfoRequest) (*types.QueryFibreProviderInfoResponse, error) {
 	if req == nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidSigner, "empty request")
+		return nil, errorsmod.Wrap(types.ErrIncorrectValidator, "empty request")
 	}
 
 	consAddr, err := sdk.ConsAddressFromBech32(req.ValidatorConsensusAddress)
 	if err != nil {
-		return nil, errorsmod.Wrapf(types.ErrInvalidSigner, "invalid consensus address: %v", err)
+		return nil, errorsmod.Wrapf(types.ErrIncorrectValidator, "invalid consensus address: %v", err)
 	}
 
 	info, found := k.GetFibreProviderInfo(goCtx, consAddr)
@@ -32,7 +32,7 @@ func (k Keeper) FibreProviderInfo(goCtx context.Context, req *types.QueryFibrePr
 // AllActiveFibreProviders queries fibre provider information for all validators in the active set
 func (k Keeper) AllActiveFibreProviders(goCtx context.Context, req *types.QueryAllActiveFibreProvidersRequest) (*types.QueryAllActiveFibreProvidersResponse, error) {
 	if req == nil {
-		return nil, errorsmod.Wrap(types.ErrInvalidSigner, "empty request")
+		return nil, errorsmod.Wrap(types.ErrIncorrectValidator, "empty request")
 	}
 
 	bondedValidators, err := k.stakingKeeper.GetBondedValidatorsByPower(goCtx)
