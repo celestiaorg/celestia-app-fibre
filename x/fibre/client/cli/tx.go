@@ -3,9 +3,7 @@ package cli
 import (
 	"encoding/hex"
 	"fmt"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -30,7 +28,6 @@ func GetTxCmd() *cobra.Command {
 		CmdRequestWithdrawal(),
 		CmdPayForFibre(),
 		CmdPaymentPromiseTimeout(),
-		CmdUpdateFibreParams(),
 	)
 
 	return cmd
@@ -82,7 +79,7 @@ func CmdRequestWithdrawal() *cobra.Command {
 		Use:   "request-withdrawal [amount]",
 		Args:  cobra.ExactArgs(1),
 		Short: "Request withdrawal from an escrow account",
-		Long: `Request withdrawal from an escrow account. The withdrawal will be available after the unbonding period.
+		Long: `Request withdrawal from an escrow account. The withdrawal will be available after the withdrawal delay which is a governance parameter.
 
 Example:
 $ celestia-appd tx fibre request-withdrawal 1000000utia --from mykey
@@ -125,10 +122,10 @@ func CmdPayForFibre() *cobra.Command {
 		Long: `Process a payment promise with validator signatures for fibre data availability.
 
 The payment-promise-json should be a JSON representation of the PaymentPromise.
-The validator-signatures should be a comma-separated list of validator signatures.
+The validator-signatures should be a comma-separated list of hex-encoded validator signatures.
 
 Example:
-$ celestia-appd tx fibre pay-for-fibre '{"signer_public_key": "...", "namespace": "...", "commitment": "...", "blob_size": 1024, "signature": "..."}' "sig1,sig2,sig3" --from mykey
+$ celestia-appd tx fibre pay-for-fibre '{"signer_public_key": "...", "namespace": "...", "commitment": "...", "blob_size": 1024, "signature": "..."}' "0x1234abcd,0x5678efgh,0x9012ijkl" --from mykey
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clientCtx, err := client.GetClientTxContext(cmd)
@@ -183,7 +180,7 @@ func CmdPaymentPromiseTimeout() *cobra.Command {
 		Use:   "payment-promise-timeout [payment-promise-json]",
 		Args:  cobra.ExactArgs(1),
 		Short: "Process a timed-out payment promise",
-		Long: `Process a timed-out payment promise to refund the escrow account.
+		Long: `Process a timed-out payment promise to deduct funds from the escrow account.
 
 Example:
 $ celestia-appd tx fibre payment-promise-timeout '{"signer_public_key": "...", "namespace": "...", "commitment": "...", "blob_size": 1024, "signature": "..."}' --from mykey
@@ -202,68 +199,6 @@ $ celestia-appd tx fibre payment-promise-timeout '{"signer_public_key": "...", "
 			msg := &types.MsgPaymentPromiseTimeout{
 				Signer:         clientCtx.GetFromAddress().String(),
 				PaymentPromise: paymentPromise,
-			}
-
-			if err := msg.ValidateBasic(); err != nil {
-				return err
-			}
-
-			return tx.GenerateOrBroadcastTxCLI(clientCtx, cmd.Flags(), msg)
-		},
-	}
-
-	flags.AddTxFlagsToCmd(cmd)
-
-	return cmd
-}
-
-// CmdUpdateFibreParams implements the update-params transaction command.
-func CmdUpdateFibreParams() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "update-params [gas-per-blob-byte] [withdrawal-delay-seconds] [payment-promise-timeout-seconds] [payment-promise-retention-window-seconds]",
-		Args:  cobra.ExactArgs(4),
-		Short: "Update fibre module parameters (governance only)",
-		Long: `Update fibre module parameters. This command can only be executed by the governance module.
-
-Example:
-$ celestia-appd tx fibre update-params 10 1209600 3600 86400 --from governance
-`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			clientCtx, err := client.GetClientTxContext(cmd)
-			if err != nil {
-				return err
-			}
-
-			gasPerBlobByte, err := strconv.ParseUint(args[0], 10, 32)
-			if err != nil {
-				return fmt.Errorf("invalid gas per blob byte: %w", err)
-			}
-
-			withdrawalDelaySeconds, err := strconv.ParseUint(args[1], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid withdrawal delay: %w", err)
-			}
-
-			paymentPromiseTimeoutSeconds, err := strconv.ParseUint(args[2], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid payment promise timeout: %w", err)
-			}
-
-			paymentPromiseRetentionWindowSeconds, err := strconv.ParseUint(args[3], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid payment promise retention window: %w", err)
-			}
-
-			params := types.Params{
-				GasPerBlobByte:                uint32(gasPerBlobByte),
-				WithdrawalDelay:               time.Duration(withdrawalDelaySeconds) * time.Second,
-				PaymentPromiseTimeout:         time.Duration(paymentPromiseTimeoutSeconds) * time.Second,
-				PaymentPromiseRetentionWindow: time.Duration(paymentPromiseRetentionWindowSeconds) * time.Second,
-			}
-
-			msg := &types.MsgUpdateFibreParams{
-				Authority: clientCtx.GetFromAddress().String(),
-				Params:    params,
 			}
 
 			if err := msg.ValidateBasic(); err != nil {
