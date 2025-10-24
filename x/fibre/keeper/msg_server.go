@@ -61,9 +61,7 @@ func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDeposit
 	ms.SetEscrowAccount(ctx, escrowAccount)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(
-		types.NewEventDepositToEscrow(msg.Signer, msg.Amount),
-	); err != nil {
+	if err := ctx.EventManager().EmitTypedEvent(types.NewEventDepositToEscrow(msg.Signer, msg.Amount)); err != nil {
 		return nil, err
 	}
 
@@ -228,16 +226,34 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has not yet timed out. Timeout at: %s, current time: %s", timeoutDeadline, ctx.BlockTime())
 	}
 
+	// Get escrow account for the payment promise signer
+	signerPubKey := msg.PaymentPromise.SignerPublicKey
+	escrowSigner := sdk.AccAddress(signerPubKey.Address()).String()
+
+	escrowAccount, found := ms.GetEscrowAccount(ctx, escrowSigner)
+	if !found {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrNotFound, "escrow account not found for signer: %s", escrowSigner)
+	}
+
+	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)
+	paymentAmount := sdk.NewInt64Coin("utia", int64(msg.PaymentPromise.BlobSize*params.GasPerBlobByte))
+
+	// Check if sufficient balance (should always be true since promise was validated, but safety check)
+	if escrowAccount.Balance.IsLT(paymentAmount) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance: have %s, need %s", escrowAccount.Balance, paymentAmount)
+	}
+
+	// Deduct payment from escrow account (both balance and available_balance)
+	escrowAccount.Balance = escrowAccount.Balance.Sub(paymentAmount)
+	escrowAccount.AvailableBalance = escrowAccount.AvailableBalance.Sub(paymentAmount)
+	ms.SetEscrowAccount(ctx, escrowAccount)
+
 	// Record processed payment (timeout)
 	processedPayment := types.ProcessedPayment{
 		PaymentPromiseHash: promiseHash,
 		ProcessedAt:        ctx.BlockTime(),
 	}
 	ms.SetProcessedPayment(ctx, processedPayment)
-
-	// Get escrow signer from payment promise
-	signerPubKey := msg.PaymentPromise.SignerPublicKey
-	escrowSigner := sdk.AccAddress(signerPubKey.Address()).String()
 
 	// Emit event
 	if err := ctx.EventManager().EmitTypedEvent(
