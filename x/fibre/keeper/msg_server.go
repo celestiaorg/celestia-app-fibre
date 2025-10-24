@@ -24,12 +24,6 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 	return &msgServer{Keeper: keeper}
 }
 
-// calculatePaymentAmount calculates the payment amount for a fibre blob based on its size and gas parameters
-func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk.Coin {
-	params := ms.GetParams(ctx)
-	return sdk.NewInt64Coin(appconsts.BondDenom, int64(blobSize*params.GasPerBlobByte))
-}
-
 // DepositToEscrow deposits funds to the signer's escrow account
 func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDepositToEscrow) (*types.MsgDepositToEscrowResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
@@ -68,7 +62,8 @@ func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDeposit
 	ms.SetEscrowAccount(ctx, escrowAccount)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(types.NewEventDepositToEscrow(msg.Signer, msg.Amount)); err != nil {
+	event := types.NewEventDepositToEscrow(msg.Signer, msg.Amount)
+	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
 
@@ -117,9 +112,8 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 	availableAt := requestedTimestamp.Add(params.WithdrawalDelay)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(
-		types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, requestedTimestamp, availableAt),
-	); err != nil {
+	event := types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, requestedTimestamp, availableAt)
+	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
 
@@ -190,9 +184,8 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	ms.SetProcessedPayment(ctx, processedPayment)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(
-		types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment),
-	); err != nil {
+	event := types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment)
+	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
 
@@ -262,7 +255,8 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 	ms.SetProcessedPayment(ctx, processedPayment)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(types.NewEventPaymentPromiseTimeout(msg.Signer, escrowSigner, promiseHash)); err != nil {
+	event := types.NewEventPaymentPromiseTimeout(msg.Signer, escrowSigner, promiseHash)
+	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
 
@@ -287,11 +281,16 @@ func (ms msgServer) UpdateFibreParams(goCtx context.Context, msg *types.MsgUpdat
 	ms.SetParams(ctx, msg.Params)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(
-		types.NewEventUpdateFibreParams(msg.Authority, msg.Params),
-	); err != nil {
+	event := types.NewEventUpdateFibreParams(msg.Authority, msg.Params)
+	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
 
 	return &types.MsgUpdateFibreParamsResponse{}, nil
+}
+
+// calculatePaymentAmount calculates the payment amount for a fibre blob based on its size and gas parameters
+func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk.Coin {
+	params := ms.GetParams(ctx)
+	return sdk.NewInt64Coin(appconsts.BondDenom, int64(blobSize*params.GasPerBlobByte))
 }
