@@ -139,9 +139,10 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
 	}
 
-	// TODO: Validate validator signatures
-	// This would involve checking that the signatures are from valid validators
-	// and that they collectively represent sufficient stake/voting power
+	// TODO: Validate validator signatures using existing fibre/validator.SignatureSet
+	// This should verify that the signatures are from valid validators at the specified height
+	// and that they collectively represent sufficient stake/voting power (2/3+ threshold)
+	// The existing SignatureSet in fibre/validator package already handles this logic
 
 	// Convert payment promise to internal format to get hash
 	pp := fibre.PaymentPromise{}
@@ -292,5 +293,6 @@ func (ms msgServer) UpdateFibreParams(goCtx context.Context, msg *types.MsgUpdat
 // calculatePaymentAmount calculates the payment amount for a fibre blob based on its size and gas parameters
 func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk.Coin {
 	params := ms.GetParams(ctx)
+	// TODO: this assumes 1 utia per gas which may not be correct.
 	return sdk.NewInt64Coin(appconsts.BondDenom, int64(blobSize*params.GasPerBlobByte))
 }
