@@ -20,6 +20,9 @@ jobs:
         env:
           GOPRIVATE: github.com/celestiaorg/*
 
+      - name: Download Go modules
+        run: go mod download
+
       - name: Run tests in short mode
         run: make test-short
         timeout-minutes: 10
@@ -114,6 +117,9 @@ jobs:
           go-version-file: "go.mod"
         env:
           GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Download Go modules
+        run: go mod download
 
       - name: Run tests in race mode
         run: make test-race
