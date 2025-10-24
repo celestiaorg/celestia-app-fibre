@@ -25,10 +25,11 @@ func NewEventDepositToEscrow(signer string, amount sdk.Coin) *EventDepositToEscr
 }
 
 // NewEventWithdrawFromEscrowRequest returns a new EventWithdrawFromEscrowRequest
-func NewEventWithdrawFromEscrowRequest(signer string, amount sdk.Coin, availableAt time.Time) *EventWithdrawFromEscrowRequest {
+func NewEventWithdrawFromEscrowRequest(signer string, amount sdk.Coin, requestedAt time.Time, availableAt time.Time) *EventWithdrawFromEscrowRequest {
 	return &EventWithdrawFromEscrowRequest{
 		Signer:      signer,
 		Amount:      amount,
+		RequestedAt: requestedAt,
 		AvailableAt: availableAt,
 	}
 }

@@ -111,7 +111,7 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 
 	// Emit event
 	if err := ctx.EventManager().EmitTypedEvent(
-		types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, availableAt),
+		types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, requestedTimestamp, availableAt),
 	); err != nil {
 		return nil, err
 	}
@@ -256,9 +256,7 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 	ms.SetProcessedPayment(ctx, processedPayment)
 
 	// Emit event
-	if err := ctx.EventManager().EmitTypedEvent(
-		types.NewEventPaymentPromiseTimeout(msg.Signer, escrowSigner, promiseHash),
-	); err != nil {
+	if err := ctx.EventManager().EmitTypedEvent(types.NewEventPaymentPromiseTimeout(msg.Signer, escrowSigner, promiseHash)); err != nil {
 		return nil, err
 	}
 

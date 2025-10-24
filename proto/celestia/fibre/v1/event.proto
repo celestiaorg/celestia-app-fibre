@@ -19,7 +19,8 @@ message EventDepositToEscrow {
 message EventWithdrawFromEscrowRequest {
   string signer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   cosmos.base.v1beta1.Coin amount = 2 [(gogoproto.nullable) = false];
-  google.protobuf.Timestamp available_at = 3 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  google.protobuf.Timestamp requested_at = 3 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  google.protobuf.Timestamp available_at = 4 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
 }
 
 // EventWithdrawFromEscrowExecuted is emitted when a withdrawal is processed.
