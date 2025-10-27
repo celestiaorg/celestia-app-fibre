@@ -5,7 +5,6 @@ import (
 )
 
 // DefaultMissingInfoCheckHeight is the default height at which to check for missing validator info
-// after the upgrade (if upgrade was at height X, then we check at X + missing_info_check_height)
 const DefaultMissingInfoCheckHeight int64 = 100_000
 
 // DefaultParams returns the default parameters for the valaddr module

@@ -25,7 +25,6 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // Params defines the parameters for the valaddr module.
 type Params struct {
 	// missing_info_check_height is the height at which to check for missing validator info
-	// after the upgrade (if upgrade was at height X, then we check at X + missing_info_check_height)
 	MissingInfoCheckHeight int64 `protobuf:"varint,1,opt,name=missing_info_check_height,json=missingInfoCheckHeight,proto3" json:"missing_info_check_height,omitempty"`
 }
 

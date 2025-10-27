@@ -6,6 +6,5 @@ option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
 // Params defines the parameters for the valaddr module.
 message Params {
   // missing_info_check_height is the height at which to check for missing validator info
-  // after the upgrade (if upgrade was at height X, then we check at X + missing_info_check_height)
   int64 missing_info_check_height = 1;
 }
