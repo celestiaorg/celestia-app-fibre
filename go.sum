@@ -781,8 +781,8 @@ github.com/bytedance/sonic v1.14.1/go.mod h1:gi6uhQLMbTdeP0muCnrjHLeCUPyb70ujhnN
 github.com/bytedance/sonic/loader v0.3.0 h1:dskwH8edlzNMctoruo8FPTJDF3vLtDT0sXZwvZJyqeA=
 github.com/bytedance/sonic/loader v0.3.0/go.mod h1:N8A3vUdtUebEY2/VQC0MyhYeKUFosQU6FxH2JmUe6VI=
 github.com/casbin/casbin/v2 v2.1.2/go.mod h1:YcPU1XXisHhLzuxH9coDNf2FbKpjGlbCg3n9yuLkIJQ=
-github.com/celestiaorg/celestia-core v0.39.10 h1:49adyR+oL9BRbaV9iDPWGSsIlU2OgS6R7mRJ9p16hI8=
-github.com/celestiaorg/celestia-core v0.39.10/go.mod h1:QFllLrTDEE112fdKWH9+367OWDNskZpUtyiUsj4oezo=
+github.com/celestiaorg/celestia-core v0.39.7 h1:EiVFgnluLHDkLxz5iECHKmDz+XM9D0DTd9loA0umg3g=
+github.com/celestiaorg/celestia-core v0.39.7/go.mod h1:PKAwAsKDbnYCilrWKTYwZhiUlMLjVFImcIJLLVmCKTU=
 github.com/celestiaorg/celestia-core v1.55.0-tm-v0.34.35 h1:FREwqZwPvYsodr1AqqEIyW+VsBnwTzJNtC6NFdZX8rs=
 github.com/celestiaorg/celestia-core v1.55.0-tm-v0.34.35/go.mod h1:SI38xqZZ4ccoAxszUJqsJ/a5rOkzQRijzHQQlLKkyUc=
 github.com/celestiaorg/cosmos-sdk v1.29.6-sdk-v0.50.14.0.20251023223736-ec46ef690d34 h1:WBe9Gt5PYk6RKmF3czYkUgj3pcMs1v4Ust4gcNEL9Rc=
@@ -1933,8 +1933,8 @@ golang.org/x/oauth2 v0.4.0/go.mod h1:RznEsdpjGAINPTOF0UH/t+xJ75L18YO3Ho6Pyn+uRec
 golang.org/x/oauth2 v0.5.0/go.mod h1:9/XBHVqLaWO3/BRHs5jbpYCnOZVjj5V0ndyaAM7KB4I=
 golang.org/x/oauth2 v0.6.0/go.mod h1:ycmewcwgD4Rpr3eZJLSB4Kyyljb3qDh40vJ8STE5HKw=
 golang.org/x/oauth2 v0.7.0/go.mod h1:hPLQkd9LyjfXTiRohC/41GhcFqxisoUQ99sCUOHO9x4=
-golang.org/x/oauth2 v0.32.0 h1:jsCblLleRMDrxMN29H3z/k1KliIvpLgCkE6R8FXXNgY=
-golang.org/x/oauth2 v0.32.0/go.mod h1:lzm5WQJQwKZ3nwavOZ3IS5Aulzxi68dUSgRHujetwEA=
+golang.org/x/oauth2 v0.31.0 h1:8Fq0yVZLh4j4YA47vHKFTa9Ew5XIrCP8LC6UeNZnLxo=
+golang.org/x/oauth2 v0.31.0/go.mod h1:lzm5WQJQwKZ3nwavOZ3IS5Aulzxi68dUSgRHujetwEA=
 golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20181108010431-42b317875d0f/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
 golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4/go.mod h1:RxMgew5VJxzue5/jJTE5uejpjVlOe/izrB70Jof72aM=
