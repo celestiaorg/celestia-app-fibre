@@ -20,7 +20,6 @@ import (
 	"github.com/celestiaorg/tastora/framework/docker/ibc"
 	"github.com/celestiaorg/tastora/framework/docker/ibc/relayer"
 	"github.com/celestiaorg/tastora/framework/testutil/wait"
-	"github.com/celestiaorg/tastora/framework/types"
 	sdktx "github.com/cosmos/cosmos-sdk/client/tx"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"

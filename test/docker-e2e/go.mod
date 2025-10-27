@@ -4,7 +4,7 @@ go 1.24.6
 
 require (
 	cosmossdk.io/math v1.5.3
-	github.com/celestiaorg/celestia-app/v6 v6.0.0-rc0
+	github.com/celestiaorg/celestia-app/v6 v6.2.0-mocha
 	github.com/celestiaorg/go-square/v3 v3.0.2
 	github.com/celestiaorg/tastora v0.5.1
 	github.com/cometbft/cometbft v1.0.1
@@ -275,7 +275,7 @@ replace (
 	cosmossdk.io/api => github.com/celestiaorg/cosmos-sdk/api v0.7.6
 	cosmossdk.io/x/upgrade => github.com/celestiaorg/cosmos-sdk/x/upgrade v0.2.0
 	github.com/celestiaorg/celestia-app/v6 => ../..
-	github.com/cometbft/cometbft => github.com/celestiaorg/celestia-core v0.39.6
+	github.com/cometbft/cometbft => github.com/celestiaorg/celestia-core v0.39.10
 	github.com/cosmos/cosmos-sdk => github.com/celestiaorg/cosmos-sdk v1.29.6-sdk-v0.50.14.0.20251023223736-ec46ef690d34 // v0.51.3
 	github.com/cosmos/ibc-go/v8 => github.com/celestiaorg/ibc-go/v8 v8.7.2
 	// Use ledger-cosmos-go v0.16.0 because v0.15.0 causes "hidapi: unknown failure"
