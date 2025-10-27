@@ -25,8 +25,8 @@ message MsgSetFibreProviderInfo {
   option (cosmos.msg.v1.signer) = "signer";
   // signer is the validator's operator address (celestiavaloper...)
   string signer = 1 [(cosmos_proto.scalar) = "cosmos.ValidatorAddressString"];
-  // ip_address is the IP address for the fibre service provider (max 90 characters)
-  string ip_address = 2;
+  // host is the network address for the fibre service provider
+  string host = 2;
 }
 
 // MsgSetFibreProviderInfoResponse describes the response returned after setting fibre provider info.

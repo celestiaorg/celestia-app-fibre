@@ -14,33 +14,27 @@ func TestFibreProviderInfoSerialization(t *testing.T) {
 		info types.FibreProviderInfo
 	}{
 		{
-			name: "basic IPv4",
+			name: "DNS hostname",
 			info: types.FibreProviderInfo{
-				IpAddress: "192.168.1.1",
+				Host: "validator1.fibre.example.com",
 			},
 		},
 		{
 			name: "IPv6",
 			info: types.FibreProviderInfo{
-				IpAddress: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+				Host: "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
 			},
 		},
 		{
 			name: "hostname with port",
 			info: types.FibreProviderInfo{
-				IpAddress: "validator.example.com:8080",
+				Host: "validator.example.com:8080",
 			},
 		},
 		{
 			name: "maximum length IP (89 chars)",
 			info: types.FibreProviderInfo{
-				IpAddress: "a234567890123456789012345678901234567890123456789012345678901234567890123456789012345678",
-			},
-		},
-		{
-			name: "empty IP (invalid but should serialize)",
-			info: types.FibreProviderInfo{
-				IpAddress: "",
+				Host: "a234567890123456789012345678901234567890123456789012345678901234567890123456789012345678",
 			},
 		},
 	}
@@ -54,7 +48,7 @@ func TestFibreProviderInfoSerialization(t *testing.T) {
 			var decoded types.FibreProviderInfo
 			err = decoded.Unmarshal(bz)
 			require.NoError(t, err)
-			require.Equal(t, tt.info.IpAddress, decoded.IpAddress)
+			require.Equal(t, tt.info.Host, decoded.Host)
 		})
 	}
 }
@@ -70,7 +64,7 @@ func TestFibreProviderInfoEmptyMarshal(t *testing.T) {
 	err = decoded.Unmarshal(bz)
 	require.NoError(t, err)
 
-	require.Equal(t, "", decoded.IpAddress)
+	require.Equal(t, "", decoded.Host)
 }
 
 // TestParamsSerialization tests params serialization

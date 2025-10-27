@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"net"
 
 	"cosmossdk.io/errors"
 	"github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
@@ -26,29 +25,30 @@ func (ms msgServer) SetFibreProviderInfo(goCtx context.Context, msg *types.MsgSe
 
 	valAddr, err := sdk.ValAddressFromBech32(msg.Signer)
 	if err != nil {
-		return nil, errors.Wrapf(types.ErrIncorrectValidator, "invalid validator address: %v", err)
+		return nil, errors.Wrapf(types.ErrInvalidValidator, "signer %v does not match a validator", msg.Signer)
 	}
 
 	validator, err := ms.stakingKeeper.GetValidator(ctx, valAddr)
 	if err != nil {
-		return nil, errors.Wrapf(types.ErrIncorrectValidator, "validator not found: %v", err)
+		return nil, errors.Wrapf(types.ErrInvalidValidator, "validator not found: %v", err)
 	}
 
 	consPubKey, err := validator.ConsPubKey()
 	if err != nil {
-		return nil, errors.Wrapf(types.ErrIncorrectValidator, "failed to get consensus public key: %v", err)
+		return nil, errors.Wrapf(types.ErrInvalidValidator, "failed to get consensus public key: %v", err)
 	}
 	consAddr := sdk.ConsAddress(consPubKey.Address())
 
-	if len(msg.IpAddress) > types.MaxIPLen {
-		return nil, errors.Wrapf(types.ErrInvalidIPAddress, "IP address must be less than 90 characters, got %d", len(msg.IpAddress))
+	// Validate address length (supports IP addresses, DNS names, etc.)
+	if len(msg.Host) > types.MaxHostLen {
+		return nil, errors.Wrapf(types.ErrInvalidHostAddress, "address must be less or equal than %d characters, got %d", types.MaxHostLen, len(msg.Host))
 	}
-	if net.ParseIP(msg.IpAddress) == nil {
-		return nil, errors.Wrapf(types.ErrInvalidIPAddress, "invalid IP address: %s", msg.IpAddress)
+	if len(msg.Host) == 0 {
+		return nil, errors.Wrap(types.ErrInvalidHostAddress, "address cannot be empty")
 	}
 
 	info := types.FibreProviderInfo{
-		IpAddress: msg.IpAddress,
+		Host: msg.Host,
 	}
 
 	if err := ms.Keeper.SetFibreProviderInfo(goCtx, consAddr, info); err != nil {
@@ -59,7 +59,7 @@ func (ms msgServer) SetFibreProviderInfo(goCtx context.Context, msg *types.MsgSe
 		sdk.NewEvent(
 			types.EventTypeSetFibreProviderInfo,
 			sdk.NewAttribute(types.AttributeKeyValidatorAddress, consAddr.String()),
-			sdk.NewAttribute(types.AttributeKeyIPAddress, msg.IpAddress),
+			sdk.NewAttribute(types.AttributeKeyIPAddress, msg.Host),
 		),
 	)
 

@@ -21,88 +21,85 @@ func TestMsgSetFibreProviderInfo(t *testing.T) {
 	require.Greater(t, len(validators), 0)
 
 	valAddrStr := validators[0].GetOperator()
-
 	consPubKey, err := validators[0].ConsPubKey()
 	require.NoError(t, err)
 	consAddr := sdk.ConsAddress(consPubKey.Address())
 
-	msg := &types.MsgSetFibreProviderInfo{
-		Signer:    valAddrStr,
-		IpAddress: "192.168.1.1",
-	}
+	t.Run("valid DNS hostname", func(t *testing.T) {
+		msg := &types.MsgSetFibreProviderInfo{
+			Signer: valAddrStr,
+			Host:   "validator1.fibre.example.com",
+		}
 
-	err = msg.ValidateBasic()
-	require.NoError(t, err)
+		err = msg.ValidateBasic()
+		require.NoError(t, err)
 
-	msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
-	_, err = msgServer.SetFibreProviderInfo(ctx, msg)
-	require.NoError(t, err)
+		msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
+		_, err = msgServer.SetFibreProviderInfo(ctx, msg)
+		require.NoError(t, err)
 
-	retrievedInfo, found := testApp.ValaddrKeeper.GetFibreProviderInfo(ctx, consAddr)
-	require.True(t, found)
-	require.Equal(t, msg.IpAddress, retrievedInfo.IpAddress)
-}
+		retrievedInfo, found := testApp.ValaddrKeeper.GetFibreProviderInfo(ctx, consAddr)
+		require.True(t, found)
+		require.Equal(t, msg.Host, retrievedInfo.Host)
+	})
 
-func TestMsgSetFibreProviderInfoInvalidIP(t *testing.T) {
-	valAddr := sdk.ValAddress("validator1")
+	t.Run("valid DNS with port", func(t *testing.T) {
+		valAddr := sdk.ValAddress("validator1")
 
-	msg := &types.MsgSetFibreProviderInfo{
-		Signer:    valAddr.String(),
-		IpAddress: "invalid-ip",
-	}
+		msg := &types.MsgSetFibreProviderInfo{
+			Signer: valAddr.String(),
+			Host:   "validator.example.com:8080",
+		}
 
-	err := msg.ValidateBasic()
-	require.Error(t, err)
-	require.True(t, errors.Is(err, types.ErrInvalidIPAddress))
-}
+		err := msg.ValidateBasic()
+		require.NoError(t, err)
+	})
 
-func TestMsgSetFibreProviderInfoEmptyIP(t *testing.T) {
-	valAddr := sdk.ValAddress("validator1")
+	t.Run("empty host", func(t *testing.T) {
+		valAddr := sdk.ValAddress("validator1")
 
-	msg := &types.MsgSetFibreProviderInfo{
-		Signer:    valAddr.String(),
-		IpAddress: "",
-	}
+		msg := &types.MsgSetFibreProviderInfo{
+			Signer: valAddr.String(),
+			Host:   "",
+		}
 
-	err := msg.ValidateBasic()
-	require.Error(t, err)
-	require.True(t, errors.Is(err, types.ErrInvalidIPAddress))
-}
+		err := msg.ValidateBasic()
+		require.Error(t, err)
+		require.True(t, errors.Is(err, types.ErrInvalidHostAddress))
+	})
 
-func TestMsgSetFibreProviderInfoNonValidator(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
+	t.Run("non-existent validator", func(t *testing.T) {
+		// Create an arbitrary validator address (not a real validator)
+		arbitraryValAddr := sdk.ValAddress("arbitrary_val_addr")
 
-	// Create an arbitrary validator address (not a real validator)
-	arbitraryValAddr := sdk.ValAddress("arbitrary_val_addr")
+		msg := &types.MsgSetFibreProviderInfo{
+			Signer: arbitraryValAddr.String(),
+			Host:   "nonexistent.validator.com",
+		}
 
-	msg := &types.MsgSetFibreProviderInfo{
-		Signer:    arbitraryValAddr.String(),
-		IpAddress: "192.168.1.1",
-	}
+		err := msg.ValidateBasic()
+		require.NoError(t, err)
 
-	err := msg.ValidateBasic()
-	require.NoError(t, err)
+		// Call the message server handler - should fail (validator not found)
+		msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
+		_, err = msgServer.SetFibreProviderInfo(ctx, msg)
+		require.Error(t, err)
+		require.True(t, errors.Is(err, types.ErrInvalidValidator))
+	})
 
-	// Call the message server handler - should fail (validator not found)
-	msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
-	_, err = msgServer.SetFibreProviderInfo(ctx, msg)
-	require.Error(t, err)
-	require.True(t, errors.Is(err, types.ErrIncorrectValidator))
-}
+	t.Run("host too long", func(t *testing.T) {
+		valAddr := sdk.ValAddress([]byte("validator1"))
 
-func TestMsgSetFibreProviderInfoTooLongIP(t *testing.T) {
-	valAddr := sdk.ValAddress([]byte("validator1"))
+		// Create a host longer than 90 characters
+		longHost := "2001:0db8:85a3:0000:0000:8a2e:0370:7334:2001:0db8:85a3:0000:0000:8a2e:0370:7334:extra:data:here"
 
-	// Create an IP address longer than 90 characters
-	longIP := "2001:0db8:85a3:0000:0000:8a2e:0370:7334:2001:0db8:85a3:0000:0000:8a2e:0370:7334:extra:data:here"
+		msg := &types.MsgSetFibreProviderInfo{
+			Signer: valAddr.String(),
+			Host:   longHost,
+		}
 
-	msg := &types.MsgSetFibreProviderInfo{
-		Signer:    valAddr.String(),
-		IpAddress: longIP,
-	}
-
-	err := msg.ValidateBasic()
-	require.Error(t, err)
-	require.True(t, errors.Is(err, types.ErrInvalidIPAddress))
+		err := msg.ValidateBasic()
+		require.Error(t, err)
+		require.True(t, errors.Is(err, types.ErrInvalidHostAddress))
+	})
 }

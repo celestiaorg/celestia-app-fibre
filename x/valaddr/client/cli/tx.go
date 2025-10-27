@@ -20,22 +20,22 @@ func GetTxCmd() *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		CmdSetFibreProviderIP(),
+		CmdSetFibreProviderInfo(),
 	)
 
 	return cmd
 }
 
-// CmdSetFibreProviderIP broadcasts a MsgSetFibreProviderInfo transaction
-func CmdSetFibreProviderIP() *cobra.Command {
+// CmdSetFibreProviderInfo broadcasts a MsgSetFibreProviderInfo transaction
+func CmdSetFibreProviderInfo() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set-provider-ip [ip-address]",
-		Short: "Set the fibre provider IP address for your validator",
-		Long: `Set the fibre provider IP address for your validator.
+		Use:   "set-provider-info [host]",
+		Short: "Set the fibre provider host for your validator",
+		Long: `Set the fibre provider host for your validator.
 The transaction must be signed by the validator's account.
 
 Example:
-$ celestia-appd tx valaddr set-provider-ip <ip-address> --from <validator-account-key>
+$ celestia-appd tx valaddr set-provider-info <host> --from <validator-account-key>
 `,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,8 +49,8 @@ $ celestia-appd tx valaddr set-provider-ip <ip-address> --from <validator-accoun
 			valAddr := sdk.ValAddress(addr)
 
 			msg := &types.MsgSetFibreProviderInfo{
-				Signer:    valAddr.String(),
-				IpAddress: args[0],
+				Signer: valAddr.String(),
+				Host:   args[0],
 			}
 
 			if err := msg.ValidateBasic(); err != nil {

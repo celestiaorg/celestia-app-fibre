@@ -5,6 +5,6 @@ import (
 )
 
 var (
-	ErrInvalidIPAddress   = errors.Register(ModuleName, 1, "invalid IP address format")
-	ErrIncorrectValidator = errors.Register(ModuleName, 2, "invalid signer address")
+	ErrInvalidHostAddress = errors.Register(ModuleName, 1, "invalid address")
+	ErrInvalidValidator   = errors.Register(ModuleName, 2, "invalid validator")
 )

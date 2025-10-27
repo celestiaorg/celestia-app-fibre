@@ -244,7 +244,7 @@ func RegisterQueryHandlerClient(ctx context.Context, mux *runtime.ServeMux, clie
 var (
 	pattern_Query_FibreProviderInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"valaddr", "v1", "fibre-provider-info", "validator_consensus_address"}, "", runtime.AssumeColonVerbOpt(false)))
 
-	pattern_Query_AllActiveFibreProviders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"valaddr", "v1", "active-fibre-providers"}, "", runtime.AssumeColonVerbOpt(false)))
+	pattern_Query_AllActiveFibreProviders_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"valaddr", "v1", "all-active-fibre-providers"}, "", runtime.AssumeColonVerbOpt(false)))
 )
 
 var (

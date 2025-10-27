@@ -22,7 +22,7 @@ func TestQueryFibreProviderInfo(t *testing.T) {
 
 	consAddr := sdk.ConsAddress("validator1")
 	info := types.FibreProviderInfo{
-		IpAddress: "192.168.1.1",
+		Host: "validator1.fibre.example.com",
 	}
 
 	err := testApp.ValaddrKeeper.SetFibreProviderInfo(ctx, consAddr, info)
@@ -33,7 +33,7 @@ func TestQueryFibreProviderInfo(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, resp.Found)
-	require.Equal(t, info.IpAddress, resp.Info.IpAddress)
+	require.Equal(t, info.Host, resp.Info.Host)
 }
 
 func TestQueryFibreProviderInfoNotFound(t *testing.T) {

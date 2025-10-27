@@ -335,12 +335,12 @@ func (s *StandardSDKIntegrationTestSuite) TestStandardSDK() {
 			expectedCode: abci.CodeTypeOK,
 		},
 		{
-			name: "set fibre provider IP address",
+			name: "set fibre provider dns",
 			msgFunc: func() (msgs []sdk.Msg, signer string) {
 				valAccount := s.getValidatorAccount()
 				msg := &valaddrtypes.MsgSetFibreProviderInfo{
-					Signer:    valAccount.String(),
-					IpAddress: "192.168.1.100",
+					Signer: valAccount.String(),
+					Host:   "www.provider.com",
 				}
 				return []sdk.Msg{msg}, s.getValidatorName()
 			},
@@ -426,10 +426,10 @@ func (s *StandardSDKIntegrationTestSuite) TestGRPCQueries() {
 
 	t.Run("query valaddr fibre provider info", func(t *testing.T) {
 		valAccount := s.getValidatorAccount()
-		testIP := "192.168.1.100"
+		testAddress := "provider street 37"
 		msg := &valaddrtypes.MsgSetFibreProviderInfo{
-			Signer:    valAccount.String(),
-			IpAddress: testIP,
+			Signer: valAccount.String(),
+			Host:   testAddress,
 		}
 		txClient, err := user.SetupTxClient(s.cctx.GoContext(), s.cctx.Keyring, s.cctx.GRPCClient, s.ecfg, user.WithDefaultAccount(s.getValidatorName()))
 		require.NoError(t, err)
@@ -441,7 +441,7 @@ func (s *StandardSDKIntegrationTestSuite) TestGRPCQueries() {
 		require.NoError(t, err)
 		require.NotNil(t, allProvidersResp)
 		require.Equal(t, slices.IndexFunc(allProvidersResp.Providers, func(provider valaddrtypes.FibreProvider) bool {
-			return provider.Info.IpAddress == testIP
+			return provider.Info.Host == testAddress
 		}), 0)
 
 		infoResp, err := queryClient.FibreProviderInfo(s.cctx.GoContext(), &valaddrtypes.QueryFibreProviderInfoRequest{
@@ -450,6 +450,6 @@ func (s *StandardSDKIntegrationTestSuite) TestGRPCQueries() {
 		require.NoError(t, err)
 		require.True(t, infoResp.Found)
 		require.NotNil(t, infoResp.Info)
-		assert.Equal(t, testIP, infoResp.Info.IpAddress)
+		assert.Equal(t, testAddress, infoResp.Info.Host)
 	})
 }

@@ -1,8 +1,6 @@
 package types
 
 import (
-	"net"
-
 	errorsmod "cosmossdk.io/errors"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -16,8 +14,8 @@ const (
 	// AttributeKeyIPAddress is the attribute key for IP address
 	AttributeKeyIPAddress = "ip_address"
 
-	// MaxIPLen is defined in x/valaddr spec
-	MaxIPLen = 90
+	// MaxHostLen is the maximum length for the host field (IP address, DNS name, etc.)
+	MaxHostLen = 90
 )
 
 var _ sdk.Msg = &MsgSetFibreProviderInfo{}
@@ -26,19 +24,19 @@ var _ sdk.Msg = &MsgSetFibreProviderInfo{}
 func (m *MsgSetFibreProviderInfo) ValidateBasic() error {
 	// Validate validator address
 	if m.Signer == "" {
-		return errorsmod.Wrap(ErrIncorrectValidator, "validator address cannot be empty")
+		return errorsmod.Wrap(ErrInvalidValidator, "validator address cannot be empty")
 	}
 	_, err := sdk.ValAddressFromBech32(m.Signer)
 	if err != nil {
-		return errorsmod.Wrapf(ErrIncorrectValidator, "invalid validator address: %v", err)
+		return errorsmod.Wrapf(ErrInvalidValidator, "invalid validator address: %v", err)
 	}
 
-	// this was in the spec, though it is not necessary because net.ParseIP uses RFC 4291 and it will reject it anyway
-	if len(m.IpAddress) > MaxIPLen {
-		return errorsmod.Wrapf(ErrInvalidIPAddress, "IP address must be less than 90 characters, got %d", len(m.IpAddress))
+	// Validate address length (supports IP addresses, DNS names, etc.)
+	if len(m.Host) > MaxHostLen {
+		return errorsmod.Wrapf(ErrInvalidHostAddress, "address must be less than 90 characters, got %d", len(m.Host))
 	}
-	if net.ParseIP(m.IpAddress) == nil {
-		return errorsmod.Wrapf(ErrInvalidIPAddress, "invalid IP address format: %s", m.IpAddress)
+	if len(m.Host) == 0 {
+		return errorsmod.Wrap(ErrInvalidHostAddress, "address cannot be empty")
 	}
 
 	return nil

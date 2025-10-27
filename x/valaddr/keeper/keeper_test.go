@@ -17,7 +17,7 @@ func TestSetGetFibreProviderInfo(t *testing.T) {
 
 	consAddr := sdk.ConsAddress("validator1")
 	info := types.FibreProviderInfo{
-		IpAddress: "192.168.1.1",
+		Host: "validator1.fibre.example.com",
 	}
 
 	err := keeper.SetFibreProviderInfo(ctx, consAddr, info)
@@ -25,7 +25,7 @@ func TestSetGetFibreProviderInfo(t *testing.T) {
 
 	retrieved, found := keeper.GetFibreProviderInfo(ctx, consAddr)
 	require.True(t, found)
-	require.Equal(t, info.IpAddress, retrieved.IpAddress)
+	require.Equal(t, info.Host, retrieved.Host)
 }
 
 func TestGetFibreProviderInfoNotFound(t *testing.T) {
@@ -46,7 +46,7 @@ func TestDeleteFibreProviderInfo(t *testing.T) {
 
 	consAddr := sdk.ConsAddress("validator1")
 	info := types.FibreProviderInfo{
-		IpAddress: "192.168.1.1",
+		Host: "validator1.fibre.example.com",
 	}
 
 	err := keeper.SetFibreProviderInfo(ctx, consAddr, info)
@@ -68,9 +68,9 @@ func TestIterateFibreProviderInfo(t *testing.T) {
 		consAddr sdk.ConsAddress
 		info     types.FibreProviderInfo
 	}{
-		{sdk.ConsAddress("validator1"), types.FibreProviderInfo{IpAddress: "192.168.1.1"}},
-		{sdk.ConsAddress("validator2"), types.FibreProviderInfo{IpAddress: "192.168.1.2"}},
-		{sdk.ConsAddress("validator3"), types.FibreProviderInfo{IpAddress: "192.168.1.3"}},
+		{sdk.ConsAddress("validator1"), types.FibreProviderInfo{Host: "validator1.fibre.example.com"}},
+		{sdk.ConsAddress("validator2"), types.FibreProviderInfo{Host: "validator2.fibre.example.com"}},
+		{sdk.ConsAddress("validator3"), types.FibreProviderInfo{Host: "validator3.fibre.example.com"}},
 	}
 
 	for _, p := range providers {

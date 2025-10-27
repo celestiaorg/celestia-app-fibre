@@ -15,7 +15,7 @@ service Query {
 
   // AllActiveFibreProviders queries fibre provider information for all validators in the active set
   rpc AllActiveFibreProviders(QueryAllActiveFibreProvidersRequest) returns (QueryAllActiveFibreProvidersResponse) {
-    option (google.api.http).get = "/valaddr/v1/active-fibre-providers";
+    option (google.api.http).get = "/valaddr/v1/all-active-fibre-providers";
   }
 }
 
@@ -52,6 +52,6 @@ message FibreProvider {
 
 // FibreProviderInfo contains the service details for a fibre provider.
 message FibreProviderInfo {
-  // ip_address is the IP address where users can access the fibre service
-  string ip_address = 1;
+  // host is the network address for the fibre service provider
+  string host = 1;
 }
