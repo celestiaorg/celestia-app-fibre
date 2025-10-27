@@ -17,15 +17,21 @@ on:
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
+    secrets:
+      GH_PRIVATE_MODULES_TOKEN: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
 
   markdown-linter:
     uses: ./.github/workflows/markdown-linter.yml
 
   build:
     uses: ./.github/workflows/build.yml
+    secrets:
+      GH_PRIVATE_MODULES_TOKEN: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
 
   test:
     uses: ./.github/workflows/test.yml
+    secrets:
+      GH_PRIVATE_MODULES_TOKEN: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
 
   goreleaser:
     if: github.event_name == 'release'
@@ -33,3 +39,4 @@ jobs:
     permissions: write-all
     secrets:
       GORELEASER_ACCESS_TOKEN: ${{ secrets.GORELEASER_ACCESS_TOKEN }}
+      GH_PRIVATE_MODULES_TOKEN: ${{ secrets.GH_PRIVATE_MODULES_TOKEN }}
