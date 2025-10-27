@@ -193,16 +193,19 @@ This repository includes dependencies on private GitHub repositories. To build t
    - Select the `repo` scope (Full control of private repositories)
    - Copy the generated token
 
-2. **Configure Git authentication**:
+2. **Configure Git authentication** (choose one method):
+
+   **Method A: Using .netrc file (recommended for persistent setup)**
+
    Add the following line to your `$HOME/.netrc` file (create it if it doesn't exist):
-   
+
    ```
    machine github.com login <YOUR_GITHUB_USERNAME> password <YOUR_GITHUB_PAT_TOKEN>
    ```
-   
+
    **Important**: Replace `<YOUR_GITHUB_USERNAME>` with your actual GitHub username and `<YOUR_GITHUB_PAT_TOKEN>` with the token you generated in step 1.
 
-   **Security Notes**: 
+   **Security Notes**:
    - Ensure your `.netrc` file has appropriate permissions:
      ```shell
      chmod 600 ~/.netrc
@@ -210,7 +213,26 @@ This repository includes dependencies on private GitHub repositories. To build t
    - Never commit your `.netrc` file to version control as it contains sensitive credentials
    - Verify that `~/.netrc` is in your global `.gitignore` or the repository's `.gitignore`
 
-Without this setup, running `make build` will fail with authentication errors when trying to access private dependencies like `github.com/celestiaorg/rsema1d`.
+   **Method B: Using environment variable (for temporary or CI/CD use)**
+
+   If you have your GitHub PAT in an environment variable (e.g., `GH_PRIVATE_REPO`), configure Git to use it:
+
+   ```shell
+   # Configure Git to use the PAT from environment variable
+   git config --global url."https://${GH_PRIVATE_REPO}@github.com/".insteadOf "https://github.com/"
+
+   # Configure Go to bypass checksum verification for private repos
+   export GOPRIVATE=github.com/celestiaorg/rsema1d
+   ```
+
+   **Note**: The git config command stores the token in your global `.gitconfig` file. To avoid storing credentials in plain text, you can run these commands in each terminal session, or add them to your shell's configuration file (`.bashrc`, `.zshrc`, etc.).
+
+   To verify git is configured correctly:
+   ```shell
+   git config --get url."https://github.com/".insteadOf
+   ```
+
+Without this setup, running `make build` or `make mod` will fail with authentication errors when trying to access private dependencies like `github.com/celestiaorg/rsema1d`.
 
 ### Tools
 

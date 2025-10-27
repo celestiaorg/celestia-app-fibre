@@ -84,6 +84,11 @@ func (a *RemoteABCIClientV2) Query(ctx context.Context, req *abci.RequestQuery) 
 	return a.ABCIClient.Query(ctx, req, grpc.WaitForReady(true))
 }
 
+// QuerySequence implements abci.ABCI.
+func (a *RemoteABCIClientV2) QuerySequence(ctx context.Context, req *abci.RequestQuerySequence) (*abci.ResponseQuerySequence, error) {
+	return a.ABCIClient.QuerySequence(ctx, req, grpc.WaitForReady(true))
+}
+
 // VerifyVoteExtension implements abci.ABCI.
 func (a *RemoteABCIClientV2) VerifyVoteExtension(req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
 	return a.ABCIClient.VerifyVoteExtension(context.Background(), req, grpc.WaitForReady(true))

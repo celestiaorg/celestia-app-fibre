@@ -173,6 +173,14 @@ func (m *Multiplexer) Query(ctx context.Context, req *abci.RequestQuery) (*abci.
 	return app.Query(ctx, req)
 }
 
+func (m *Multiplexer) QuerySequence(ctx context.Context, req *abci.RequestQuerySequence) (*abci.ResponseQuerySequence, error) {
+	app, err := m.getApp()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app for version %d: %w", m.appVersion, err)
+	}
+	return app.QuerySequence(ctx, req)
+}
+
 func (m *Multiplexer) VerifyVoteExtension(_ context.Context, req *abci.RequestVerifyVoteExtension) (*abci.ResponseVerifyVoteExtension, error) {
 	app, err := m.getApp()
 	if err != nil {

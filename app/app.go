@@ -5,12 +5,14 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"cosmossdk.io/client/v2/autocli"
 	"cosmossdk.io/core/appmodule"
 	"cosmossdk.io/log"
+	sdkmath "cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
 	"cosmossdk.io/x/circuit"
 	circuitkeeper "cosmossdk.io/x/circuit/keeper"
@@ -55,6 +57,7 @@ import (
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/baseapp"
 	"github.com/cosmos/cosmos-sdk/client"
+	"github.com/cosmos/cosmos-sdk/client/flags"
 	tmservice "github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
 	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -124,6 +127,10 @@ import (
 	ibctesting "github.com/cosmos/ibc-go/v8/testing"
 	ibctestingtypes "github.com/cosmos/ibc-go/v8/testing/types"
 	"github.com/spf13/cast"
+
+	"github.com/celestiaorg/celestia-app/v6/app/promise"
+	fibrekeeper "github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 )
 
 // maccPerms is short for module account permissions. It is a map from module
@@ -185,6 +192,8 @@ type App struct {
 	HyperlaneKeeper     hyperlanekeeper.Keeper
 	WarpKeeper          warpkeeper.Keeper
 
+	FibreKeeper *fibrekeeper.Keeper
+
 	ScopedIBCKeeper      capabilitykeeper.ScopedKeeper // This keeper is public for test purposes
 	ScopedTransferKeeper capabilitykeeper.ScopedKeeper // This keeper is public for test purposes
 	ScopedICAHostKeeper  capabilitykeeper.ScopedKeeper // This keeper is public for test purposes
@@ -201,6 +210,10 @@ type App struct {
 	// This prevents data races between Commit updating checkState and QuerySequence
 	// reading it via CheckState().
 	checkStateMu *sync.RWMutex
+
+	promiseDiff    *promise.BalanceDiff
+	promiseBank    promise.Bank
+	promiseDiffDir string
 }
 
 // New returns a reference to an uninitialized app. Callers must subsequently
@@ -215,6 +228,13 @@ func New(
 	baseAppOptions ...func(*baseapp.BaseApp),
 ) *App {
 	encodingConfig := encoding.MakeConfig(ModuleEncodingRegisters...)
+
+	homePath := cast.ToString(appOpts.Get(flags.FlagHome))
+	if homePath == "" {
+		homePath = NodeHome
+	}
+	promiseDiffDir := filepath.Join(homePath, "promise_pool")
+	promiseStoreDir := filepath.Join(homePath, promise.PromiseStoreDir())
 
 	baseApp := baseapp.NewBaseApp(Name, logger, db, encodingConfig.TxConfig.TxDecoder(), baseAppOptions...)
 	baseApp.SetCommitMultiStoreTracer(traceStore)
@@ -239,6 +259,13 @@ func New(
 		txCache:                 NewTxCache(),
 		delayedPrecommitTimeout: delayedPrecommitTimeout,
 		checkStateMu:            &sync.RWMutex{},
+		promiseDiff:             promise.NewBalanceDiff(),
+		promiseBank:             promise.NewFileBank(promiseStoreDir),
+		promiseDiffDir:          promiseDiffDir,
+	}
+
+	if err := app.promiseDiff.LoadFromDisk(app.promiseDiffDir); err != nil {
+		panic(fmt.Errorf("failed to load promise diff: %w", err))
 	}
 
 	// needed for migration from x/params -> module's ownership of own params
@@ -264,6 +291,13 @@ func New(
 		app.BlockedAddresses(),
 		govModuleAddr,
 		logger,
+	)
+
+	app.FibreKeeper = fibrekeeper.NewKeeper(
+		encodingConfig.Codec,
+		keys[fibretypes.StoreKey],
+		app.BankKeeper,
+		govModuleAddr,
 	)
 
 	app.AuthzKeeper = authzkeeper.NewKeeper(runtime.NewKVStoreService(keys[authzkeeper.StoreKey]), encodingConfig.Codec, app.MsgServiceRouter(), app.AccountKeeper)
@@ -513,6 +547,10 @@ func New(
 		panic(err)
 	}
 
+	if err := app.ApplyDiffToPromiseState(); err != nil {
+		panic(fmt.Errorf("failed to apply promise diff: %w", err))
+	}
+
 	return app
 }
 
@@ -603,6 +641,20 @@ func (app *App) EndBlocker(ctx sdk.Context) (sdk.EndBlock, error) {
 	return res, nil
 }
 
+// Commit executes the underlying BaseApp commit and reapplies the promise diff to the promise state.
+func (app *App) Commit() (*abci.ResponseCommit, error) {
+	app.checkStateMu.Lock()
+	defer app.checkStateMu.Unlock()
+	res, err := app.BaseApp.Commit()
+	if err != nil {
+		return res, err
+	}
+	if err := app.ApplyDiffToPromiseState(); err != nil {
+		return res, err
+	}
+	return res, nil
+}
+
 // InitChainer is middleware that gets invoked part-way through the baseapp's InitChain invocation.
 func (app *App) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.ResponseInitChain, error) {
 	var genesisState GenesisState
@@ -622,6 +674,155 @@ func (app *App) InitChainer(ctx sdk.Context, req *abci.RequestInitChain) (*abci.
 
 	res.TimeoutInfo = app.TimeoutInfo()
 	return res, nil
+}
+
+// ApplyDiffToPromiseState reapplies the aggregated promise diff to the promise state context.
+func (app *App) ApplyDiffToPromiseState() error {
+	if app.promiseDiff == nil {
+		return nil
+	}
+
+	ctx, ok := app.BaseApp.PromiseState()
+	if !ok {
+		return fmt.Errorf("promise state context not initialized")
+	}
+
+	expired := app.promiseDiff.ExpireReservations(ctx.BlockTime())
+	if len(expired) > 0 {
+		for _, entry := range expired {
+			if err := app.promiseBank.Remove(entry.Hash); err != nil {
+				app.Logger().Error("failed to remove expired promise payload", "error", err)
+			}
+		}
+		if err := app.promiseDiff.SaveToDisk(app.promiseDiffDir); err != nil {
+			return err
+		}
+	}
+
+	snapshot := app.promiseDiff.Snapshot()
+	if len(snapshot) == 0 {
+		return nil
+	}
+
+	for signer, amount := range snapshot {
+		if amount.IsZero() {
+			continue
+		}
+		escrow, found := app.FibreKeeper.GetEscrowAccount(ctx, signer)
+		if !found {
+			app.Logger().Error("promise diff entry missing escrow account", "signer", signer)
+			continue
+		}
+		available := escrow.AvailableBalance.Amount
+		if amount.GT(available) {
+			available = sdkmath.ZeroInt()
+		} else {
+			available = available.Sub(amount)
+		}
+		escrow.AvailableBalance.Amount = available
+		app.FibreKeeper.SetEscrowAccount(ctx, escrow)
+	}
+
+	return nil
+}
+
+// CheckAndDiffPromise validates a payment promise and records its reservation within the promise pool.
+func (app *App) CheckAndDiffPromise(pp *fibretypes.PaymentPromise) error {
+	if app.promiseDiff == nil {
+		return fmt.Errorf("promise diff not initialized")
+	}
+
+	ctx, ok := app.BaseApp.PromiseState()
+	if !ok {
+		return fmt.Errorf("promise state context not initialized")
+	}
+
+	if err := app.FibreKeeper.ValidatePaymentPromiseInternal(ctx, pp); err != nil {
+		return err
+	}
+
+	signerAddr := sdk.AccAddress(pp.SignerPublicKey.Address())
+	signer := signerAddr.String()
+
+	escrow, found := app.FibreKeeper.GetEscrowAccount(ctx, signer)
+	if !found {
+		return fmt.Errorf("escrow account not found for signer %s", signer)
+	}
+
+	cost := app.FibreKeeper.CalculatePromiseCost(ctx, pp)
+	if denom := escrow.AvailableBalance.Denom; denom != "" && denom != cost.Denom {
+		cost = sdk.NewCoin(denom, cost.Amount)
+	}
+
+	available := escrow.AvailableBalance.Amount
+	if available.LT(cost.Amount) {
+		return fmt.Errorf("insufficient balance in escrow account. required: %s, available: %s", cost.String(), escrow.AvailableBalance.String())
+	}
+
+	originalAvailable := available
+	escrow.AvailableBalance.Amount = available.Sub(cost.Amount)
+	app.FibreKeeper.SetEscrowAccount(ctx, escrow)
+
+	hash, err := promise.HashPaymentPromise(pp)
+	if err != nil {
+		escrow.AvailableBalance.Amount = originalAvailable
+		app.FibreKeeper.SetEscrowAccount(ctx, escrow)
+		return err
+	}
+
+	retention := app.FibreKeeper.PaymentPromiseRetentionWindow(ctx)
+	creationTime := pp.GetCreationTimestamp().UTC()
+	expiresAt := creationTime.Add(retention)
+
+	app.promiseDiff.Add(signer, cost.Amount)
+	app.promiseDiff.TrackReservation(hash, signer, cost.Amount, expiresAt)
+
+	if err := app.promiseDiff.SaveToDisk(app.promiseDiffDir); err != nil {
+		app.promiseDiff.Sub(signer, cost.Amount)
+		app.promiseDiff.ReleaseReservation(hash)
+		escrow.AvailableBalance.Amount = originalAvailable
+		app.FibreKeeper.SetEscrowAccount(ctx, escrow)
+		return err
+	}
+
+	if err := app.promiseBank.Store(pp); err != nil {
+		app.promiseDiff.Sub(signer, cost.Amount)
+		app.promiseDiff.ReleaseReservation(hash)
+		_ = app.promiseDiff.SaveToDisk(app.promiseDiffDir)
+		escrow.AvailableBalance.Amount = originalAvailable
+		app.FibreKeeper.SetEscrowAccount(ctx, escrow)
+		return err
+	}
+
+	return nil
+}
+
+// OnPromiseSettled releases a promise reservation after settlement or timeout.
+func (app *App) OnPromiseSettled(hash []byte, signer string, cost sdk.Coin) error {
+	if app.promiseDiff == nil {
+		return nil
+	}
+
+	app.promiseDiff.Sub(signer, cost.Amount)
+	app.promiseDiff.ReleaseReservation(hash)
+
+	if err := app.promiseDiff.SaveToDisk(app.promiseDiffDir); err != nil {
+		return err
+	}
+
+	if err := app.promiseBank.Remove(hash); err != nil {
+		return err
+	}
+
+	if ctx, ok := app.BaseApp.PromiseState(); ok {
+		escrow, found := app.FibreKeeper.GetEscrowAccount(ctx, signer)
+		if found {
+			escrow.AvailableBalance.Amount = escrow.AvailableBalance.Amount.Add(cost.Amount)
+			app.FibreKeeper.SetEscrowAccount(ctx, escrow)
+		}
+	}
+
+	return nil
 }
 
 // DefaultGenesis returns the default genesis state
@@ -859,13 +1060,4 @@ func (app *App) TimeoutInfo() abci.TimeoutInfo {
 		TimeoutPrecommitDelta:   appconsts.TimeoutPrecommitDelta,
 		DelayedPrecommitTimeout: app.delayedPrecommitTimeout,
 	}
-}
-
-// Commit overrides BaseApp's Commit to add synchronization with QuerySequence.
-// This prevents data races between commit updating checkState (mempool state) and
-// QuerySequence reading it via CheckState().
-func (app *App) Commit() (*abci.ResponseCommit, error) {
-	app.checkStateMu.Lock()
-	defer app.checkStateMu.Unlock()
-	return app.BaseApp.Commit()
 }
