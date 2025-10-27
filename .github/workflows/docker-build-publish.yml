@@ -1,15 +1,16 @@
 name: docker-build-publish
 
-# Trigger on all push events, new semantic version tags, and all PRs
+# DISABLED: This repo is private and containers are only needed for CI testing.
+# CI tests build images locally on-demand. Uncomment triggers below to re-enable.
 on:
-  push:
-    branches:
-      - "main"
-      - "v*"
-    tags:
-      - "v*"
-  pull_request:
-  merge_group:
+  # push:
+  #   branches:
+  #     - "main"
+  #     - "v*"
+  #   tags:
+  #     - "v*"
+  # pull_request:
+  # merge_group:
   workflow_dispatch:
     inputs:
       ref:

@@ -1,6 +1,9 @@
 name: test
 on:
   workflow_call:
+    secrets:
+      GH_PRIVATE_MODULES_TOKEN:
+        required: true
 
 jobs:
   test-short:
@@ -8,13 +11,32 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+        id: go
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
+
+      - name: Download Go modules
+        run: go mod download
 
       - name: Run tests in short mode
         run: make test-short
-        timeout-minutes: 10
+        timeout-minutes: 25
 
   go-test:
     runs-on: ubuntu-latest
@@ -36,9 +58,25 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+        id: go
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
 
       - name: Run tests
         run: |
@@ -71,9 +109,25 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+        id: go
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
 
       - name: Generate coverage.txt
         run: make test-coverage
@@ -88,21 +142,57 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+        id: go
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
+
+      - name: Download Go modules
+        run: go mod download
 
       - name: Run tests in race mode
         run: make test-race
+        timeout-minutes: 45
 
   test-fuzz:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+        id: go
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
 
       - name: Run fuzz tests
         run: make test-fuzz
@@ -112,9 +202,25 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+        id: go
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
 
       - name: Run multiplexer tests
         run: make test-multiplexer
@@ -141,10 +247,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Configure Git for private modules
+        run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
       - name: Set up Go
+        id: go
         uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ steps.go.outputs.go-version }}-
 
       - name: Generate image tag
         id: tag
@@ -154,7 +276,10 @@ jobs:
         # explicitly not pushing to ghcr as other workflows build and push there.
         # ideally we don't need to build an image on each runner and can use a single
         # more powerful self hosted runner to speed things up.
-        run: docker build -t "ghcr.io/celestiaorg/celestia-app:${{ steps.tag.outputs.value }}" . -f docker/multiplexer.Dockerfile
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          echo "${{ secrets.GH_PRIVATE_MODULES_TOKEN }}" | docker build --secret id=github_token,src=/dev/stdin -t "ghcr.io/celestiaorg/celestia-app:${{ steps.tag.outputs.value }}" . -f docker/multiplexer.Dockerfile
 
       - name: Run E2E test
         env:
