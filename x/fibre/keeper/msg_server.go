@@ -118,20 +118,23 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre) (*types.MsgPayForFibreResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate payment promise internally
-	if err := ms.ValidatePaymentPromiseInternal(ctx, &msg.PaymentPromise); err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise validation failed: %s", err)
-	}
-
-	// Check if payment promise has already been processed
-	if ms.IsPaymentPromiseProcessed(ctx, &msg.PaymentPromise) {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
-	}
-
+	// Convert payment promise to internal format
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(&msg.PaymentPromise); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
 	}
+
+	// Perform stateless validation (signature verification, format checks, etc.)
+	if err := pp.Validate(); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise validation failed: %s", err)
+	}
+
+	// Perform stateful verification (escrow account, balance, not already processed)
+	if err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise stateful verification failed: %s", err)
+	}
+
+	// Validate validator signatures
 	signBytes, err := pp.SignBytes()
 	if err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
@@ -197,14 +200,14 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
 	}
 
-	promiseHash, err := pp.Hash()
-	if err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to hash payment promise: %s", err)
+	// Perform stateless validation (signature verification, format checks, etc.)
+	if err := pp.Validate(); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise validation failed: %s", err)
 	}
 
-	// Check if payment promise has already been processed
-	if ms.IsPaymentProcessedByHash(ctx, promiseHash) {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
+	// Perform stateful verification (escrow account, balance, not already processed)
+	if err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise stateful verification failed: %s", err)
 	}
 
 	// Check if timeout period has passed
@@ -215,6 +218,14 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has not yet timed out. Timeout at: %s, current time: %s", timeoutDeadline, ctx.BlockTime())
 	}
 
+	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)
+	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
+
+	promiseHash, err := pp.Hash()
+	if err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to hash payment promise: %s", err)
+	}
+
 	// Get escrow account for the payment promise signer
 	signerPubKey := msg.PaymentPromise.SignerPublicKey
 	escrowSigner := sdk.AccAddress(signerPubKey.Address()).String()
@@ -222,14 +233,6 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 	escrowAccount, found := ms.GetEscrowAccount(ctx, escrowSigner)
 	if !found {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrNotFound, "escrow account not found for signer: %s", escrowSigner)
-	}
-
-	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)
-	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
-
-	// Check if sufficient balance (should always be true since promise was validated, but safety check)
-	if escrowAccount.Balance.IsLT(paymentAmount) {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance: have %s, need %s", escrowAccount.Balance, paymentAmount)
 	}
 
 	// Deduct payment from escrow account (both balance and available_balance)

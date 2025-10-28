@@ -186,20 +186,45 @@ func (k Keeper) IsPaymentProcessedByHash(ctx sdk.Context, promiseHash []byte) bo
 }
 
 // ValidatePaymentPromiseInternal validates a payment promise and returns an error if the promise is invalid.
+// It performs both stateless and stateful validation.
 func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) error {
+	// Perform stateless validation
+	if err := k.ValidatePaymentPromiseStateless(ctx, promise); err != nil {
+		return err
+	}
+
+	// Perform stateful validation
+	if err := k.ValidatePaymentPromiseStateful(ctx, promise); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (k Keeper) ValidatePaymentPromiseStateless(ctx sdk.Context, promise *types.PaymentPromise) error {
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(promise); err != nil {
 		return fmt.Errorf("invalid payment promise format: %v", err)
 	}
 
-	if err := pp.Validate(); err != nil {
-		return fmt.Errorf("invalid payment promise: %v", err)
-	}
+	return pp.Validate()
+}
 
+// ValidatePaymentPromiseStateful performs stateful validation of a payment promise.
+// It checks:
+// 1. The payment promise has not already been processed
+// 2. The escrow account exists for the signer
+// 3. The escrow account has sufficient available balance
+//
+// This method does NOT perform stateless validation.
+// Callers should perform stateless validation separately via pp.Validate().
+func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) error {
+	// Check if payment promise has already been processed
 	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
 		return fmt.Errorf("payment promise has already been processed")
 	}
 
+	// Check escrow account exists
 	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
 	signerAddrStr := signerAddr.String()
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
@@ -207,6 +232,7 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
 	}
 
+	// Check sufficient available balance
 	params := k.GetParams(ctx)
 	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
 
