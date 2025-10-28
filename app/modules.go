@@ -205,11 +205,11 @@ func allStoreKeys() []string {
 		icahosttypes.StoreKey,
 		signaltypes.StoreKey,
 		blobtypes.StoreKey,
-		fibretypes.StoreKey,
 		minfeetypes.StoreKey,      // added in v4
 		consensustypes.StoreKey,   // added in v4
 		circuittypes.StoreKey,     // added in v4
 		hyperlanetypes.ModuleName, // added in v4
 		warptypes.ModuleName,      // added in v4
+		fibretypes.StoreKey,       // added in v7
 	}
 }
