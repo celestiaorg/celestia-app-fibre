@@ -235,6 +235,15 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 		return nil, errorsmod.Wrapf(sdkerrors.ErrNotFound, "escrow account not found for signer: %s", escrowSigner)
 	}
 
+	// Check if sufficient balance (defensive check to prevent panic on Sub)
+	if escrowAccount.Balance.IsLT(paymentAmount) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance: have %s, need %s", escrowAccount.Balance, paymentAmount)
+	}
+	// Check if sufficient available balance (should already be validated, but double-check)
+	if escrowAccount.AvailableBalance.IsLT(paymentAmount) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient available balance: have %s, need %s", escrowAccount.AvailableBalance, paymentAmount)
+	}
+
 	// Deduct payment from escrow account (both balance and available_balance)
 	escrowAccount.Balance = escrowAccount.Balance.Sub(paymentAmount)
 	escrowAccount.AvailableBalance = escrowAccount.AvailableBalance.Sub(paymentAmount)

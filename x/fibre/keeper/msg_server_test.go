@@ -492,6 +492,35 @@ func (suite *MsgServerTestSuite) TestPaymentPromiseTimeout() {
 		suite.Nil(resp)
 		suite.Contains(err.Error(), "payment promise validation failed")
 	})
+
+	suite.T().Run("insufficient balance in escrow account", func(t *testing.T) {
+		insufficientPrivKey := secp256k1.GenPrivKey()
+		insufficientPubKey := insufficientPrivKey.PubKey()
+		insufficientSignerPubKey := *insufficientPubKey.(*secp256k1.PubKey)
+		insufficientSigner := sdk.AccAddress(insufficientPubKey.Address()).String()
+
+		insufficientPaymentPromise := suite.createPaymentPromiseWithTime(insufficientSignerPubKey, insufficientPrivKey, oldTime)
+
+		// Create escrow account with insufficient total balance (but sufficient available balance)
+		// This tests the defensive check added to prevent panic
+		insufficientBalance := sdk.NewInt64Coin(appconsts.BondDenom, 10)
+		insufficientEscrowAccount := types.EscrowAccount{
+			Signer:           insufficientSigner,
+			Balance:          insufficientBalance, // Very low balance
+			AvailableBalance: insufficientBalance,
+		}
+		suite.keeper.SetEscrowAccount(suite.ctx, insufficientEscrowAccount)
+
+		msg := &types.MsgPaymentPromiseTimeout{
+			Signer:         processor,
+			PaymentPromise: insufficientPaymentPromise,
+		}
+
+		resp, err := suite.msgServer.PaymentPromiseTimeout(suite.ctx, msg)
+		suite.Error(err)
+		suite.Nil(resp)
+		suite.Contains(err.Error(), "insufficient balance")
+	})
 }
 
 // TestUpdateFibreParams tests the UpdateFibreParams message handler
