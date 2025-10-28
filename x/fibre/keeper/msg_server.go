@@ -32,11 +32,6 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDepositToEscrow) (*types.MsgDepositToEscrowResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
-
 	// Convert signer address
 	signerAddr, err := sdk.AccAddressFromBech32(msg.Signer)
 	if err != nil {
@@ -77,11 +72,6 @@ func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDeposit
 // RequestWithdrawal requests withdrawal from the signer's escrow account
 func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgRequestWithdrawal) (*types.MsgRequestWithdrawalResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
-
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
 
 	// Get escrow account
 	escrowAccount, found := ms.GetEscrowAccount(ctx, msg.Signer)
@@ -127,11 +117,6 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 // PayForFibre processes a payment promise with validator signatures
 func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre) (*types.MsgPayForFibreResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
-
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
 
 	// Validate payment promise internally
 	if err := ms.ValidatePaymentPromiseInternal(ctx, &msg.PaymentPromise); err != nil {
@@ -202,11 +187,6 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgPaymentPromiseTimeout) (*types.MsgPaymentPromiseTimeoutResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
-
 	// Convert payment promise to internal format
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(&msg.PaymentPromise); err != nil {
@@ -272,11 +252,6 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 // UpdateFibreParams updates the fibre module parameters
 func (ms msgServer) UpdateFibreParams(goCtx context.Context, msg *types.MsgUpdateFibreParams) (*types.MsgUpdateFibreParamsResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
-
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
 
 	// Check if the signer is the module authority
 	if msg.Authority != ms.GetAuthority() {
