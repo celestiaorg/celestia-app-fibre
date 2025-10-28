@@ -157,6 +157,10 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	// Calculate payment amount based on blob size and gas per byte
 	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
 
+	// Check if sufficient balance
+	if escrowAccount.Balance.IsLT(paymentAmount) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance: have %s, need %s", escrowAccount.Balance, paymentAmount)
+	}
 	// Check if sufficient available balance
 	if escrowAccount.AvailableBalance.IsLT(paymentAmount) {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient available balance: have %s, need %s", escrowAccount.AvailableBalance, paymentAmount)
