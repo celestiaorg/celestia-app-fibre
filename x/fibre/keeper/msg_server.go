@@ -143,15 +143,16 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
 	}
 
-	// Validate validator signatures using existing fibre/validator.SignatureSet
-	if err := ms.validateValidatorSignatures(ctx, &msg.PaymentPromise, msg.ValidatorSignatures); err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
-	}
-
-	// Convert payment promise to internal format to get hash
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(&msg.PaymentPromise); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
+	}
+	signBytes, err := pp.SignBytes()
+	if err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
+	}
+	if err := ms.validateValidatorSignatures(ctx, signBytes, msg.PaymentPromise.Height, msg.ValidatorSignatures); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
 	}
 
 	promiseHash, err := pp.Hash()
@@ -302,11 +303,11 @@ func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk
 }
 
 // validateValidatorSignatures validates validator signatures using the existing SignatureSet infrastructure
-func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, paymentPromise *types.PaymentPromise, signatures [][]byte) error {
-	// Get historical validator set at the height specified in the payment promise
-	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, paymentPromise.Height)
+func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byte, height int64, signatures [][]byte) error {
+	// Get historical validator set at the height
+	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, height)
 	if err != nil {
-		return errorsmod.Wrapf(err, "failed to get historical validator set at height %d", paymentPromise.Height)
+		return errorsmod.Wrapf(err, "failed to get historical validator set at height %d", height)
 	}
 
 	// Convert SDK validators to CometBFT validators
@@ -331,18 +332,7 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, paymentPromise 
 	cmtValSet := core.NewValidatorSet(cmtValidators)
 	valSet := validator.Set{
 		ValidatorSet: cmtValSet,
-		Height:       uint64(paymentPromise.Height),
-	}
-
-	// Convert payment promise to get sign bytes
-	pp := fibre.PaymentPromise{}
-	if err := pp.FromProto(paymentPromise); err != nil {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
-	}
-
-	signBytes, err := pp.SignBytes()
-	if err != nil {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
+		Height:       uint64(height),
 	}
 
 	// Create signature set with 2/3+ thresholds
