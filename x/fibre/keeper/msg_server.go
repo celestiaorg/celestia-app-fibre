@@ -32,11 +32,6 @@ func NewMsgServerImpl(keeper Keeper) types.MsgServer {
 func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDepositToEscrow) (*types.MsgDepositToEscrowResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
-
 	// Convert signer address
 	signerAddr, err := sdk.AccAddressFromBech32(msg.Signer)
 	if err != nil {
@@ -77,11 +72,6 @@ func (ms msgServer) DepositToEscrow(goCtx context.Context, msg *types.MsgDeposit
 // RequestWithdrawal requests withdrawal from the signer's escrow account
 func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgRequestWithdrawal) (*types.MsgRequestWithdrawalResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
-
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
 
 	// Get escrow account
 	escrowAccount, found := ms.GetEscrowAccount(ctx, msg.Signer)
@@ -128,30 +118,29 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre) (*types.MsgPayForFibreResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
-
-	// Validate payment promise internally
-	if err := ms.ValidatePaymentPromiseInternal(ctx, &msg.PaymentPromise); err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise validation failed: %s", err)
-	}
-
-	// Check if payment promise has already been processed
-	if ms.IsPaymentPromiseProcessed(ctx, &msg.PaymentPromise) {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
-	}
-
-	// Validate validator signatures using existing fibre/validator.SignatureSet
-	if err := ms.validateValidatorSignatures(ctx, &msg.PaymentPromise, msg.ValidatorSignatures); err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
-	}
-
-	// Convert payment promise to internal format to get hash
+	// Convert payment promise to internal format
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(&msg.PaymentPromise); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
+	}
+
+	// Perform stateless validation (signature verification, format checks, etc.)
+	if err := pp.Validate(); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise validation failed: %s", err)
+	}
+
+	// Perform stateful verification (escrow account, balance, not already processed)
+	if err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise stateful verification failed: %s", err)
+	}
+
+	// Validate validator signatures
+	signBytes, err := pp.SignBytes()
+	if err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
+	}
+	if err := ms.validateValidatorSignatures(ctx, signBytes, msg.PaymentPromise.Height, msg.ValidatorSignatures); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
 	}
 
 	promiseHash, err := pp.Hash()
@@ -171,6 +160,10 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	// Calculate payment amount based on blob size and gas per byte
 	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
 
+	// Check if sufficient balance
+	if escrowAccount.Balance.IsLT(paymentAmount) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance: have %s, need %s", escrowAccount.Balance, paymentAmount)
+	}
 	// Check if sufficient available balance
 	if escrowAccount.AvailableBalance.IsLT(paymentAmount) {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient available balance: have %s, need %s", escrowAccount.AvailableBalance, paymentAmount)
@@ -201,25 +194,20 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgPaymentPromiseTimeout) (*types.MsgPaymentPromiseTimeoutResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
-
 	// Convert payment promise to internal format
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(&msg.PaymentPromise); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
 	}
 
-	promiseHash, err := pp.Hash()
-	if err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to hash payment promise: %s", err)
+	// Perform stateless validation (signature verification, format checks, etc.)
+	if err := pp.Validate(); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise validation failed: %s", err)
 	}
 
-	// Check if payment promise has already been processed
-	if ms.IsPaymentProcessedByHash(ctx, promiseHash) {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has already been processed")
+	// Perform stateful verification (escrow account, balance, not already processed)
+	if err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise); err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise stateful verification failed: %s", err)
 	}
 
 	// Check if timeout period has passed
@@ -228,6 +216,14 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 
 	if ctx.BlockTime().Before(timeoutDeadline) {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has not yet timed out. Timeout at: %s, current time: %s", timeoutDeadline, ctx.BlockTime())
+	}
+
+	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)
+	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
+
+	promiseHash, err := pp.Hash()
+	if err != nil {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to hash payment promise: %s", err)
 	}
 
 	// Get escrow account for the payment promise signer
@@ -239,12 +235,13 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 		return nil, errorsmod.Wrapf(sdkerrors.ErrNotFound, "escrow account not found for signer: %s", escrowSigner)
 	}
 
-	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)
-	paymentAmount := ms.calculatePaymentAmount(ctx, msg.PaymentPromise.BlobSize)
-
-	// Check if sufficient balance (should always be true since promise was validated, but safety check)
+	// Check if sufficient balance (defensive check to prevent panic on Sub)
 	if escrowAccount.Balance.IsLT(paymentAmount) {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance: have %s, need %s", escrowAccount.Balance, paymentAmount)
+	}
+	// Check if sufficient available balance (should already be validated, but double-check)
+	if escrowAccount.AvailableBalance.IsLT(paymentAmount) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient available balance: have %s, need %s", escrowAccount.AvailableBalance, paymentAmount)
 	}
 
 	// Deduct payment from escrow account (both balance and available_balance)
@@ -272,11 +269,6 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 func (ms msgServer) UpdateFibreParams(goCtx context.Context, msg *types.MsgUpdateFibreParams) (*types.MsgUpdateFibreParamsResponse, error) {
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
-	// Validate the message
-	if err := msg.ValidateBasic(); err != nil {
-		return nil, err
-	}
-
 	// Check if the signer is the module authority
 	if msg.Authority != ms.GetAuthority() {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrUnauthorized, "invalid authority; expected %s, got %s", ms.GetAuthority(), msg.Authority)
@@ -302,11 +294,11 @@ func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk
 }
 
 // validateValidatorSignatures validates validator signatures using the existing SignatureSet infrastructure
-func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, paymentPromise *types.PaymentPromise, signatures [][]byte) error {
-	// Get historical validator set at the height specified in the payment promise
-	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, paymentPromise.Height)
+func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byte, height int64, signatures [][]byte) error {
+	// Get historical validator set at the height
+	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, height)
 	if err != nil {
-		return errorsmod.Wrapf(err, "failed to get historical validator set at height %d", paymentPromise.Height)
+		return errorsmod.Wrapf(err, "failed to get historical validator set at height %d", height)
 	}
 
 	// Convert SDK validators to CometBFT validators
@@ -331,18 +323,7 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, paymentPromise 
 	cmtValSet := core.NewValidatorSet(cmtValidators)
 	valSet := validator.Set{
 		ValidatorSet: cmtValSet,
-		Height:       uint64(paymentPromise.Height),
-	}
-
-	// Convert payment promise to get sign bytes
-	pp := fibre.PaymentPromise{}
-	if err := pp.FromProto(paymentPromise); err != nil {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to convert payment promise: %s", err)
-	}
-
-	signBytes, err := pp.SignBytes()
-	if err != nil {
-		return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
+		Height:       uint64(height),
 	}
 
 	// Create signature set with 2/3+ thresholds
