@@ -2,6 +2,7 @@ package keeper_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 	"time"
 
@@ -127,7 +128,7 @@ func (suite *MsgServerTestSuite) TestDepositToEscrow() {
 	suite.T().Run("bank transfer failure", func(t *testing.T) {
 		// Set up the mock to return an error
 		originalSendCoins := suite.bankKeeper.SendCoinsFromAccountToModuleFn
-		suite.bankKeeper.SendCoinsFromAccountToModuleFn = func(ctx sdk.Context, senderAddr sdk.AccAddress, recipientModule string, amt sdk.Coins) error {
+		suite.bankKeeper.SendCoinsFromAccountToModuleFn = func(ctx context.Context, senderAddr sdk.AccAddress, recipientModule string, amt sdk.Coins) error {
 			return sdkerrors.ErrInsufficientFunds
 		}
 		defer func() {
