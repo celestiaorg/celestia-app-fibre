@@ -35,11 +35,12 @@ FROM ${CELESTIA_APP_REPOSITORY}:${CELESTIA_VERSION_V5} AS base-v5
 # Ignore hadolint rule because hadolint can't parse the variable.
 # See https://github.com/hadolint/hadolint/issues/339
 # hadolint ignore=DL3006
-FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS builder
+FROM ${BUILDER_IMAGE} AS builder
 
 # must be specified for this build step in order for propagation of values.
 ARG TARGETOS
 ARG TARGETARCH
+ARG GITHUB_TOKEN
 
 # The multiplexer must be built with both TARGETOS and TARGETARCH build arguments
 # as the location of the embedded binary is derived from these values.
@@ -62,11 +63,9 @@ WORKDIR /celestia-app
 # cache go module dependencies
 COPY go.mod go.sum ./
 
-# Configure git for private modules using BuildKit secret mount
+# Configure git for private modules using build arg instead of secret
 ENV GOPRIVATE=github.com/celestiaorg/*
-RUN --mount=type=secret,id=github_token \
-    if [ -f /run/secrets/github_token ]; then \
-        GITHUB_TOKEN=$(cat /run/secrets/github_token) && \
+RUN if [ -n "$GITHUB_TOKEN" ]; then \
         git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
     fi && \
     go mod download
