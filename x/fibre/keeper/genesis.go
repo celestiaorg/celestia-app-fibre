@@ -14,7 +14,12 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genesisState types.GenesisState) {
 		k.SetEscrowAccount(ctx, escrowAccount)
 	}
 
+	params := k.GetParams(ctx)
 	for _, withdrawal := range genesisState.Withdrawals {
+		// If AvailableTimestamp is not set (old genesis), compute it
+		if withdrawal.AvailableTimestamp.IsZero() {
+			withdrawal.AvailableTimestamp = withdrawal.RequestedTimestamp.Add(params.WithdrawalDelay)
+		}
 		k.SetWithdrawal(ctx, withdrawal)
 	}
 
@@ -64,7 +69,7 @@ func (k Keeper) IterateEscrowAccounts(ctx sdk.Context, callback func(account typ
 // IterateWithdrawals iterates over all withdrawals and calls the provided callback function
 func (k Keeper) IterateWithdrawals(ctx sdk.Context, callback func(withdrawal types.Withdrawal) bool) {
 	store := ctx.KVStore(k.storeKey)
-	iterator := storetypes.KVStorePrefixIterator(store, types.WithdrawalKeyPrefix)
+	iterator := storetypes.KVStorePrefixIterator(store, types.WithdrawalsBySignerKeyPrefix)
 	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {

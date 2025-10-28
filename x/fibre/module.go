@@ -116,3 +116,8 @@ func (am AppModule) ExportGenesis(ctx sdk.Context, _ codec.JSONCodec) json.RawMe
 
 // ConsensusVersion implements ConsensusVersion.
 func (AppModule) ConsensusVersion() uint64 { return 1 }
+
+// BeginBlock executes all ABCI BeginBlock logic for the fibre module.
+func (am AppModule) BeginBlock(ctx sdk.Context) error {
+	return am.keeper.BeginBlocker(ctx)
+}

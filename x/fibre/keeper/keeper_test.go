@@ -118,10 +118,12 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	})
 
 	suite.T().Run("keeper should set and get withdrawal", func(t *testing.T) {
+		params := suite.keeper.GetParams(suite.ctx)
 		want := types.Withdrawal{
 			Signer:             signer,
 			Amount:             sdk.NewInt64Coin("utia", 500),
 			RequestedTimestamp: testTime,
+			AvailableTimestamp: testTime.Add(params.WithdrawalDelay),
 		}
 
 		suite.keeper.SetWithdrawal(suite.ctx, want)
@@ -132,16 +134,26 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	})
 
 	suite.T().Run("keeper should delete withdrawal", func(t *testing.T) {
-		suite.keeper.DeleteWithdrawal(suite.ctx, signer, testTime)
+		params := suite.keeper.GetParams(suite.ctx)
+		withdrawal := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 500),
+			RequestedTimestamp: testTime,
+			AvailableTimestamp: testTime.Add(params.WithdrawalDelay),
+		}
+		suite.keeper.DeleteWithdrawal(suite.ctx, withdrawal)
 		_, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
 		suite.False(found)
 	})
 
 	suite.T().Run("keeper should get withdrawals by signer", func(t *testing.T) {
+		params := suite.keeper.GetParams(suite.ctx)
+		requestedAt := testTime.Add(2 * time.Hour)
 		want := types.Withdrawal{
 			Signer:             signer,
 			Amount:             sdk.NewInt64Coin("utia", 100),
-			RequestedTimestamp: testTime.Add(2 * time.Hour),
+			RequestedTimestamp: requestedAt,
+			AvailableTimestamp: requestedAt.Add(params.WithdrawalDelay),
 		}
 		suite.keeper.SetWithdrawal(suite.ctx, want)
 		withdrawals := suite.keeper.GetWithdrawalsBySigner(suite.ctx, signer)
