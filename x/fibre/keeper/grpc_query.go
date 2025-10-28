@@ -87,13 +87,19 @@ func (k Keeper) IsPaymentProcessed(c context.Context, req *types.QueryIsPaymentP
 }
 
 // ValidatePaymentPromise validates a payment promise for server use.
+// This is called by validators before signing a payment promise to verify
+// that the escrow account has sufficient balance and hasn't been processed.
 func (k Keeper) ValidatePaymentPromise(c context.Context, req *types.QueryValidatePaymentPromiseRequest) (*types.QueryValidatePaymentPromiseResponse, error) {
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid request")
 	}
 
 	ctx := sdk.UnwrapSDKContext(c)
-	if err := k.ValidatePaymentPromiseInternal(ctx, &req.Promise); err != nil {
+
+	// Perform stateful verification only
+	// Note: Stateless validation (signature, format checks) should be done by the caller
+	// before making this query, as it doesn't require state access
+	if err := k.ValidatePaymentPromiseStateful(ctx, &req.Promise); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &types.QueryValidatePaymentPromiseResponse{IsValid: true}, nil

@@ -53,7 +53,8 @@ func (suite *KeeperTestSuite) SetupTest() {
 	mockBankKeeper := &MockBankKeeper{}
 	authority := authtypes.NewModuleAddress("gov").String()
 	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC()}, false, nil)
-	suite.keeper = keeper.NewKeeper(suite.cdc, storeKey, mockBankKeeper, authority)
+	mockStakingKeeper := &MockStakingKeeper{}
+	suite.keeper = keeper.NewKeeper(suite.cdc, storeKey, mockBankKeeper, mockStakingKeeper, authority)
 	suite.keeper.SetParams(suite.ctx, types.DefaultParams())
 }
 
@@ -216,7 +217,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.Error(err)
-		suite.Contains(err.Error(), "invalid payment promise")
+		suite.Contains(err.Error(), "blob size must be positive")
 	})
 
 	suite.T().Run("already processed payment promise should fail", func(t *testing.T) {
