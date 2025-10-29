@@ -11,11 +11,11 @@ const (
 
 	// AttributeKeyValidatorAddress is the attribute key for consensus address
 	AttributeKeyValidatorAddress = "validator_consensus_address"
-	// AttributeKeyIPAddress is the attribute key for IP address
-	AttributeKeyIPAddress = "ip_address"
+	// AttributeKeyHost is the attribute key for IP address
+	AttributeKeyHost = "host"
 
 	// MaxHostLen is the maximum length for the host field (IP address, DNS name, etc.)
-	MaxHostLen = 90
+	MaxHostLen = 100
 )
 
 var _ sdk.Msg = &MsgSetFibreProviderInfo{}

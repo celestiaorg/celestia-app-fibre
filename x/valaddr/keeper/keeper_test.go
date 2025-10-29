@@ -13,7 +13,7 @@ import (
 func TestSetGetFibreProviderInfo(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	consAddr := sdk.ConsAddress("validator1")
 	info := types.FibreProviderInfo{
@@ -31,7 +31,7 @@ func TestSetGetFibreProviderInfo(t *testing.T) {
 func TestGetFibreProviderInfoNotFound(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	consAddr := sdk.ConsAddress("nonexistent")
 
@@ -42,7 +42,7 @@ func TestGetFibreProviderInfoNotFound(t *testing.T) {
 func TestDeleteFibreProviderInfo(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	consAddr := sdk.ConsAddress("validator1")
 	info := types.FibreProviderInfo{
@@ -62,7 +62,7 @@ func TestDeleteFibreProviderInfo(t *testing.T) {
 func TestIterateFibreProviderInfo(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	providers := []struct {
 		consAddr sdk.ConsAddress
@@ -90,7 +90,7 @@ func TestIterateFibreProviderInfo(t *testing.T) {
 func TestSetGetParams(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	params := types.Params{
 		MissingInfoCheckHeight: 12345,
@@ -107,7 +107,7 @@ func TestSetGetParams(t *testing.T) {
 func TestSetParamsInvalid(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	tests := []struct {
 		name   string

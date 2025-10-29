@@ -17,7 +17,7 @@ func TestQueryFibreProviderInfo(t *testing.T) {
 	ctx := testApp.NewContext(true)
 
 	queryHelper := baseapp.NewQueryServerTestHelper(ctx, testApp.GetEncodingConfig().InterfaceRegistry)
-	types.RegisterQueryServer(queryHelper, testApp.ValaddrKeeper)
+	types.RegisterQueryServer(queryHelper, testApp.ValAddrKeeper)
 	queryClient := types.NewQueryClient(queryHelper)
 
 	consAddr := sdk.ConsAddress("validator1")
@@ -25,7 +25,7 @@ func TestQueryFibreProviderInfo(t *testing.T) {
 		Host: "validator1.fibre.example.com",
 	}
 
-	err := testApp.ValaddrKeeper.SetFibreProviderInfo(ctx, consAddr, info)
+	err := testApp.ValAddrKeeper.SetFibreProviderInfo(ctx, consAddr, info)
 	require.NoError(t, err)
 
 	resp, err := queryClient.FibreProviderInfo(gocontext.Background(), &types.QueryFibreProviderInfoRequest{
@@ -41,7 +41,7 @@ func TestQueryFibreProviderInfoNotFound(t *testing.T) {
 	ctx := testApp.NewContext(true)
 
 	queryHelper := baseapp.NewQueryServerTestHelper(ctx, testApp.GetEncodingConfig().InterfaceRegistry)
-	types.RegisterQueryServer(queryHelper, testApp.ValaddrKeeper)
+	types.RegisterQueryServer(queryHelper, testApp.ValAddrKeeper)
 	queryClient := types.NewQueryClient(queryHelper)
 
 	consAddr := sdk.ConsAddress("nonexistent")
@@ -58,7 +58,7 @@ func TestQueryAllActiveFibreProviders(t *testing.T) {
 	ctx := testApp.NewContext(true)
 
 	queryHelper := baseapp.NewQueryServerTestHelper(ctx, testApp.GetEncodingConfig().InterfaceRegistry)
-	types.RegisterQueryServer(queryHelper, testApp.ValaddrKeeper)
+	types.RegisterQueryServer(queryHelper, testApp.ValAddrKeeper)
 	queryClient := types.NewQueryClient(queryHelper)
 
 	resp, err := queryClient.AllActiveFibreProviders(gocontext.Background(), &types.QueryAllActiveFibreProvidersRequest{})

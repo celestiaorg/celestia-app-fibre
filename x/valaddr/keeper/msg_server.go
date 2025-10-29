@@ -59,7 +59,7 @@ func (ms msgServer) SetFibreProviderInfo(goCtx context.Context, msg *types.MsgSe
 		sdk.NewEvent(
 			types.EventTypeSetFibreProviderInfo,
 			sdk.NewAttribute(types.AttributeKeyValidatorAddress, consAddr.String()),
-			sdk.NewAttribute(types.AttributeKeyIPAddress, msg.Host),
+			sdk.NewAttribute(types.AttributeKeyHost, msg.Host),
 		),
 	)
 

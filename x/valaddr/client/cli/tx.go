@@ -29,13 +29,13 @@ func GetTxCmd() *cobra.Command {
 // CmdSetFibreProviderInfo broadcasts a MsgSetFibreProviderInfo transaction
 func CmdSetFibreProviderInfo() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "set-provider-info [host]",
+		Use:   "set-host [host]",
 		Short: "Set the fibre provider host for your validator",
 		Long: `Set the fibre provider host for your validator.
 The transaction must be signed by the validator's account.
 
 Example:
-$ celestia-appd tx valaddr set-provider-info <host> --from <validator-account-key>
+$ celestia-appd tx valaddr set-host <host> --from <validator-account-key>
 `,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

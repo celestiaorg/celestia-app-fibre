@@ -335,7 +335,7 @@ func (s *StandardSDKIntegrationTestSuite) TestStandardSDK() {
 			expectedCode: abci.CodeTypeOK,
 		},
 		{
-			name: "set fibre provider dns",
+			name: "set fibre provider host",
 			msgFunc: func() (msgs []sdk.Msg, signer string) {
 				valAccount := s.getValidatorAccount()
 				msg := &valaddrtypes.MsgSetFibreProviderInfo{

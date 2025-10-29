@@ -34,11 +34,11 @@ func TestMsgSetFibreProviderInfo(t *testing.T) {
 		err = msg.ValidateBasic()
 		require.NoError(t, err)
 
-		msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
+		msgServer := keeper.NewMsgServerImpl(testApp.ValAddrKeeper)
 		_, err = msgServer.SetFibreProviderInfo(ctx, msg)
 		require.NoError(t, err)
 
-		retrievedInfo, found := testApp.ValaddrKeeper.GetFibreProviderInfo(ctx, consAddr)
+		retrievedInfo, found := testApp.ValAddrKeeper.GetFibreProviderInfo(ctx, consAddr)
 		require.True(t, found)
 		require.Equal(t, msg.Host, retrievedInfo.Host)
 	})
@@ -81,7 +81,7 @@ func TestMsgSetFibreProviderInfo(t *testing.T) {
 		require.NoError(t, err)
 
 		// Call the message server handler - should fail (validator not found)
-		msgServer := keeper.NewMsgServerImpl(testApp.ValaddrKeeper)
+		msgServer := keeper.NewMsgServerImpl(testApp.ValAddrKeeper)
 		_, err = msgServer.SetFibreProviderInfo(ctx, msg)
 		require.Error(t, err)
 		require.True(t, errors.Is(err, types.ErrInvalidValidator))
@@ -90,8 +90,8 @@ func TestMsgSetFibreProviderInfo(t *testing.T) {
 	t.Run("host too long", func(t *testing.T) {
 		valAddr := sdk.ValAddress([]byte("validator1"))
 
-		// Create a host longer than 90 characters
-		longHost := "2001:0db8:85a3:0000:0000:8a2e:0370:7334:2001:0db8:85a3:0000:0000:8a2e:0370:7334:extra:data:here"
+		// Create a host longer than 100 characters
+		longHost := "2001:0db8:852001:0db8:85a3a3:0000:0000:8a2e:0370:7334:2001:0db8:85a3:0000:0000:8a2e:0370:7334:2001:0db8:85a3:extra:data:here"
 
 		msg := &types.MsgSetFibreProviderInfo{
 			Signer: valAddr.String(),

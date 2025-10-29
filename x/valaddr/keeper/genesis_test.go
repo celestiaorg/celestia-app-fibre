@@ -13,7 +13,7 @@ import (
 func TestInitGenesis(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	genesisState := &types.GenesisState{
 		Params: types.Params{
@@ -31,7 +31,7 @@ func TestInitGenesis(t *testing.T) {
 func TestExportGenesis(t *testing.T) {
 	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
 	ctx := testApp.NewContext(true)
-	keeper := testApp.ValaddrKeeper
+	keeper := testApp.ValAddrKeeper
 
 	params := types.Params{
 		MissingInfoCheckHeight: 75000,
