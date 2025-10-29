@@ -14,12 +14,7 @@ func (k Keeper) InitGenesis(ctx sdk.Context, genesisState types.GenesisState) {
 		k.SetEscrowAccount(ctx, escrowAccount)
 	}
 
-	params := k.GetParams(ctx)
 	for _, withdrawal := range genesisState.Withdrawals {
-		// If AvailableTimestamp is not set (old genesis), compute it
-		if withdrawal.AvailableTimestamp.IsZero() {
-			withdrawal.AvailableTimestamp = withdrawal.RequestedTimestamp.Add(params.WithdrawalDelay)
-		}
 		k.SetWithdrawal(ctx, withdrawal)
 	}
 
