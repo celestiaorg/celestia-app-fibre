@@ -207,7 +207,7 @@ func (k Keeper) SetProcessedPayment(ctx sdk.Context, payment types.ProcessedPaym
 	bz := k.cdc.MustMarshal(&payment)
 
 	// Store in primary index (by hash)
-	primaryKey := types.PaymentPromiseKey(payment.PaymentPromiseHash)
+	primaryKey := types.ProcessedPaymentsByHashKey(payment.PaymentPromiseHash)
 	store.Set(primaryKey, bz)
 
 	// Store in secondary index (by time)
