@@ -12,7 +12,7 @@ func (k Keeper) BeginBlocker(ctx sdk.Context) error {
 		return err
 	}
 
-	// Prune payment promises that are outside the retention window
+	// Prune processed payments that are outside the retention window
 	if err := k.pruneProcessedPayments(ctx); err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 	return nil
 }
 
-// pruneProcessedPayments removes processed payment promises that are outside
+// pruneProcessedPayments removes processed payments that are outside
 // the retention window to prevent unbounded state growth.
 func (k Keeper) pruneProcessedPayments(ctx sdk.Context) error {
 	currentTime := ctx.BlockTime()
@@ -110,7 +110,7 @@ func (k Keeper) pruneProcessedPayments(ctx sdk.Context) error {
 		// Parse key to extract processed_at timestamp and payment promise hash
 		processedAt, paymentPromiseHash, err := k.ParseProcessedPaymentsByTimeKey(iterator.Key())
 		if err != nil {
-			// Log error but continue processing other payments
+			// Log error but continue pruning other processed payments
 			k.Logger(ctx).Error("failed to parse processed-payments-by-time key", "error", err)
 			continue
 		}
@@ -127,7 +127,7 @@ func (k Keeper) pruneProcessedPayments(ctx sdk.Context) error {
 		// Delete the processed payment from both indexes
 		k.DeleteProcessedPayment(ctx, processedPayment)
 
-		// Emit event for pruned payment
+		// Emit event for pruned processed payment
 		event := types.NewEventProcessedPaymentPruned(paymentPromiseHash, processedAt)
 		if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 			// Log error but continue - event emission failure shouldn't stop processing
