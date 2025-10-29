@@ -437,7 +437,7 @@ func (s *StandardSDKIntegrationTestSuite) TestGRPCQueries() {
 		require.NoError(t, err)
 		require.Equal(t, abci.CodeTypeOK, res.Code)
 		queryClient := valaddrtypes.NewQueryClient(s.cctx.GRPCClient)
-		allProvidersResp, err := queryClient.AllActiveFibreProviders(s.cctx.GoContext(), &valaddrtypes.QueryAllActiveFibreProvidersRequest{})
+		allProvidersResp, err := queryClient.AllFibreProviders(s.cctx.GoContext(), &valaddrtypes.QueryAllFibreProvidersRequest{})
 		require.NoError(t, err)
 		require.NotNil(t, allProvidersResp)
 		require.Equal(t, slices.IndexFunc(allProvidersResp.Providers, func(provider valaddrtypes.FibreProvider) bool {

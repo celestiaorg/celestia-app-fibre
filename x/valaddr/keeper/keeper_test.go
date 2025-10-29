@@ -10,122 +10,81 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetGetFibreProviderInfo(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
+func TestFibreProviderInfo(t *testing.T) {
+	t.Run("set and get", func(t *testing.T) {
+		testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+		ctx := testApp.NewContext(true)
+		keeper := testApp.ValAddrKeeper
 
-	consAddr := sdk.ConsAddress("validator1")
-	info := types.FibreProviderInfo{
-		Host: "validator1.fibre.example.com",
-	}
+		consAddr := sdk.ConsAddress("validator1")
+		info := types.FibreProviderInfo{
+			Host: "validator1.fibre.example.com",
+		}
 
-	err := keeper.SetFibreProviderInfo(ctx, consAddr, info)
-	require.NoError(t, err)
-
-	retrieved, found := keeper.GetFibreProviderInfo(ctx, consAddr)
-	require.True(t, found)
-	require.Equal(t, info.Host, retrieved.Host)
-}
-
-func TestGetFibreProviderInfoNotFound(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
-
-	consAddr := sdk.ConsAddress("nonexistent")
-
-	_, found := keeper.GetFibreProviderInfo(ctx, consAddr)
-	require.False(t, found)
-}
-
-func TestDeleteFibreProviderInfo(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
-
-	consAddr := sdk.ConsAddress("validator1")
-	info := types.FibreProviderInfo{
-		Host: "validator1.fibre.example.com",
-	}
-
-	err := keeper.SetFibreProviderInfo(ctx, consAddr, info)
-	require.NoError(t, err)
-
-	err = keeper.DeleteFibreProviderInfo(ctx, consAddr)
-	require.NoError(t, err)
-
-	_, found := keeper.GetFibreProviderInfo(ctx, consAddr)
-	require.False(t, found)
-}
-
-func TestIterateFibreProviderInfo(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
-
-	providers := []struct {
-		consAddr sdk.ConsAddress
-		info     types.FibreProviderInfo
-	}{
-		{sdk.ConsAddress("validator1"), types.FibreProviderInfo{Host: "validator1.fibre.example.com"}},
-		{sdk.ConsAddress("validator2"), types.FibreProviderInfo{Host: "validator2.fibre.example.com"}},
-		{sdk.ConsAddress("validator3"), types.FibreProviderInfo{Host: "validator3.fibre.example.com"}},
-	}
-
-	for _, p := range providers {
-		err := keeper.SetFibreProviderInfo(ctx, p.consAddr, p.info)
+		err := keeper.SetFibreProviderInfo(ctx, consAddr, info)
 		require.NoError(t, err)
-	}
 
-	count := 0
-	err := keeper.IterateFibreProviderInfo(ctx, func(_ sdk.ConsAddress, _ types.FibreProviderInfo) bool {
-		count++
-		return false
+		retrieved, found := keeper.GetFibreProviderInfo(ctx, consAddr)
+		require.True(t, found)
+		require.Equal(t, info.Host, retrieved.Host)
 	})
-	require.NoError(t, err)
-	require.Equal(t, 3, count)
-}
 
-func TestSetGetParams(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
+	t.Run("not found", func(t *testing.T) {
+		testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+		ctx := testApp.NewContext(true)
+		keeper := testApp.ValAddrKeeper
 
-	params := types.Params{
-		MissingInfoCheckHeight: 12345,
-	}
+		consAddr := sdk.ConsAddress("nonexistent")
 
-	err := keeper.SetParams(ctx, params)
-	require.NoError(t, err)
+		_, found := keeper.GetFibreProviderInfo(ctx, consAddr)
+		require.False(t, found)
+	})
 
-	retrieved, err := keeper.GetParams(ctx)
-	require.NoError(t, err)
-	require.Equal(t, params.MissingInfoCheckHeight, retrieved.MissingInfoCheckHeight)
-}
+	t.Run("delete", func(t *testing.T) {
+		testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+		ctx := testApp.NewContext(true)
+		keeper := testApp.ValAddrKeeper
 
-func TestSetParamsInvalid(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
+		consAddr := sdk.ConsAddress("validator_to_delete")
+		info := types.FibreProviderInfo{
+			Host: "validator.fibre.example.com",
+		}
 
-	tests := []struct {
-		name   string
-		params types.Params
-	}{
-		{
-			name: "negative height",
-			params: types.Params{
-				MissingInfoCheckHeight: -1,
-			},
-		},
-	}
+		err := keeper.SetFibreProviderInfo(ctx, consAddr, info)
+		require.NoError(t, err)
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := keeper.SetParams(ctx, tc.params)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "missing_info_check_height must be non-negative")
+		err = keeper.DeleteFibreProviderInfo(ctx, consAddr)
+		require.NoError(t, err)
+
+		_, found := keeper.GetFibreProviderInfo(ctx, consAddr)
+		require.False(t, found)
+	})
+
+	t.Run("iterate", func(t *testing.T) {
+		testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+		ctx := testApp.NewContext(true)
+		keeper := testApp.ValAddrKeeper
+
+		providers := []struct {
+			consAddr sdk.ConsAddress
+			info     types.FibreProviderInfo
+		}{
+			{sdk.ConsAddress("validator1"), types.FibreProviderInfo{Host: "validator1.fibre.example.com"}},
+			{sdk.ConsAddress("validator2"), types.FibreProviderInfo{Host: "validator2.fibre.example.com"}},
+			{sdk.ConsAddress("validator3"), types.FibreProviderInfo{Host: "validator3.fibre.example.com"}},
+		}
+
+		for _, p := range providers {
+			err := keeper.SetFibreProviderInfo(ctx, p.consAddr, p.info)
+			require.NoError(t, err)
+		}
+
+		count := 0
+		err := keeper.IterateFibreProviderInfo(ctx, func(_ sdk.ConsAddress, _ types.FibreProviderInfo) bool {
+			count++
+			return false
 		})
-	}
+		require.NoError(t, err)
+		require.Equal(t, 3, count)
+	})
 }

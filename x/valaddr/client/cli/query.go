@@ -22,7 +22,7 @@ func GetQueryCmd() *cobra.Command {
 
 	cmd.AddCommand(
 		CmdQueryFibreProviderInfo(),
-		CmdQueryAllActiveFibreProviders(),
+		CmdQueryAllFibreProviders(),
 	)
 
 	return cmd
@@ -61,11 +61,11 @@ func CmdQueryFibreProviderInfo() *cobra.Command {
 	return cmd
 }
 
-// CmdQueryAllActiveFibreProviders queries all active fibre providers
-func CmdQueryAllActiveFibreProviders() *cobra.Command {
+// CmdQueryAllFibreProviders queries all fibre providers
+func CmdQueryAllFibreProviders() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "providers",
-		Short: "Query all active fibre providers",
+		Short: "Query all fibre providers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			clientCtx, err := client.GetClientQueryContext(cmd)
@@ -75,16 +75,16 @@ func CmdQueryAllActiveFibreProviders() *cobra.Command {
 
 			queryClient := types.NewQueryClient(clientCtx)
 
-			res, err := queryClient.AllActiveFibreProviders(
+			res, err := queryClient.AllFibreProviders(
 				context.Background(),
-				&types.QueryAllActiveFibreProvidersRequest{},
+				&types.QueryAllFibreProvidersRequest{},
 			)
 			if err != nil {
 				return err
 			}
 
 			if len(res.Providers) == 0 {
-				fmt.Println("No active fibre providers found")
+				fmt.Println("No fibre providers found")
 				return nil
 			}
 

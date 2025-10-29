@@ -10,78 +10,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestInitGenesis(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
+func TestGenesis(t *testing.T) {
+	t.Run("default genesis", func(t *testing.T) {
+		genesis := valaddr.DefaultGenesisState()
+		require.NotNil(t, genesis)
+	})
 
-	genesisState := &types.GenesisState{
-		Params: types.Params{
-			MissingInfoCheckHeight: 50000,
-		},
-	}
-
-	valaddr.InitGenesis(ctx, keeper, genesisState)
-
-	params, err := keeper.GetParams(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int64(50000), params.MissingInfoCheckHeight)
-}
-
-func TestExportGenesis(t *testing.T) {
-	testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
-	ctx := testApp.NewContext(true)
-	keeper := testApp.ValAddrKeeper
-
-	params := types.Params{
-		MissingInfoCheckHeight: 75000,
-	}
-
-	err := keeper.SetParams(ctx, params)
-	require.NoError(t, err)
-
-	exported := valaddr.ExportGenesis(ctx, keeper)
-
-	require.Equal(t, params.MissingInfoCheckHeight, exported.Params.MissingInfoCheckHeight)
-}
-
-func TestDefaultGenesis(t *testing.T) {
-	genesis := valaddr.DefaultGenesisState()
-
-	require.NotNil(t, genesis)
-	require.Equal(t, types.DefaultMissingInfoCheckHeight, genesis.Params.MissingInfoCheckHeight)
-}
-
-func TestValidateGenesis(t *testing.T) {
-	tests := []struct {
-		name      string
-		genesis   *types.GenesisState
-		expectErr bool
-	}{
-		{
-			name:      "valid genesis",
-			genesis:   valaddr.DefaultGenesisState(),
-			expectErr: false,
-		},
-		{
-			name: "invalid params",
-			genesis: &types.GenesisState{
-				Params: types.Params{
-					MissingInfoCheckHeight: -1,
-				},
+	t.Run("validate genesis", func(t *testing.T) {
+		tests := []struct {
+			name      string
+			genesis   *types.GenesisState
+			expectErr bool
+		}{
+			{
+				name:      "valid genesis",
+				genesis:   valaddr.DefaultGenesisState(),
+				expectErr: false,
 			},
-			expectErr: true,
-		},
-	}
+			{
+				name:      "nil genesis",
+				genesis:   nil,
+				expectErr: true,
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			err := valaddr.ValidateGenesis(tc.genesis)
-			if tc.expectErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				err := valaddr.ValidateGenesis(tc.genesis)
+				if tc.expectErr {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("init genesis", func(t *testing.T) {
+		testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+		ctx := testApp.NewContext(true)
+		keeper := testApp.ValAddrKeeper
+
+		genesisState := &types.GenesisState{}
+
+		valaddr.InitGenesis(ctx, keeper, genesisState)
+	})
+
+	t.Run("export genesis", func(t *testing.T) {
+		testApp, _ := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams())
+		ctx := testApp.NewContext(true)
+		keeper := testApp.ValAddrKeeper
+
+		exported := valaddr.ExportGenesis(ctx, keeper)
+
+		require.NotNil(t, exported)
+	})
 }

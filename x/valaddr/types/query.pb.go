@@ -130,22 +130,22 @@ func (m *QueryFibreProviderInfoResponse) GetFound() bool {
 	return false
 }
 
-// QueryAllActiveFibreProvidersRequest is the request type for the Query/AllActiveFibreProviders RPC method.
-type QueryAllActiveFibreProvidersRequest struct {
+// QueryAllFibreProvidersRequest is the request type for the Query/AllFibreProviders RPC method.
+type QueryAllFibreProvidersRequest struct {
 }
 
-func (m *QueryAllActiveFibreProvidersRequest) Reset()         { *m = QueryAllActiveFibreProvidersRequest{} }
-func (m *QueryAllActiveFibreProvidersRequest) String() string { return proto.CompactTextString(m) }
-func (*QueryAllActiveFibreProvidersRequest) ProtoMessage()    {}
-func (*QueryAllActiveFibreProvidersRequest) Descriptor() ([]byte, []int) {
+func (m *QueryAllFibreProvidersRequest) Reset()         { *m = QueryAllFibreProvidersRequest{} }
+func (m *QueryAllFibreProvidersRequest) String() string { return proto.CompactTextString(m) }
+func (*QueryAllFibreProvidersRequest) ProtoMessage()    {}
+func (*QueryAllFibreProvidersRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_e66720a0aa696609, []int{2}
 }
-func (m *QueryAllActiveFibreProvidersRequest) XXX_Unmarshal(b []byte) error {
+func (m *QueryAllFibreProvidersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *QueryAllActiveFibreProvidersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *QueryAllFibreProvidersRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_QueryAllActiveFibreProvidersRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_QueryAllFibreProvidersRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -155,36 +155,36 @@ func (m *QueryAllActiveFibreProvidersRequest) XXX_Marshal(b []byte, deterministi
 		return b[:n], nil
 	}
 }
-func (m *QueryAllActiveFibreProvidersRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_QueryAllActiveFibreProvidersRequest.Merge(m, src)
+func (m *QueryAllFibreProvidersRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueryAllFibreProvidersRequest.Merge(m, src)
 }
-func (m *QueryAllActiveFibreProvidersRequest) XXX_Size() int {
+func (m *QueryAllFibreProvidersRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *QueryAllActiveFibreProvidersRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_QueryAllActiveFibreProvidersRequest.DiscardUnknown(m)
+func (m *QueryAllFibreProvidersRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueryAllFibreProvidersRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_QueryAllActiveFibreProvidersRequest proto.InternalMessageInfo
+var xxx_messageInfo_QueryAllFibreProvidersRequest proto.InternalMessageInfo
 
-// QueryAllActiveFibreProvidersResponse is the response type for the Query/AllActiveFibreProviders RPC method.
-type QueryAllActiveFibreProvidersResponse struct {
-	// providers contains all active fibre providers
+// QueryAllFibreProvidersResponse is the response type for the Query/AllFibreProviders RPC method.
+type QueryAllFibreProvidersResponse struct {
+	// providers contains all fibre providers with a host defined
 	Providers []FibreProvider `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers"`
 }
 
-func (m *QueryAllActiveFibreProvidersResponse) Reset()         { *m = QueryAllActiveFibreProvidersResponse{} }
-func (m *QueryAllActiveFibreProvidersResponse) String() string { return proto.CompactTextString(m) }
-func (*QueryAllActiveFibreProvidersResponse) ProtoMessage()    {}
-func (*QueryAllActiveFibreProvidersResponse) Descriptor() ([]byte, []int) {
+func (m *QueryAllFibreProvidersResponse) Reset()         { *m = QueryAllFibreProvidersResponse{} }
+func (m *QueryAllFibreProvidersResponse) String() string { return proto.CompactTextString(m) }
+func (*QueryAllFibreProvidersResponse) ProtoMessage()    {}
+func (*QueryAllFibreProvidersResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_e66720a0aa696609, []int{3}
 }
-func (m *QueryAllActiveFibreProvidersResponse) XXX_Unmarshal(b []byte) error {
+func (m *QueryAllFibreProvidersResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *QueryAllActiveFibreProvidersResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *QueryAllFibreProvidersResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_QueryAllActiveFibreProvidersResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_QueryAllFibreProvidersResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -194,19 +194,19 @@ func (m *QueryAllActiveFibreProvidersResponse) XXX_Marshal(b []byte, determinist
 		return b[:n], nil
 	}
 }
-func (m *QueryAllActiveFibreProvidersResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_QueryAllActiveFibreProvidersResponse.Merge(m, src)
+func (m *QueryAllFibreProvidersResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueryAllFibreProvidersResponse.Merge(m, src)
 }
-func (m *QueryAllActiveFibreProvidersResponse) XXX_Size() int {
+func (m *QueryAllFibreProvidersResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *QueryAllActiveFibreProvidersResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_QueryAllActiveFibreProvidersResponse.DiscardUnknown(m)
+func (m *QueryAllFibreProvidersResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueryAllFibreProvidersResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_QueryAllActiveFibreProvidersResponse proto.InternalMessageInfo
+var xxx_messageInfo_QueryAllFibreProvidersResponse proto.InternalMessageInfo
 
-func (m *QueryAllActiveFibreProvidersResponse) GetProviders() []FibreProvider {
+func (m *QueryAllFibreProvidersResponse) GetProviders() []FibreProvider {
 	if m != nil {
 		return m.Providers
 	}
@@ -317,8 +317,8 @@ func (m *FibreProviderInfo) GetHost() string {
 func init() {
 	proto.RegisterType((*QueryFibreProviderInfoRequest)(nil), "celestia.valaddr.v1.QueryFibreProviderInfoRequest")
 	proto.RegisterType((*QueryFibreProviderInfoResponse)(nil), "celestia.valaddr.v1.QueryFibreProviderInfoResponse")
-	proto.RegisterType((*QueryAllActiveFibreProvidersRequest)(nil), "celestia.valaddr.v1.QueryAllActiveFibreProvidersRequest")
-	proto.RegisterType((*QueryAllActiveFibreProvidersResponse)(nil), "celestia.valaddr.v1.QueryAllActiveFibreProvidersResponse")
+	proto.RegisterType((*QueryAllFibreProvidersRequest)(nil), "celestia.valaddr.v1.QueryAllFibreProvidersRequest")
+	proto.RegisterType((*QueryAllFibreProvidersResponse)(nil), "celestia.valaddr.v1.QueryAllFibreProvidersResponse")
 	proto.RegisterType((*FibreProvider)(nil), "celestia.valaddr.v1.FibreProvider")
 	proto.RegisterType((*FibreProviderInfo)(nil), "celestia.valaddr.v1.FibreProviderInfo")
 }
@@ -326,38 +326,37 @@ func init() {
 func init() { proto.RegisterFile("celestia/valaddr/v1/query.proto", fileDescriptor_e66720a0aa696609) }
 
 var fileDescriptor_e66720a0aa696609 = []byte{
-	// 482 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x94, 0x4f, 0x6f, 0xd3, 0x30,
-	0x18, 0xc6, 0xeb, 0xae, 0x43, 0xcc, 0x13, 0x07, 0xcc, 0x24, 0x4a, 0x81, 0xac, 0x0a, 0x30, 0x7a,
-	0x49, 0xac, 0xb5, 0x17, 0x40, 0xe2, 0x4f, 0x87, 0x98, 0xc4, 0x01, 0x09, 0x7a, 0xe4, 0x52, 0xb9,
-	0x8d, 0x9b, 0x59, 0x0a, 0x7e, 0x33, 0xdb, 0x89, 0x98, 0x10, 0x17, 0x3e, 0x00, 0x02, 0xf1, 0x7d,
-	0xb8, 0x70, 0xd9, 0x71, 0x12, 0x17, 0x4e, 0x08, 0xb5, 0x7c, 0x10, 0x14, 0x27, 0x29, 0xab, 0xd6,
-	0x16, 0x95, 0xdd, 0xde, 0xc4, 0xbf, 0xc7, 0xef, 0xfb, 0x3c, 0x76, 0x82, 0xb7, 0x87, 0x3c, 0xe2,
-	0xda, 0x08, 0x46, 0x53, 0x16, 0xb1, 0x20, 0x50, 0x34, 0xdd, 0xa5, 0x87, 0x09, 0x57, 0x47, 0x7e,
-	0xac, 0xc0, 0x00, 0xb9, 0x52, 0x02, 0x7e, 0x01, 0xf8, 0xe9, 0x6e, 0x63, 0x2b, 0x84, 0x10, 0xec,
-	0x3a, 0xcd, 0xaa, 0x1c, 0x6d, 0xdc, 0x08, 0x01, 0xc2, 0x88, 0x53, 0x16, 0x0b, 0xca, 0xa4, 0x04,
-	0xc3, 0x8c, 0x00, 0xa9, 0xf3, 0x55, 0xb7, 0x8f, 0x6f, 0xbe, 0xca, 0xf6, 0xdd, 0x17, 0x03, 0xc5,
-	0x5f, 0x2a, 0x48, 0x45, 0xc0, 0xd5, 0x73, 0x39, 0x82, 0x1e, 0x3f, 0x4c, 0xb8, 0x36, 0xe4, 0x11,
-	0xbe, 0x9e, 0xb2, 0x48, 0x04, 0xcc, 0x80, 0xea, 0x0f, 0x41, 0x6a, 0x2e, 0x75, 0xa2, 0xfb, 0x59,
-	0x4f, 0xae, 0x75, 0x1d, 0x35, 0x51, 0x6b, 0xa3, 0x77, 0x6d, 0x8a, 0x3c, 0x2d, 0x89, 0x6e, 0x0e,
-	0xb8, 0x0a, 0x3b, 0x8b, 0x1a, 0xe8, 0x38, 0x83, 0xc9, 0x03, 0x5c, 0x13, 0x72, 0x04, 0x76, 0xab,
-	0xcd, 0xf6, 0x8e, 0x3f, 0xc7, 0x9a, 0x7f, 0x56, 0x6d, 0x35, 0x64, 0x0b, 0xaf, 0x8f, 0x20, 0x91,
-	0x41, 0xbd, 0xda, 0x44, 0xad, 0x8b, 0xbd, 0xfc, 0xc1, 0xbd, 0x83, 0x6f, 0xd9, 0x9e, 0xdd, 0x28,
-	0xea, 0x0e, 0x8d, 0x48, 0xf9, 0x8c, 0x5c, 0x17, 0xd6, 0x5c, 0x89, 0x6f, 0x2f, 0xc7, 0x8a, 0x01,
-	0xf7, 0xf1, 0x46, 0x5c, 0xbe, 0xac, 0xa3, 0xe6, 0x5a, 0x6b, 0xb3, 0xed, 0xfe, 0x7b, 0xca, 0xbd,
-	0xda, 0xf1, 0xcf, 0xed, 0x4a, 0xef, 0xaf, 0xd4, 0xfd, 0x8c, 0xf0, 0xa5, 0x19, 0xe4, 0xbc, 0xe1,
-	0x92, 0x27, 0x45, 0x74, 0xd5, 0x55, 0xa2, 0x2b, 0x06, 0xb3, 0x4a, 0xf7, 0x2e, 0xbe, 0x7c, 0x06,
-	0x20, 0x04, 0xd7, 0x0e, 0x40, 0x9b, 0xa2, 0xbf, 0xad, 0xdb, 0x1f, 0xd7, 0xf0, 0xba, 0x4d, 0x8b,
-	0x7c, 0x43, 0xf3, 0x34, 0xed, 0xb9, 0xcd, 0x97, 0xde, 0xad, 0x46, 0x67, 0x25, 0x4d, 0x7e, 0x1a,
-	0xee, 0xb3, 0x0f, 0xdf, 0x7f, 0x7f, 0xa9, 0x3e, 0x26, 0x0f, 0x4f, 0x7f, 0x1b, 0xa3, 0x0c, 0xf7,
-	0xca, 0xa8, 0xbd, 0xcc, 0x1a, 0x7d, 0xb7, 0x24, 0xda, 0xf7, 0xe4, 0x2b, 0xc2, 0x57, 0x17, 0x1c,
-	0x3c, 0xb9, 0xb7, 0x78, 0xae, 0xe5, 0x57, 0xaa, 0x71, 0xff, 0x3f, 0x94, 0x85, 0x2f, 0xdf, 0xfa,
-	0x6a, 0x91, 0x9d, 0xd3, 0xbe, 0x58, 0x14, 0x79, 0xcc, 0xaa, 0xbc, 0x59, 0x8b, 0x7a, 0xef, 0xc5,
-	0xf1, 0xd8, 0x41, 0x27, 0x63, 0x07, 0xfd, 0x1a, 0x3b, 0xe8, 0xd3, 0xc4, 0xa9, 0x9c, 0x4c, 0x9c,
-	0xca, 0x8f, 0x89, 0x53, 0x79, 0xdd, 0x09, 0x85, 0x39, 0x48, 0x06, 0xfe, 0x10, 0xde, 0xd0, 0x72,
-	0x1c, 0x50, 0xe1, 0xb4, 0xf6, 0x58, 0x1c, 0xd3, 0xb7, 0xd3, 0x36, 0xe6, 0x28, 0xe6, 0x7a, 0x70,
-	0xc1, 0xfe, 0x0f, 0x3a, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff, 0xa2, 0x85, 0x66, 0x0c, 0x7b, 0x04,
-	0x00, 0x00,
+	// 470 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x93, 0x3f, 0x6f, 0x13, 0x31,
+	0x18, 0xc6, 0xe3, 0x90, 0x22, 0xea, 0x8a, 0xa1, 0xa6, 0x43, 0x08, 0x70, 0x09, 0x1e, 0x68, 0x96,
+	0x9c, 0xd5, 0x64, 0x43, 0xe2, 0x4f, 0x8b, 0xa8, 0xc4, 0x80, 0x04, 0x19, 0x59, 0x22, 0x27, 0xe7,
+	0x5c, 0x4e, 0x3a, 0xfc, 0x5e, 0x6d, 0xdf, 0x89, 0x0a, 0xb1, 0xf0, 0x09, 0x40, 0x7c, 0x06, 0x3e,
+	0x09, 0x4b, 0xc7, 0x4a, 0x2c, 0x4c, 0x08, 0x25, 0x7c, 0x05, 0x76, 0x74, 0x3e, 0x5f, 0x68, 0x94,
+	0x3f, 0xa8, 0xea, 0xe6, 0x3b, 0xff, 0x1e, 0xbf, 0xef, 0xf3, 0xf8, 0x35, 0x6e, 0x8e, 0x44, 0x2c,
+	0xb4, 0x89, 0x38, 0xcb, 0x78, 0xcc, 0x83, 0x40, 0xb1, 0xec, 0x80, 0x9d, 0xa4, 0x42, 0x9d, 0xfa,
+	0x89, 0x02, 0x03, 0xe4, 0x56, 0x09, 0xf8, 0x0e, 0xf0, 0xb3, 0x83, 0xc6, 0x5e, 0x08, 0x21, 0xd8,
+	0x7d, 0x96, 0xaf, 0x0a, 0xb4, 0x71, 0x37, 0x04, 0x08, 0x63, 0xc1, 0x78, 0x12, 0x31, 0x2e, 0x25,
+	0x18, 0x6e, 0x22, 0x90, 0xba, 0xd8, 0xa5, 0x03, 0x7c, 0xef, 0x75, 0x7e, 0xee, 0x71, 0x34, 0x54,
+	0xe2, 0x95, 0x82, 0x2c, 0x0a, 0x84, 0x7a, 0x21, 0xc7, 0xd0, 0x17, 0x27, 0xa9, 0xd0, 0x86, 0x3c,
+	0xc6, 0x77, 0x32, 0x1e, 0x47, 0x01, 0x37, 0xa0, 0x06, 0x23, 0x90, 0x5a, 0x48, 0x9d, 0xea, 0x41,
+	0x5e, 0x53, 0x68, 0x5d, 0x47, 0x2d, 0xd4, 0xde, 0xee, 0xdf, 0x9e, 0x23, 0xcf, 0x4a, 0xe2, 0xb0,
+	0x00, 0xa8, 0xc2, 0xde, 0xba, 0x02, 0x3a, 0xc9, 0x61, 0xf2, 0x10, 0xd7, 0x22, 0x39, 0x06, 0x7b,
+	0xd4, 0x4e, 0xf7, 0x81, 0xbf, 0xc2, 0x9a, 0xbf, 0xac, 0xb6, 0x1a, 0xb2, 0x87, 0xb7, 0xc6, 0x90,
+	0xca, 0xa0, 0x5e, 0x6d, 0xa1, 0xf6, 0x8d, 0x7e, 0xf1, 0x41, 0x9b, 0xce, 0xd4, 0x61, 0x1c, 0x2f,
+	0x08, 0xb5, 0x33, 0x45, 0x27, 0xae, 0xa9, 0x15, 0x80, 0x6b, 0xea, 0x18, 0x6f, 0x27, 0xe5, 0xcf,
+	0x3a, 0x6a, 0x5d, 0x6b, 0xef, 0x74, 0xe9, 0xff, 0x3b, 0x3b, 0xaa, 0x9d, 0xfd, 0x6c, 0x56, 0xfa,
+	0xff, 0xa4, 0xf4, 0x33, 0xc2, 0x37, 0x17, 0x90, 0xab, 0x06, 0x4a, 0x9e, 0xba, 0xb8, 0xaa, 0x97,
+	0x89, 0xcb, 0x35, 0x66, 0x95, 0x74, 0x1f, 0xef, 0x2e, 0x01, 0x84, 0xe0, 0xda, 0x04, 0xb4, 0x71,
+	0xf5, 0xed, 0xba, 0xfb, 0xa7, 0x8a, 0xb7, 0x6c, 0x4e, 0xe4, 0x1b, 0x5a, 0xa5, 0xe9, 0xae, 0x2c,
+	0xbe, 0x71, 0x9e, 0x1a, 0xbd, 0x4b, 0x69, 0x8a, 0xdb, 0xa0, 0xcf, 0x3f, 0x7e, 0xff, 0xfd, 0xa5,
+	0xfa, 0x84, 0x3c, 0xba, 0xf8, 0x1e, 0xc6, 0x39, 0xde, 0x29, 0xa3, 0xee, 0xe4, 0xd6, 0xd8, 0xfb,
+	0x0d, 0xd1, 0x7e, 0x20, 0x5f, 0x11, 0xde, 0x5d, 0xba, 0xf2, 0x4d, 0x2e, 0xd6, 0x0d, 0xd0, 0x26,
+	0x17, 0x6b, 0x67, 0x8a, 0xee, 0x5b, 0x17, 0xf7, 0x49, 0xf3, 0xa2, 0x0b, 0x1e, 0xc7, 0x9d, 0x45,
+	0x27, 0xfa, 0xe8, 0xe5, 0xd9, 0xd4, 0x43, 0xe7, 0x53, 0x0f, 0xfd, 0x9a, 0x7a, 0xe8, 0xd3, 0xcc,
+	0xab, 0x9c, 0xcf, 0xbc, 0xca, 0x8f, 0x99, 0x57, 0x79, 0xd3, 0x0b, 0x23, 0x33, 0x49, 0x87, 0xfe,
+	0x08, 0xde, 0xb2, 0xb2, 0x03, 0x50, 0xe1, 0x7c, 0xdd, 0xe1, 0x49, 0xc2, 0xde, 0xcd, 0xcf, 0x37,
+	0xa7, 0x89, 0xd0, 0xc3, 0xeb, 0xf6, 0xa9, 0xf7, 0xfe, 0x06, 0x00, 0x00, 0xff, 0xff, 0x49, 0x17,
+	0x4f, 0x68, 0x56, 0x04, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -374,8 +373,8 @@ const _ = grpc.SupportPackageIsVersion4
 type QueryClient interface {
 	// FibreProviderInfo queries the fibre provider information for a specific validator
 	FibreProviderInfo(ctx context.Context, in *QueryFibreProviderInfoRequest, opts ...grpc.CallOption) (*QueryFibreProviderInfoResponse, error)
-	// AllActiveFibreProviders queries fibre provider information for all validators in the active set
-	AllActiveFibreProviders(ctx context.Context, in *QueryAllActiveFibreProvidersRequest, opts ...grpc.CallOption) (*QueryAllActiveFibreProvidersResponse, error)
+	// AllFibreProviders queries fibre provider information for all validators
+	AllFibreProviders(ctx context.Context, in *QueryAllFibreProvidersRequest, opts ...grpc.CallOption) (*QueryAllFibreProvidersResponse, error)
 }
 
 type queryClient struct {
@@ -395,9 +394,9 @@ func (c *queryClient) FibreProviderInfo(ctx context.Context, in *QueryFibreProvi
 	return out, nil
 }
 
-func (c *queryClient) AllActiveFibreProviders(ctx context.Context, in *QueryAllActiveFibreProvidersRequest, opts ...grpc.CallOption) (*QueryAllActiveFibreProvidersResponse, error) {
-	out := new(QueryAllActiveFibreProvidersResponse)
-	err := c.cc.Invoke(ctx, "/celestia.valaddr.v1.Query/AllActiveFibreProviders", in, out, opts...)
+func (c *queryClient) AllFibreProviders(ctx context.Context, in *QueryAllFibreProvidersRequest, opts ...grpc.CallOption) (*QueryAllFibreProvidersResponse, error) {
+	out := new(QueryAllFibreProvidersResponse)
+	err := c.cc.Invoke(ctx, "/celestia.valaddr.v1.Query/AllFibreProviders", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -408,8 +407,8 @@ func (c *queryClient) AllActiveFibreProviders(ctx context.Context, in *QueryAllA
 type QueryServer interface {
 	// FibreProviderInfo queries the fibre provider information for a specific validator
 	FibreProviderInfo(context.Context, *QueryFibreProviderInfoRequest) (*QueryFibreProviderInfoResponse, error)
-	// AllActiveFibreProviders queries fibre provider information for all validators in the active set
-	AllActiveFibreProviders(context.Context, *QueryAllActiveFibreProvidersRequest) (*QueryAllActiveFibreProvidersResponse, error)
+	// AllFibreProviders queries fibre provider information for all validators
+	AllFibreProviders(context.Context, *QueryAllFibreProvidersRequest) (*QueryAllFibreProvidersResponse, error)
 }
 
 // UnimplementedQueryServer can be embedded to have forward compatible implementations.
@@ -419,8 +418,8 @@ type UnimplementedQueryServer struct {
 func (*UnimplementedQueryServer) FibreProviderInfo(ctx context.Context, req *QueryFibreProviderInfoRequest) (*QueryFibreProviderInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FibreProviderInfo not implemented")
 }
-func (*UnimplementedQueryServer) AllActiveFibreProviders(ctx context.Context, req *QueryAllActiveFibreProvidersRequest) (*QueryAllActiveFibreProvidersResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AllActiveFibreProviders not implemented")
+func (*UnimplementedQueryServer) AllFibreProviders(ctx context.Context, req *QueryAllFibreProvidersRequest) (*QueryAllFibreProvidersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AllFibreProviders not implemented")
 }
 
 func RegisterQueryServer(s grpc1.Server, srv QueryServer) {
@@ -445,20 +444,20 @@ func _Query_FibreProviderInfo_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Query_AllActiveFibreProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(QueryAllActiveFibreProvidersRequest)
+func _Query_AllFibreProviders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryAllFibreProvidersRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(QueryServer).AllActiveFibreProviders(ctx, in)
+		return srv.(QueryServer).AllFibreProviders(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/celestia.valaddr.v1.Query/AllActiveFibreProviders",
+		FullMethod: "/celestia.valaddr.v1.Query/AllFibreProviders",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QueryServer).AllActiveFibreProviders(ctx, req.(*QueryAllActiveFibreProvidersRequest))
+		return srv.(QueryServer).AllFibreProviders(ctx, req.(*QueryAllFibreProvidersRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -473,8 +472,8 @@ var _Query_serviceDesc = grpc.ServiceDesc{
 			Handler:    _Query_FibreProviderInfo_Handler,
 		},
 		{
-			MethodName: "AllActiveFibreProviders",
-			Handler:    _Query_AllActiveFibreProviders_Handler,
+			MethodName: "AllFibreProviders",
+			Handler:    _Query_AllFibreProviders_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -556,7 +555,7 @@ func (m *QueryFibreProviderInfoResponse) MarshalToSizedBuffer(dAtA []byte) (int,
 	return len(dAtA) - i, nil
 }
 
-func (m *QueryAllActiveFibreProvidersRequest) Marshal() (dAtA []byte, err error) {
+func (m *QueryAllFibreProvidersRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -566,12 +565,12 @@ func (m *QueryAllActiveFibreProvidersRequest) Marshal() (dAtA []byte, err error)
 	return dAtA[:n], nil
 }
 
-func (m *QueryAllActiveFibreProvidersRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *QueryAllFibreProvidersRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *QueryAllActiveFibreProvidersRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *QueryAllFibreProvidersRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -579,7 +578,7 @@ func (m *QueryAllActiveFibreProvidersRequest) MarshalToSizedBuffer(dAtA []byte) 
 	return len(dAtA) - i, nil
 }
 
-func (m *QueryAllActiveFibreProvidersResponse) Marshal() (dAtA []byte, err error) {
+func (m *QueryAllFibreProvidersResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -589,12 +588,12 @@ func (m *QueryAllActiveFibreProvidersResponse) Marshal() (dAtA []byte, err error
 	return dAtA[:n], nil
 }
 
-func (m *QueryAllActiveFibreProvidersResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *QueryAllFibreProvidersResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *QueryAllActiveFibreProvidersResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *QueryAllFibreProvidersResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -726,7 +725,7 @@ func (m *QueryFibreProviderInfoResponse) Size() (n int) {
 	return n
 }
 
-func (m *QueryAllActiveFibreProvidersRequest) Size() (n int) {
+func (m *QueryAllFibreProvidersRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -735,7 +734,7 @@ func (m *QueryAllActiveFibreProvidersRequest) Size() (n int) {
 	return n
 }
 
-func (m *QueryAllActiveFibreProvidersResponse) Size() (n int) {
+func (m *QueryAllFibreProvidersResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -972,7 +971,7 @@ func (m *QueryFibreProviderInfoResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *QueryAllActiveFibreProvidersRequest) Unmarshal(dAtA []byte) error {
+func (m *QueryAllFibreProvidersRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -995,10 +994,10 @@ func (m *QueryAllActiveFibreProvidersRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: QueryAllActiveFibreProvidersRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: QueryAllFibreProvidersRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: QueryAllActiveFibreProvidersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: QueryAllFibreProvidersRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		default:
@@ -1022,7 +1021,7 @@ func (m *QueryAllActiveFibreProvidersRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *QueryAllActiveFibreProvidersResponse) Unmarshal(dAtA []byte) error {
+func (m *QueryAllFibreProvidersResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1045,10 +1044,10 @@ func (m *QueryAllActiveFibreProvidersResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: QueryAllActiveFibreProvidersResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: QueryAllFibreProvidersResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: QueryAllActiveFibreProvidersResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: QueryAllFibreProvidersResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:

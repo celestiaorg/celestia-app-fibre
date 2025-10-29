@@ -29,38 +29,26 @@ func (k Keeper) FibreProviderInfo(goCtx context.Context, req *types.QueryFibrePr
 	}, nil
 }
 
-// AllActiveFibreProviders queries fibre provider information for all validators in the active set
-func (k Keeper) AllActiveFibreProviders(goCtx context.Context, req *types.QueryAllActiveFibreProvidersRequest) (*types.QueryAllActiveFibreProvidersResponse, error) {
+// AllFibreProviders queries fibre provider information for all validators that have a host defined
+func (k Keeper) AllFibreProviders(goCtx context.Context, req *types.QueryAllFibreProvidersRequest) (*types.QueryAllFibreProvidersResponse, error) {
 	if req == nil {
 		return nil, errorsmod.Wrap(types.ErrInvalidValidator, "empty request")
 	}
 
-	bondedValidators, err := k.stakingKeeper.GetBondedValidatorsByPower(goCtx)
-	if err != nil {
-		return nil, errorsmod.Wrap(err, "failed to get bonded validators")
-	}
-
-	providers := make([]types.FibreProvider, 0, len(bondedValidators))
-	for _, val := range bondedValidators {
-		consPubKey, err := val.ConsPubKey()
-		if err != nil {
-			k.Logger(goCtx).Error("failed to get consensus public key for validator", "error", err)
-			continue
-		}
-		consAddr := sdk.ConsAddress(consPubKey.Address())
-
-		info, found := k.GetFibreProviderInfo(goCtx, consAddr)
-		if !found {
-			continue
-		}
-
+	var providers []types.FibreProvider
+	err := k.IterateFibreProviderInfo(goCtx, func(consAddr sdk.ConsAddress, info types.FibreProviderInfo) bool {
 		providers = append(providers, types.FibreProvider{
 			ValidatorConsensusAddress: consAddr.String(),
 			Info:                      info,
 		})
+		return false
+	})
+
+	if err != nil {
+		return nil, errorsmod.Wrap(err, "failed to iterate fibre provider info")
 	}
 
-	return &types.QueryAllActiveFibreProvidersResponse{
+	return &types.QueryAllFibreProvidersResponse{
 		Providers: providers,
 	}, nil
 }

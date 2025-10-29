@@ -37,6 +37,12 @@ func TestFibreProviderInfoSerialization(t *testing.T) {
 				Host: "a234567890123456789012345678901234567890123456789012345678901234567890123456789012345678",
 			},
 		},
+		{
+			name: "empty host",
+			info: types.FibreProviderInfo{
+				Host: "",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -53,67 +59,9 @@ func TestFibreProviderInfoSerialization(t *testing.T) {
 	}
 }
 
-// TestFibreProviderInfoEmptyMarshal tests that empty struct marshals correctly
-func TestFibreProviderInfoEmptyMarshal(t *testing.T) {
-	info := types.FibreProviderInfo{}
-
-	bz, err := info.Marshal()
-	require.NoError(t, err)
-
-	var decoded types.FibreProviderInfo
-	err = decoded.Unmarshal(bz)
-	require.NoError(t, err)
-
-	require.Equal(t, "", decoded.Host)
-}
-
-// TestParamsSerialization tests params serialization
-func TestParamsSerialization(t *testing.T) {
-	tests := []struct {
-		name   string
-		params types.Params
-	}{
-		{
-			name: "default params",
-			params: types.Params{
-				MissingInfoCheckHeight: 100000,
-			},
-		},
-		{
-			name: "zero height",
-			params: types.Params{
-				MissingInfoCheckHeight: 0,
-			},
-		},
-		{
-			name: "large height",
-			params: types.Params{
-				MissingInfoCheckHeight: 999999999,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			bz, err := tt.params.Marshal()
-			require.NoError(t, err)
-			require.NotNil(t, bz)
-
-			var decoded types.Params
-			err = decoded.Unmarshal(bz)
-			require.NoError(t, err)
-			require.Equal(t, tt.params.MissingInfoCheckHeight, decoded.MissingInfoCheckHeight)
-		})
-	}
-}
-
 // TestGenesisStateSerialization tests genesis state serialization
 func TestGenesisStateSerialization(t *testing.T) {
-	genesisState := types.GenesisState{
-		Params: types.Params{
-			MissingInfoCheckHeight: 50000,
-		},
-	}
+	genesisState := types.GenesisState{}
 
 	bz, err := genesisState.Marshal()
 	require.NoError(t, err)
@@ -122,5 +70,4 @@ func TestGenesisStateSerialization(t *testing.T) {
 	var decoded types.GenesisState
 	err = decoded.Unmarshal(bz)
 	require.NoError(t, err)
-	require.Equal(t, genesisState.Params.MissingInfoCheckHeight, decoded.Params.MissingInfoCheckHeight)
 }

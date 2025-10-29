@@ -1,13 +1,7 @@
 syntax = "proto3";
 package celestia.valaddr.v1;
 
-import "gogoproto/gogo.proto";
-import "celestia/valaddr/v1/params.proto";
-
 option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
 
 // GenesisState defines the valaddr module's genesis state.
-message GenesisState {
-  // params defines the module parameters
-  Params params = 1 [(gogoproto.nullable) = false];
-}
+message GenesisState {}

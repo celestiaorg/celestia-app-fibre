@@ -15,9 +15,6 @@ const (
 
 // Store key prefixes
 var (
-	// ParamsKey is the prefix for storing module parameters
-	ParamsKey = []byte{0x00}
-
 	// FibreProviderInfoPrefix is the prefix for storing fibre provider info
 	// Key format: 0x01 | ConsensusAddress -> ProtocolBuffer(FibreProviderInfo)
 	FibreProviderInfoPrefix = []byte{0x01}

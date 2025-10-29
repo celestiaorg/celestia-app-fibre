@@ -10,9 +10,7 @@ import (
 
 // DefaultGenesisState returns the default genesis state for the valaddr module
 func DefaultGenesisState() *types.GenesisState {
-	return &types.GenesisState{
-		Params: types.DefaultParams(),
-	}
+	return &types.GenesisState{}
 }
 
 // ValidateGenesis validates the genesis state
@@ -21,28 +19,14 @@ func ValidateGenesis(data *types.GenesisState) error {
 		return fmt.Errorf("genesis state cannot be nil")
 	}
 
-	if err := data.Params.Validate(); err != nil {
-		return fmt.Errorf("invalid params: %w", err)
-	}
-
 	return nil
 }
 
 // InitGenesis initializes the module's state from a genesis state
-func InitGenesis(ctx sdk.Context, k keeper.Keeper, data *types.GenesisState) {
-	if err := k.SetParams(ctx, data.Params); err != nil {
-		panic(fmt.Sprintf("failed to set params: %v", err))
-	}
+func InitGenesis(_ sdk.Context, _ keeper.Keeper, _ *types.GenesisState) {
 }
 
 // ExportGenesis exports the module's state to a genesis state
-func ExportGenesis(ctx sdk.Context, k keeper.Keeper) *types.GenesisState {
-	params, err := k.GetParams(ctx)
-	if err != nil {
-		panic(fmt.Sprintf("failed to get params: %v", err))
-	}
-
-	return &types.GenesisState{
-		Params: params,
-	}
+func ExportGenesis(_ sdk.Context, _ keeper.Keeper) *types.GenesisState {
+	return &types.GenesisState{}
 }

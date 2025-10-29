@@ -2,7 +2,6 @@ package keeper
 
 import (
 	"context"
-	"fmt"
 
 	"cosmossdk.io/core/store"
 	"cosmossdk.io/log"
@@ -106,37 +105,4 @@ func (k Keeper) IterateFibreProviderInfo(ctx context.Context, cb func(consAddr s
 	}
 
 	return nil
-}
-
-// SetParams sets the module parameters
-func (k Keeper) SetParams(ctx context.Context, params types.Params) error {
-	if err := params.Validate(); err != nil {
-		return fmt.Errorf("invalid params: %w", err)
-	}
-
-	store := k.storeService.OpenKVStore(ctx)
-	bz, err := k.cdc.Marshal(&params)
-	if err != nil {
-		return err
-	}
-	return store.Set(types.ParamsKey, bz)
-}
-
-// GetParams retrieves the module parameters
-func (k Keeper) GetParams(ctx context.Context) (types.Params, error) {
-	store := k.storeService.OpenKVStore(ctx)
-	bz, err := store.Get(types.ParamsKey)
-	if err != nil {
-		return types.Params{}, err
-	}
-	if bz == nil {
-		return types.DefaultParams(), nil
-	}
-
-	var params types.Params
-	if err := k.cdc.Unmarshal(bz, &params); err != nil {
-		return types.Params{}, err
-	}
-
-	return params, nil
 }
