@@ -19,18 +19,16 @@ const (
 
 // Store key prefixes
 var (
-	// TODO: change the order of these prefixes. Ideally: params, escrow account, withdrawals, processed payments.
-
-	// EscrowAccountKeyPrefix is the prefix for escrow account keys
-	EscrowAccountKeyPrefix = []byte{0x01}
-	// WithdrawalsBySignerKeyPrefix is the prefix for withdrawal keys indexed by signer
-	WithdrawalsBySignerKeyPrefix = []byte{0x02}
-	// ProcessedPaymentsByHashKeyPrefix is the prefix for processed payment promise keys indexed by hash
-	ProcessedPaymentsByHashKeyPrefix = []byte{0x03}
 	// ParamsKeyPrefix is the prefix for params
-	ParamsKeyPrefix = []byte{0x04}
+	ParamsKeyPrefix = []byte{0x01}
+	// EscrowAccountKeyPrefix is the prefix for escrow account keys
+	EscrowAccountKeyPrefix = []byte{0x02}
+	// WithdrawalsBySignerKeyPrefix is the prefix for withdrawal keys indexed by signer
+	WithdrawalsBySignerKeyPrefix = []byte{0x03}
 	// WithdrawalsByAvailableKeyPrefix is the prefix for withdrawal keys indexed by available time
-	WithdrawalsByAvailableKeyPrefix = []byte{0x05}
+	WithdrawalsByAvailableKeyPrefix = []byte{0x04}
+	// ProcessedPaymentsByHashKeyPrefix is the prefix for processed payment promise keys indexed by hash
+	ProcessedPaymentsByHashKeyPrefix = []byte{0x05}
 	// ProcessedPaymentsByTimeKeyPrefix is the prefix for processed payment keys indexed by processed time
 	ProcessedPaymentsByTimeKeyPrefix = []byte{0x06}
 )
@@ -53,12 +51,6 @@ func WithdrawalsBySignerPrefix(signer string) []byte {
 	return append(WithdrawalsBySignerKeyPrefix, []byte(signer)...)
 }
 
-// ProcessedPaymentsByHashKey returns the store key for a processed payment indexed by hash.
-// Note: all payment promises that are stored in the SDK module state have already been processed.
-func ProcessedPaymentsByHashKey(paymentPromiseHash []byte) []byte {
-	return append(ProcessedPaymentsByHashKeyPrefix, paymentPromiseHash...)
-}
-
 // WithdrawalsByAvailableKey returns the store key for a withdrawal indexed by available time
 // This index is used for efficient time-ordered iteration in BeginBlocker
 func WithdrawalsByAvailableKey(availableAt time.Time, signer string) []byte {
@@ -73,6 +65,12 @@ func WithdrawalsByAvailableKey(availableAt time.Time, signer string) []byte {
 func WithdrawalsByAvailablePrefix(availableAt time.Time) []byte {
 	timestampBytes := sdk.FormatTimeBytes(availableAt)
 	return append(WithdrawalsByAvailableKeyPrefix, timestampBytes...)
+}
+
+// ProcessedPaymentsByHashKey returns the store key for a processed payment indexed by hash.
+// Note: all payment promises that are stored in the SDK module state have already been processed.
+func ProcessedPaymentsByHashKey(paymentPromiseHash []byte) []byte {
+	return append(ProcessedPaymentsByHashKeyPrefix, paymentPromiseHash...)
 }
 
 // ProcessedPaymentsByTimeKey returns the store key for a processed payment indexed by processed time
