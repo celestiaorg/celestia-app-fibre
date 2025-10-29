@@ -303,6 +303,78 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 
 		suite.True(suite.keeper.IsPaymentPromiseProcessed(suite.ctx, &paymentPromise))
 	})
+
+	suite.T().Run("keeper should parse processed payments by time key", func(t *testing.T) {
+		// Create a test time and payment promise hash
+		testTime := suite.ctx.BlockTime()
+		testHash := []byte("test-payment-hash")
+
+		// Create the key using the helper function
+		key := types.ProcessedPaymentsByTimeKey(testTime, testHash)
+
+		// Parse the key
+		parsedTime, parsedHash, err := suite.keeper.ParseProcessedPaymentsByTimeKey(key)
+		suite.NoError(err)
+
+		// Verify the parsed values match the originals
+		suite.Equal(testTime, parsedTime, "parsed time should match original")
+		suite.Equal(testHash, parsedHash, "parsed hash should match original")
+	})
+
+	suite.T().Run("keeper should get processed payments by time", func(t *testing.T) {
+		// Create processed payments at different times
+		baseTime := suite.ctx.BlockTime()
+
+		payment1 := types.ProcessedPayment{
+			PaymentPromiseHash: []byte("payment-hash-1"),
+			ProcessedAt:        baseTime.Add(-2 * time.Hour),
+		}
+		payment2 := types.ProcessedPayment{
+			PaymentPromiseHash: []byte("payment-hash-2"),
+			ProcessedAt:        baseTime.Add(-1 * time.Hour),
+		}
+		payment3 := types.ProcessedPayment{
+			PaymentPromiseHash: []byte("payment-hash-3"),
+			ProcessedAt:        baseTime.Add(-30 * time.Minute),
+		}
+		payment4 := types.ProcessedPayment{
+			PaymentPromiseHash: []byte("payment-hash-4"),
+			ProcessedAt:        baseTime.Add(1 * time.Hour), // Future payment
+		}
+
+		// Set all payments
+		suite.keeper.SetProcessedPayment(suite.ctx, payment1)
+		suite.keeper.SetProcessedPayment(suite.ctx, payment2)
+		suite.keeper.SetProcessedPayment(suite.ctx, payment3)
+		suite.keeper.SetProcessedPayment(suite.ctx, payment4)
+
+		// Get iterator for payments up to 45 minutes ago
+		cutoffTime := baseTime.Add(-45 * time.Minute)
+		iterator := suite.keeper.GetProcessedPaymentsByTimeIterator(suite.ctx, cutoffTime)
+		defer iterator.Close()
+
+		// Collect payments from iterator
+		var foundPayments []types.ProcessedPayment
+		for ; iterator.Valid(); iterator.Next() {
+			processedAt, paymentPromiseHash, err := suite.keeper.ParseProcessedPaymentsByTimeKey(iterator.Key())
+			suite.NoError(err)
+
+			// Stop if we've reached payments within the retention window
+			if processedAt.After(cutoffTime) {
+				break
+			}
+
+			var payment types.ProcessedPayment
+			suite.cdc.MustUnmarshal(iterator.Value(), &payment)
+			suite.Equal(paymentPromiseHash, payment.PaymentPromiseHash, "hash from key should match payment")
+			foundPayments = append(foundPayments, payment)
+		}
+
+		// Should have found exactly 2 payments (payment1 and payment2)
+		suite.Len(foundPayments, 2, "should find payments 1 and 2 (older than 45 minutes)")
+		suite.Equal(payment1, foundPayments[0], "first payment should match")
+		suite.Equal(payment2, foundPayments[1], "second payment should match")
+	})
 }
 
 func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
