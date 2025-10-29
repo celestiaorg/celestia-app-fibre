@@ -144,12 +144,14 @@ func createGRPCServers(
 			modifyServerConfig(&serverCfg)
 		}
 
-		fibreServer := fibre.NewServer(
+		fibreServer, err := fibre.NewServer(
 			newTestPrivValidator(privKeys[i]),
+			&mockQueryClient{},
 			&mockValidatorSetGetter{set: valSet},
 			store,
 			serverCfg,
 		)
+		require.NoError(t, err)
 
 		grpcServer := grpc.NewServer()
 		types.RegisterFibreServer(grpcServer, fibreServer)

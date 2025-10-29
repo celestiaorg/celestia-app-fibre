@@ -18,13 +18,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// UploadRows handles the UploadRows RPC call.
+// UploadRows handles the [types.FibreServer.UploadRows] RPC call.
 // It validates the [PaymentPromise], verifies row proofs, checks assignment, stores the data, and returns a signature.
 func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (*types.UploadRowsResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "fibre.Server.UploadRows")
 	defer span.End()
 
-	promise, promiseHash, err := s.verifyPromise(req.Promise)
+	promise, promiseHash, err := s.verifyPromise(ctx, req.Promise)
 	if err != nil {
 		s.log.WarnContext(ctx, "payment promise verification failed", "error", err)
 		span.RecordError(err)
@@ -52,7 +52,7 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	span.AddEvent("assignment_verified")
 
 	// verify row proofs using rsema1d and set RLC root
-	if err := s.verifyRows(ctx, req.Rows, promise.Commitment); err != nil {
+	if err := s.verifyRows(ctx, promise, req.Rows); err != nil {
 		log.WarnContext(ctx, "row verification failed", "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "row verification failed")
@@ -96,38 +96,57 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 
 // verifyPromise verifies given proto of [PaymentPromise] and returns unmarshaled form with its hash.
 // It does both stateless and stateful verification.
-func (s *Server) verifyPromise(promisePb *types.PaymentPromise) (*PaymentPromise, []byte, error) {
+func (s *Server) verifyPromise(ctx context.Context, promisePb *types.PaymentPromise) (*PaymentPromise, []byte, error) {
 	promise := &PaymentPromise{}
 	if err := promise.FromProto(promisePb); err != nil {
 		return nil, nil, fmt.Errorf("invalid payment promise proto: %w", err)
 	}
 
-	// validate chain ID matches server config
+	// validate PP fields matches the config
 	if promise.ChainID != s.cfg.ChainID {
 		return nil, nil, fmt.Errorf("payment promisechain ID mismatch: expected %s, got %s", s.cfg.ChainID, promise.ChainID)
 	}
-
-	// validate timestamp is within allowed clock drift
-	now := time.Now()
-	oldestAllowed := now.Add(-s.cfg.MaxClockDrift)
+	if promise.BlobVersion != uint32(s.cfg.BlobVersion) {
+		return nil, nil, fmt.Errorf("blob version mismatch: expected %d, got %d", s.cfg.BlobVersion, promise.BlobVersion)
+	}
+	oldestAllowed := time.Now().UTC().Add(-s.cfg.MaxClockDrift)
 	if promise.CreationTimestamp.Before(oldestAllowed) {
 		return nil, nil, fmt.Errorf("payment promise timestamp too old: %s is before %s (max drift: %s)",
 			promise.CreationTimestamp.Format(time.RFC3339),
 			oldestAllowed.Format(time.RFC3339),
 			s.cfg.MaxClockDrift)
 	}
+	// use height of the latest valset to verify height in the promise
+	currentValSet, err := s.valGet.Head(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting current validator set: %w", err)
+	}
+	minAllowedHeight := int64(currentValSet.Height) - s.cfg.MaxHeightDrift
+	if promise.Height < minAllowedHeight {
+		return nil, nil, fmt.Errorf("payment promise height too far in past: %d is before min allowed %d (current: %d, max drift: %d)",
+			promise.Height, minAllowedHeight, currentValSet.Height, s.cfg.MaxHeightDrift)
+	}
 
+	// stateless validation
 	if err := promise.Validate(); err != nil {
 		return nil, nil, fmt.Errorf("payment promise validation failed: %w", err)
 	}
+
+	// validate stateful constraints
+	resp, err := s.queryClient.ValidatePaymentPromise(ctx, &types.QueryValidatePaymentPromiseRequest{
+		Promise: *promisePb,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("stateful validation request: %w", err)
+	}
+	if !resp.IsValid {
+		return nil, nil, fmt.Errorf("payment promise is invalid with no reason")
+	}
+
 	promiseHash, err := promise.Hash()
 	if err != nil {
 		return nil, nil, fmt.Errorf("computing payment promise hash: %w", err)
 	}
-
-	// TODO(@Wondertan): validate stateful constraints (escrow account balance, etc.)
-	// this depends on a future component that tracks escrow accounts
-
 	return promise, promiseHash, nil
 }
 
@@ -140,15 +159,10 @@ func (s *Server) verifyAssignment(ctx context.Context, promise *PaymentPromise, 
 		return fmt.Errorf("getting validator set at height %d: %w", promise.Height, err)
 	}
 
-	// get our validator
-	// TODO(@Wondertan): Should we cache this? It might be worth it for remote KMS and hocrux setups.
-	pubKey, err := s.privVal.GetPubKey()
-	if err != nil {
-		return fmt.Errorf("getting validator public key: %w", err)
-	}
-	ourValidator, found := valSet.GetByAddress(pubKey.Address())
+	// get our validator using the cached public key
+	ourValidator, found := valSet.GetByAddress(s.pubKey.Address())
 	if !found {
-		return fmt.Errorf("validator %s not in set at height %d", pubKey.Address().String(), promise.Height)
+		return fmt.Errorf("validator %s not in set at height %d", s.pubKey.Address().String(), promise.Height)
 	}
 
 	// compute and verify assignment of rows in the request are assigned to us
@@ -167,11 +181,24 @@ func (s *Server) verifyAssignment(ctx context.Context, promise *PaymentPromise, 
 // verifyRows verifies the row data and proofs using [rsema1d.VerificationContext].
 // Essentially checks correctness of blob data by only sampling some of the rows.
 // Sets the RLC root on the rows and clears the coefficients after verification.
-func (s *Server) verifyRows(ctx context.Context, rows *types.Rows, commitment Commitment) error {
+func (s *Server) verifyRows(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
 	rowSize, err := parseRowSize(rows.Rows)
 	if err != nil {
 		return err
 	}
+
+	// validate row size is within allowed bounds
+	if rowSize < s.cfg.RowSizeMin {
+		return fmt.Errorf("row size %d is below minimum allowed %d", rowSize, s.cfg.RowSizeMin)
+	}
+	maxRowSize := s.cfg.MaxRowSize()
+	if rowSize > maxRowSize {
+		return fmt.Errorf("row size %d exceeds maximum allowed %d", rowSize, maxRowSize)
+	}
+
+	// TODO(@Wondertan): validate blob size is consistent with row size
+	// This requires inverting the RowSize calculation which needs further analysis
+	// to properly account for rounding and edge cases.
 
 	rlcCoeffs, err := parseRLCCoeffs(rows.GetCoefficients(), s.cfg.OriginalRows)
 	if err != nil {
@@ -195,7 +222,7 @@ func (s *Server) verifyRows(ctx context.Context, rows *types.Rows, commitment Co
 			return err
 		}
 
-		if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(commitment), verificationCtx); err != nil {
+		if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(promise.Commitment), verificationCtx); err != nil {
 			return fmt.Errorf("verification failed for row %d: %w", row.Index, err)
 		}
 	}
@@ -241,7 +268,8 @@ func parseRLCCoeffs(rlcCoeffs []byte, expectedCount int) ([]field.GF128, error) 
 	return coeffs, nil
 }
 
-// parseRowSize determines and validates the row size from the first row.
+// parseRowSize determines and validates the row size from all rows.
+// Ensures that all rows have the same size.
 func parseRowSize(rows []*types.Row) (int, error) {
 	if len(rows) == 0 {
 		return 0, errors.New("no rows provided")
@@ -249,6 +277,13 @@ func parseRowSize(rows []*types.Row) (int, error) {
 	rowSize := len(rows[0].Data)
 	if rowSize == 0 {
 		return 0, errors.New("row size cannot be zero")
+	}
+
+	// validate all rows have the same size
+	for i := 1; i < len(rows); i++ {
+		if len(rows[i].Data) != rowSize {
+			return 0, fmt.Errorf("row %d has size %d, expected %d (all rows must have the same size)", i, len(rows[i].Data), rowSize)
+		}
 	}
 
 	return rowSize, nil

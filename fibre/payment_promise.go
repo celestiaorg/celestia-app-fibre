@@ -135,10 +135,7 @@ func (p *PaymentPromise) Validate() error {
 
 	// commitment must be 32 bytes (enforced by type)
 
-	// blob version must be supported (currently only version 0)
-	if p.BlobVersion != 0 {
-		return fmt.Errorf("blob version must be 0, got %d", p.BlobVersion)
-	}
+	// blob version is checked externally.
 
 	// creation timestamp must be positive
 	if p.CreationTimestamp.IsZero() {
