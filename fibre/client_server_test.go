@@ -68,8 +68,8 @@ func (e *testEnv) ForEachStore(ctx context.Context, fn func(context.Context, *fi
 	return g.Wait()
 }
 
-// setupTestEnv creates a complete test environment with validators, servers, and clients
-func setupTestEnv(
+// makeTestEnv creates a complete test environment with validators, servers, and clients
+func makeTestEnv(
 	t *testing.T,
 	numValidators int,
 	numClients int,
@@ -84,7 +84,7 @@ func setupTestEnv(
 		Height:       100,
 	}
 
-	grpcServers, stores, addresses := createGRPCServers(t, validators, privKeys, valSet, modifyServerConfig)
+	grpcServers, stores, addresses := makeTestServers(t, validators, privKeys, valSet, modifyServerConfig)
 	clients := make([]*fibre.Client, numClients)
 	for i := range numClients {
 		clientCfg := fibre.DefaultClientConfig()
@@ -111,8 +111,8 @@ func setupTestEnv(
 	}
 }
 
-// createGRPCServers creates and starts gRPC servers for each validator
-func createGRPCServers(
+// makeTestServers creates and starts gRPC servers for each validator
+func makeTestServers(
 	t *testing.T,
 	validators []*core.Validator,
 	privKeys []cmted25519.PrivKey,
@@ -126,7 +126,7 @@ func createGRPCServers(
 	addresses := make(map[string]string)
 
 	for i, val := range validators {
-		store := fibre.NewMemoryStore()
+		store := fibre.NewMemoryStore(fibre.DefaultStoreConfig())
 
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)

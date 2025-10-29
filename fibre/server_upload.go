@@ -104,7 +104,7 @@ func (s *Server) verifyPromise(ctx context.Context, promisePb *types.PaymentProm
 
 	// validate PP fields matches the config
 	if promise.ChainID != s.cfg.ChainID {
-		return nil, nil, fmt.Errorf("payment promisechain ID mismatch: expected %s, got %s", s.cfg.ChainID, promise.ChainID)
+		return nil, nil, fmt.Errorf("payment promise chain ID mismatch: expected %s, got %s", s.cfg.ChainID, promise.ChainID)
 	}
 	if promise.BlobVersion != uint32(s.cfg.BlobVersion) {
 		return nil, nil, fmt.Errorf("blob version mismatch: expected %d, got %d", s.cfg.BlobVersion, promise.BlobVersion)

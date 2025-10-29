@@ -21,7 +21,7 @@ func TestClientServerUpload(t *testing.T) {
 		blobSize       = 128 * 1024 // 128 KiB
 	)
 
-	env := setupTestEnv(t, numValidators, numClients, func(cfg *fibre.ClientConfig) {
+	env := makeTestEnv(t, numValidators, numClients, func(cfg *fibre.ClientConfig) {
 		// ensure all validators receive rows by setting target signatures to 100%
 		cfg.UploadTargetSignaturesCount.Numerator = 1
 		cfg.UploadTargetSignaturesCount.Denominator = 1
@@ -36,7 +36,7 @@ func TestClientServerUpload(t *testing.T) {
 	err := env.ForEachClient(t.Context(), func(ctx context.Context, client *fibre.Client, clientIdx int) error {
 		for blobIdx := range blobsPerClient {
 			data := make([]byte, blobSize)
-			if _, err := rand.Read(data); err != nil {
+			if _, err := rand.Read(data); err != nil { //nolint:staticcheck
 				return fmt.Errorf("generating random data for blob %d: %w", blobIdx, err)
 			}
 
@@ -89,7 +89,7 @@ func TestClientServerUpload(t *testing.T) {
 			}
 
 			// verify payment promise commitment matches
-			if promise.Commitment != commitment {
+			if !promise.Commitment.Equals(commitment) {
 				return fmt.Errorf("store %d payment promise commitment mismatch: got %s, expected %s",
 					storeIdx, promise.Commitment.String(), commitment.String())
 			}

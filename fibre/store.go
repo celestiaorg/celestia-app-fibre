@@ -10,36 +10,54 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	gogoproto "github.com/cosmos/gogoproto/proto"
 	ds "github.com/ipfs/go-datastore"
-	query "github.com/ipfs/go-datastore/query"
+	"github.com/ipfs/go-datastore/query"
 	dssync "github.com/ipfs/go-datastore/sync"
 	badger "github.com/ipfs/go-ds-badger4"
-	pebble "github.com/ipfs/go-ds-pebble"
 )
 
-var (
-	// ErrStoreNotFound is returned when no rows are found for a commitment in the store.
-	ErrStoreNotFound = errors.New("no rows found in store")
-)
+// ErrStoreNotFound is returned when no rows are found for a [Commitment] in the [Store].
+var ErrStoreNotFound = errors.New("no rows found in store")
+
+// StoreConfig contains configuration options for the [Store].
+type StoreConfig struct {
+	// DataRetentionDuration defines how long uploaded blob data is retained.
+	// Data older than this duration will be automatically deleted by TTL expiration.
+	DataRetentionDuration time.Duration
+	// PaymentPromiseTimeout defines how long payment promises are retained.
+	// Promises older than this duration will be automatically deleted by TTL expiration.
+	PaymentPromiseTimeout time.Duration
+}
+
+// DefaultStoreConfig returns a [StoreConfig] with default values.
+func DefaultStoreConfig() StoreConfig {
+	return StoreConfig{
+		DataRetentionDuration: 24 * time.Hour,
+		PaymentPromiseTimeout: 1 * time.Hour,
+	}
+}
 
 // Store manages persistent storage of [PaymentPromise] and row data.
 // It provides indexed access by [Commitment], promise hash, and timestamp.
+// TODO(@Wondertan): GC logic
 type Store struct {
-	ds ds.Batching
+	cfg StoreConfig
+	ds  ds.Batching
 }
 
 // NewMemoryStore creates a new [Store] with an in-memory datastore.
-func NewMemoryStore() *Store {
+func NewMemoryStore(cfg StoreConfig) *Store {
 	return &Store{
-		ds: dssync.MutexWrap(ds.NewMapDatastore()),
+		cfg: cfg,
+		ds:  dssync.MutexWrap(ds.NewMapDatastore()),
 	}
 }
 
 // NewBadgerStore creates a new [Store] with a badger4 datastore at the given path.
-func NewBadgerStore(path string) (*Store, error) {
+func NewBadgerStore(path string, cfg StoreConfig) (*Store, error) {
 	opts := badger.DefaultOptions
 	opts.GcDiscardRatio = 0.2
-	opts.GcInterval = 15 * time.Minute
-	opts.GcSleep = 10 * time.Second
+	opts.GcSleep = time.Second
+	opts.GcInterval = time.Minute
 
 	bds, err := badger.NewDatastore(path, &opts)
 	if err != nil {
@@ -47,32 +65,25 @@ func NewBadgerStore(path string) (*Store, error) {
 	}
 
 	return &Store{
-		ds: bds,
+		cfg: cfg,
+		ds:  bds,
 	}, nil
 }
 
-// NewPebbleStore creates a new [Store] with a pebble datastore at the given path.
-func NewPebbleStore(path string) (*Store, error) {
-	pds, err := pebble.NewDatastore(path, nil)
-	if err != nil {
-		return nil, fmt.Errorf("creating pebble datastore: %w", err)
-	}
-
-	return &Store{
-		ds: pds,
-	}, nil
-}
-
-// Put stores the [PaymentPromise] and rows in the datastore.
+// Put stores given [PaymentPromise] and [types.Rows].
+//
 // Rows are stored as a single blob under /rows/<commitment>/<promise-hash>.
 // The payment promise is stored under /pp/<promise-hash>.
-// An empty value is indexed under /pp/<timestamp-YYYYMMDDHHmm>/<commitment>/<promise-hash> for time-based queries.
+// An empty value is indexed under /tp/<timestamp-YYYYMMDDHHmm>/<commitment>/<promise-hash> for time-based queries.
+//
+// Puts for the same commitments but different promises are allowed and are stored independently without deduplication.
 func (s *Store) Put(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
 	batch, err := s.ds.Batch(ctx)
 	if err != nil {
 		return fmt.Errorf("creating batch: %w", err)
 	}
 
+	// write payment promise
 	ppData, err := gogoproto.Marshal(promise.ToProto())
 	if err != nil {
 		return fmt.Errorf("marshaling payment promise: %w", err)
@@ -85,6 +96,7 @@ func (s *Store) Put(ctx context.Context, promise *PaymentPromise, rows *types.Ro
 		return fmt.Errorf("putting payment promise: %w", err)
 	}
 
+	// write rows
 	rowsData, err := gogoproto.Marshal(rows)
 	if err != nil {
 		return fmt.Errorf("marshaling rows: %w", err)
@@ -93,7 +105,7 @@ func (s *Store) Put(ctx context.Context, promise *PaymentPromise, rows *types.Ro
 		return fmt.Errorf("putting rows: %w", err)
 	}
 
-	// create timestamp index
+	// write timestamp index
 	if err := batch.Put(ctx, timestampKey(promise.CreationTimestamp, promise.Commitment, promiseHash), []byte{}); err != nil {
 		return fmt.Errorf("putting timestamp index: %w", err)
 	}
@@ -101,10 +113,13 @@ func (s *Store) Put(ctx context.Context, promise *PaymentPromise, rows *types.Ro
 	return batch.Commit(ctx)
 }
 
-// Get retrieves rows with RLC root for the given [Commitment].
-// If multiple stored Rows exist for the commitment, returns the first one that successfully unmarshals.
-// If unmarshaling fails for some rows, it continues trying others and collects errors.
-// Returns an error only if all rows fail to unmarshal (with all errors joined).
+// Get retrieves [types.Rows] for the given [Commitment].
+//
+// When multiple payment promises exist for the same commitment
+// this method combines all their rows into a single [types.Rows] result.
+//
+// If unmarshaling fails for some entries, it continues trying others and collects errors.
+// Returns an error only if all entries fail to unmarshal or if no rows are found.
 func (s *Store) Get(ctx context.Context, commitment Commitment) (*types.Rows, error) {
 	results, err := s.ds.Query(ctx, query.Query{
 		Prefix: fmt.Sprintf("/rows/%s", commitment.String()),
@@ -114,26 +129,39 @@ func (s *Store) Get(ctx context.Context, commitment Commitment) (*types.Rows, er
 	}
 	defer results.Close()
 
-	// iterate through all results, return first successful unmarshal
+	var (
+		combinedRows *types.Rows
+		rerr         error
+	)
+
+	// collect all rows from all promises with this commitment
 	for result := range results.Next() {
 		if result.Error != nil {
-			err = errors.Join(err, result.Error)
+			rerr = errors.Join(rerr, result.Error)
 			continue
 		}
 
 		rows := &types.Rows{}
 		if err := gogoproto.Unmarshal(result.Value, rows); err != nil {
-			err = errors.Join(err, fmt.Errorf("unmarshaling rows: %w", err))
+			rerr = errors.Join(rerr, fmt.Errorf("unmarshaling rows: %w", err))
 			continue
 		}
 
-		// successfully unmarshaled, return immediately
-		return rows, nil
-	}
-	if err != nil {
-		return nil, err
-	}
+		if combinedRows == nil {
+			combinedRows = rows
+			continue
+		}
 
+		// append all rows from this entry
+		combinedRows.Rows = append(combinedRows.Rows, rows.Rows...)
+	}
+	if combinedRows != nil {
+		return combinedRows, nil
+	}
+	// if we have no rows at all, return error
+	if rerr != nil {
+		return nil, rerr
+	}
 	return nil, ErrStoreNotFound
 }
 
@@ -157,24 +185,6 @@ func (s *Store) GetPaymentPromise(ctx context.Context, promiseHash []byte) (*Pay
 	return &promise, nil
 }
 
-// Delete removes the [PaymentPromise] and rows for the given [Commitment] and promise hash.
-// NOTE: This function does not delete the timestamp index and it is expected to be deleted by DeleteAt.
-func (s *Store) Delete(ctx context.Context, commitment Commitment, promiseHash []byte) error {
-	batch, err := s.ds.Batch(ctx)
-	if err != nil {
-		return fmt.Errorf("creating batch: %w", err)
-	}
-
-	if err := batch.Delete(ctx, promiseKey(promiseHash)); err != nil {
-		return fmt.Errorf("deleting payment promise: %w", err)
-	}
-	if err := batch.Delete(ctx, rowsKey(commitment, promiseHash)); err != nil {
-		return fmt.Errorf("deleting rows: %w", err)
-	}
-
-	return batch.Commit(ctx)
-}
-
 // Close closes the underlying datastore.
 func (s *Store) Close() error {
 	return s.ds.Close()
@@ -195,5 +205,5 @@ func rowsKey(commitment Commitment, promiseHash []byte) ds.Key {
 }
 
 func timestampKey(timestamp time.Time, commitment Commitment, promiseHash []byte) ds.Key {
-	return ds.NewKey(fmt.Sprintf("/pp/%s/%s/%s", formatTimestamp(timestamp), commitment.String(), hex.EncodeToString(promiseHash)))
+	return ds.NewKey(fmt.Sprintf("/tp/%s/%s/%s", formatTimestamp(timestamp), commitment.String(), hex.EncodeToString(promiseHash)))
 }

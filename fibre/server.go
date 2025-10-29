@@ -1,7 +1,6 @@
 package fibre
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -27,12 +26,6 @@ type ServerConfig struct {
 	// MaxHeightDrift is the maximum allowed height difference between the current chain height and the payment promise height.
 	// Promises with heights less than (currentHeight - MaxHeightDrift) will be rejected.
 	MaxHeightDrift int64
-	// DataRetentionDuration defines how long uploaded blob data is retained before garbage collection.
-	// Data older than (now - DataRetentionDuration) will be deleted by the GC.
-	DataRetentionDuration time.Duration
-	// PaymentPromiseTimeout is how long to wait before checking if a payment promise was fulfilled.
-	// Unfulfilled promises older than (now - PaymentPromiseTimeout) will be deleted by the GC.
-	PaymentPromiseTimeout time.Duration
 
 	// Log is the logger for the server.
 	// If nil, slog.Default() will be used.
@@ -45,12 +38,10 @@ type ServerConfig struct {
 // DefaultServerConfig returns a [ServerConfig] with default values.
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		ChainID:               "celestia",
-		BlobConfig:            DefaultBlobConfigV0(),
-		MaxClockDrift:         10 * time.Second,
-		MaxHeightDrift:        3,
-		DataRetentionDuration: 24 * time.Hour,
-		PaymentPromiseTimeout: 1 * time.Hour,
+		ChainID:        "celestia",
+		BlobConfig:     DefaultBlobConfigV0(),
+		MaxClockDrift:  10 * time.Second,
+		MaxHeightDrift: 3,
 	}
 }
 
@@ -68,8 +59,6 @@ type Server struct {
 
 	log    *slog.Logger
 	tracer trace.Tracer
-
-	gcCancel context.CancelFunc
 }
 
 // NewServer creates a new Fibre [Server] with the provided dependencies.
@@ -106,14 +95,12 @@ func NewServer(
 	}, nil
 }
 
-// Stop gracefully stops the server by:
-// 1. Canceling the garbage collection goroutine
-// 2. Closing the underlying store
-//
-// This method should be called when shutting down the server.
+func (s *Server) Config() ServerConfig {
+	return s.cfg
+}
+
+// Stop stops the server.
+// NOTE: It is not a graceful shutdown as it doesn't await for pending requests to complete.
 func (s *Server) Stop() error {
-	if s.gcCancel != nil {
-		s.gcCancel()
-	}
 	return s.store.Close()
 }

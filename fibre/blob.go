@@ -44,14 +44,14 @@ type BlobConfig struct {
 	// ParityRows is the number of parity rows added by erasure coding (N in rsema1d).
 	// Total rows = OriginalRows + ParityRows.
 	ParityRows int
-	// CodingWorkers is the number of workers to use for encoding and decoding rsema1d.
-	CodingWorkers int
 	// RowSizeMin is the minimum row size in bytes.
 	RowSizeMin int
 	// MaxBlobSize is the maximum allowed blob size.
 	MaxBlobSize int
 	// BlobVersion is the version of the row format.
 	BlobVersion uint8
+	// CodingWorkers is the number of workers to use for encoding and decoding rsema1d.
+	CodingWorkers int
 }
 
 // DefaultBlobConfigV0 returns a [BlobConfig] with default values for version 0.
@@ -59,10 +59,10 @@ func DefaultBlobConfigV0() BlobConfig {
 	return BlobConfig{
 		OriginalRows:  4096,
 		ParityRows:    12288, // (3 * OriginalRows, TotalRows = 16384)
-		CodingWorkers: runtime.GOMAXPROCS(0),
 		RowSizeMin:    64,
 		MaxBlobSize:   128 * 1024 * 1024,
 		BlobVersion:   0,
+		CodingWorkers: runtime.GOMAXPROCS(0),
 	}
 }
 
@@ -90,7 +90,7 @@ func (c BlobConfig) MaxRowSize() int {
 // Blob represents encoded data with Reed-Solomon erasure coding.
 // NOTE: The Blob currently embeds the versioned header. The long-term intention is to keep the Blob struct version independent,
 // while the respective header+config combination is versioned and produce general Blob.
-// Once the new version is introduced, we can consider restructing the Blob to be general, i.e. without keeping the header of a particular version.
+// Once the new version is introduced, we can consider restricting the Blob to be general, i.e. without keeping the header of a particular version.
 type Blob struct {
 	cfg BlobConfig
 
