@@ -218,6 +218,39 @@ func (suite *MsgServerTestSuite) TestRequestWithdrawal() {
 		suite.Nil(resp)
 		suite.Contains(err.Error(), "insufficient available balance")
 	})
+
+	suite.T().Run("duplicate withdrawal request at same timestamp", func(t *testing.T) {
+		// Setup: Create a new escrow account for this test
+		duplicateTestSigner := sdk.AccAddress(secp256k1.GenPrivKey().PubKey().Address()).String()
+		duplicateEscrowAccount := types.EscrowAccount{
+			Signer:           duplicateTestSigner,
+			Balance:          depositAmount,
+			AvailableBalance: depositAmount,
+		}
+		suite.keeper.SetEscrowAccount(suite.ctx, duplicateEscrowAccount)
+
+		// Make first withdrawal request
+		firstMsg := &types.MsgRequestWithdrawal{
+			Signer: duplicateTestSigner,
+			Amount: withdrawAmount,
+		}
+
+		resp, err := suite.msgServer.RequestWithdrawal(suite.ctx, firstMsg)
+		suite.NoError(err)
+		suite.NotNil(resp)
+
+		// Try to make a second withdrawal request at the same timestamp
+		// (since we're in the same block, ctx.BlockTime() will be the same)
+		secondMsg := &types.MsgRequestWithdrawal{
+			Signer: duplicateTestSigner,
+			Amount: withdrawAmount,
+		}
+
+		resp, err = suite.msgServer.RequestWithdrawal(suite.ctx, secondMsg)
+		suite.Error(err)
+		suite.Nil(resp)
+		suite.Contains(err.Error(), "withdrawal request already exists for signer")
+	})
 }
 
 // TestPayForFibre tests the PayForFibre message handler
