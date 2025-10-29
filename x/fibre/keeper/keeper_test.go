@@ -161,6 +161,36 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 		suite.Equal(want, withdrawals[0])
 	})
 
+	suite.T().Run("keeper should parse withdrawals by available key", func(t *testing.T) {
+		testSigner := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
+		testAvailableAt := testTime.Add(10 * time.Hour)
+
+		// Create a key using the types function
+		key := types.WithdrawalsByAvailableKey(testAvailableAt, testSigner)
+
+		// Parse it back
+		parsedTime, parsedSigner, err := suite.keeper.ParseWithdrawalsByAvailableKey(key)
+		suite.NoError(err)
+
+		// Verify parsed values match original
+		suite.Equal(testAvailableAt, parsedTime, "parsed time should match original")
+		suite.Equal(testSigner, parsedSigner, "parsed signer should match original")
+
+		// Test with different signer (different length)
+		testSigner2 := "celestia1abcdefghijklmnopqrstuvwxyz12345678901234"
+		testAvailableAt2 := testTime.Add(20 * time.Hour)
+
+		key2 := types.WithdrawalsByAvailableKey(testAvailableAt2, testSigner2)
+		parsedTime2, parsedSigner2, err2 := suite.keeper.ParseWithdrawalsByAvailableKey(key2)
+		suite.NoError(err2)
+		suite.Equal(testAvailableAt2, parsedTime2, "parsed time should match original")
+		suite.Equal(testSigner2, parsedSigner2, "parsed signer should match original")
+
+		// Test that we can distinguish between different times
+		suite.NotEqual(parsedTime, parsedTime2, "different times should parse differently")
+		suite.NotEqual(parsedSigner, parsedSigner2, "different signers should parse differently")
+	})
+
 	suite.T().Run("keeper should get withdrawals by available timestamp", func(t *testing.T) {
 		// Use unique timestamps to avoid conflicts with previous tests
 		params := suite.keeper.GetParams(suite.ctx)
