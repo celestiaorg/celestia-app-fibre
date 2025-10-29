@@ -64,7 +64,7 @@ func (k Keeper) IterateEscrowAccounts(ctx sdk.Context, callback func(account typ
 // IterateWithdrawals iterates over all withdrawals and calls the provided callback function
 func (k Keeper) IterateWithdrawals(ctx sdk.Context, callback func(withdrawal types.Withdrawal) bool) {
 	store := ctx.KVStore(k.storeKey)
-	iterator := storetypes.KVStorePrefixIterator(store, types.WithdrawalKeyPrefix)
+	iterator := storetypes.KVStorePrefixIterator(store, types.WithdrawalsBySignerKeyPrefix)
 	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {

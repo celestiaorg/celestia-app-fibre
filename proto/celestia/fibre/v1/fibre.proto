@@ -60,4 +60,7 @@ message Withdrawal {
   cosmos.base.v1beta1.Coin amount = 2 [(gogoproto.nullable) = false];
   // requested_timestamp is the timestamp when withdrawal was requested
   google.protobuf.Timestamp requested_timestamp = 3 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  // available_timestamp is the timestamp when withdrawal becomes available for processing
+  // This is calculated as requested_timestamp + withdrawal_delay at creation time
+  google.protobuf.Timestamp available_timestamp = 4 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
 }

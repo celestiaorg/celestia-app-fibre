@@ -39,6 +39,9 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/x/blob"
 	blobkeeper "github.com/celestiaorg/celestia-app/v6/x/blob/keeper"
 	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
+	"github.com/celestiaorg/celestia-app/v6/x/fibre"
+	fibrekeeper "github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/celestia-app/v6/x/minfee"
 	minfeekeeper "github.com/celestiaorg/celestia-app/v6/x/minfee/keeper"
 	minfeetypes "github.com/celestiaorg/celestia-app/v6/x/minfee/types"
@@ -187,6 +190,7 @@ type App struct {
 	HyperlaneKeeper     hyperlanekeeper.Keeper
 	WarpKeeper          warpkeeper.Keeper
 	ValAddrKeeper       valaddrkeeper.Keeper
+	FibreKeeper         *fibrekeeper.Keeper
 
 	ScopedIBCKeeper      capabilitykeeper.ScopedKeeper // This keeper is public for test purposes
 	ScopedTransferKeeper capabilitykeeper.ScopedKeeper // This keeper is public for test purposes
@@ -360,7 +364,7 @@ func New(
 	var transferStack ibcporttypes.IBCModule
 	transferStack = transfer.NewIBCModule(app.TransferKeeper)
 	transferStack = packetforward.NewIBCMiddleware(transferStack, app.PacketForwardKeeper,
-		0, // retries on timeout
+		0,                                                                // retries on timeout
 		packetforwardkeeper.DefaultForwardTransferPacketTimeoutTimestamp, // forward timeout
 	)
 
@@ -410,6 +414,14 @@ func New(
 		app.StakingKeeper,
 	)
 
+	app.FibreKeeper = fibrekeeper.NewKeeper(
+		encodingConfig.Codec,
+		keys[fibretypes.StoreKey],
+		app.BankKeeper,
+		app.StakingKeeper,
+		govModuleAddr,
+	)
+
 	/****  Module Options ****/
 
 	// NOTE: Modules can't be modified or else must be passed by reference to the module manager
@@ -444,6 +456,7 @@ func New(
 		hyperlanecore.NewAppModule(encodingConfig.Codec, &app.HyperlaneKeeper),
 		warp.NewAppModule(encodingConfig.Codec, app.WarpKeeper),
 		valaddr.NewAppModule(encodingConfig.Codec, app.ValAddrKeeper),
+		fibre.NewAppModule(encodingConfig.Codec, *app.FibreKeeper),
 	)
 
 	// BasicModuleManager defines the module BasicManager is in charge of setting up basic,

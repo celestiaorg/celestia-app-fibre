@@ -15,21 +15,23 @@ import (
 
 // Keeper handles all the state changes for the fibre module.
 type Keeper struct {
-	cdc        codec.Codec
-	storeKey   storetypes.StoreKey
-	bankKeeper types.BankKeeper
+	cdc           codec.Codec
+	storeKey      storetypes.StoreKey
+	bankKeeper    types.BankKeeper
+	stakingKeeper types.StakingKeeper
 	// authority is the address that has the authority to update module parameters.
 	// This is typically the governance module address.
 	authority string
 }
 
 // NewKeeper creates a new fibre Keeper instance
-func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, bankKeeper types.BankKeeper, authority string) *Keeper {
+func NewKeeper(cdc codec.Codec, storeKey storetypes.StoreKey, bankKeeper types.BankKeeper, stakingKeeper types.StakingKeeper, authority string) *Keeper {
 	return &Keeper{
-		cdc:        cdc,
-		storeKey:   storeKey,
-		bankKeeper: bankKeeper,
-		authority:  authority,
+		cdc:           cdc,
+		storeKey:      storeKey,
+		bankKeeper:    bankKeeper,
+		stakingKeeper: stakingKeeper,
+		authority:     authority,
 	}
 }
 
@@ -94,7 +96,7 @@ func (k Keeper) DeleteEscrowAccount(ctx sdk.Context, signer string) {
 // GetWithdrawal retrieves a withdrawal by signer and timestamp
 func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp time.Time) (withdrawal types.Withdrawal, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.WithdrawalKey(signer, requestedTimestamp)
+	key := types.WithdrawalsBySignerKey(signer, requestedTimestamp)
 	bz := store.Get(key)
 	if bz == nil {
 		return types.Withdrawal{}, false
@@ -104,19 +106,34 @@ func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp
 	return withdrawal, true
 }
 
-// SetWithdrawal saves a withdrawal to the store
+// SetWithdrawal saves a withdrawal to both indexes:
+// 1. Primary index: withdrawals_by_signer/{signer}/{requested_timestamp}
+// 2. Secondary index: withdrawals_by_available/{available_timestamp}/{signer}
 func (k Keeper) SetWithdrawal(ctx sdk.Context, withdrawal types.Withdrawal) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.WithdrawalKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
 	bz := k.cdc.MustMarshal(&withdrawal)
-	store.Set(key, bz)
+
+	// Store in primary index
+	primaryKey := types.WithdrawalsBySignerKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
+	store.Set(primaryKey, bz)
+
+	// Store in secondary index
+	secondaryKey := types.WithdrawalsByAvailableKey(withdrawal.AvailableTimestamp, withdrawal.Signer)
+	store.Set(secondaryKey, bz)
 }
 
-// DeleteWithdrawal removes a withdrawal from the store
-func (k Keeper) DeleteWithdrawal(ctx sdk.Context, signer string, requestedTimestamp time.Time) {
+// DeleteWithdrawal removes a withdrawal from both indexes.
+// This should be called when a withdrawal is processed or cancelled.
+func (k Keeper) DeleteWithdrawal(ctx sdk.Context, withdrawal types.Withdrawal) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.WithdrawalKey(signer, requestedTimestamp)
-	store.Delete(key)
+
+	// Delete from primary index
+	primaryKey := types.WithdrawalsBySignerKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
+	store.Delete(primaryKey)
+
+	// Delete from secondary index
+	secondaryKey := types.WithdrawalsByAvailableKey(withdrawal.AvailableTimestamp, withdrawal.Signer)
+	store.Delete(secondaryKey)
 }
 
 // GetWithdrawalsBySigner retrieves all withdrawals for a signer
@@ -134,6 +151,40 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 	}
 
 	return withdrawals
+}
+
+// GetWithdrawalsByAvailableIterator returns an iterator for all withdrawals available up to the given time
+func (k Keeper) GetWithdrawalsByAvailableIterator(ctx sdk.Context, upToTime time.Time) storetypes.Iterator {
+	store := ctx.KVStore(k.storeKey)
+	// Start from the beginning of the withdrawals-by-available index
+	start := types.WithdrawalsByAvailableKeyPrefix
+	// End at the last possible key for the given time
+	end := storetypes.PrefixEndBytes(types.WithdrawalsByAvailablePrefix(upToTime))
+	return store.Iterator(start, end)
+}
+
+// ParseWithdrawalsByAvailableKey parses the available_at timestamp and signer from the key
+func (k Keeper) ParseWithdrawalsByAvailableKey(key []byte) (available time.Time, signer string, err error) {
+	// Remove the prefix
+	key = key[len(types.WithdrawalsByAvailableKeyPrefix):]
+
+	// Parse the timestamp (first 29 bytes as per SDK's FormatTimeBytes)
+	timestampBytes := key[:29]
+
+	available, err = sdk.ParseTimeBytes(timestampBytes)
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	// Skip the separator "/"
+	key = key[29:]
+	if len(key) > 0 && key[0] == '/' {
+		key = key[1:]
+	}
+
+	// The rest is the signer address
+	signer = string(key)
+	return available, signer, nil
 }
 
 // GetProcessedPayment retrieves a processed payment by promiseHash
@@ -184,20 +235,45 @@ func (k Keeper) IsPaymentProcessedByHash(ctx sdk.Context, promiseHash []byte) bo
 }
 
 // ValidatePaymentPromiseInternal validates a payment promise and returns an error if the promise is invalid.
+// It performs both stateless and stateful validation.
 func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.PaymentPromise) error {
+	// Perform stateless validation
+	if err := k.ValidatePaymentPromiseStateless(ctx, promise); err != nil {
+		return err
+	}
+
+	// Perform stateful validation
+	if err := k.ValidatePaymentPromiseStateful(ctx, promise); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (k Keeper) ValidatePaymentPromiseStateless(ctx sdk.Context, promise *types.PaymentPromise) error {
 	pp := fibre.PaymentPromise{}
 	if err := pp.FromProto(promise); err != nil {
 		return fmt.Errorf("invalid payment promise format: %v", err)
 	}
 
-	if err := pp.Validate(); err != nil {
-		return fmt.Errorf("invalid payment promise: %v", err)
-	}
+	return pp.Validate()
+}
 
+// ValidatePaymentPromiseStateful performs stateful validation of a payment promise.
+// It checks:
+// 1. The payment promise has not already been processed
+// 2. The escrow account exists for the signer
+// 3. The escrow account has sufficient available balance
+//
+// This method does NOT perform stateless validation.
+// Callers should perform stateless validation separately via pp.Validate().
+func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) error {
+	// Check if payment promise has already been processed
 	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
 		return fmt.Errorf("payment promise has already been processed")
 	}
 
+	// Check escrow account exists
 	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
 	signerAddrStr := signerAddr.String()
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
@@ -205,6 +281,7 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
 	}
 
+	// Check sufficient available balance
 	params := k.GetParams(ctx)
 	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
 

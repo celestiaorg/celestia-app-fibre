@@ -14,6 +14,8 @@ import (
 	warptypes "github.com/bcp-innovations/hyperlane-cosmos/x/warp/types"
 	"github.com/celestiaorg/celestia-app/v6/x/blob"
 	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
+	"github.com/celestiaorg/celestia-app/v6/x/fibre"
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/celestia-app/v6/x/minfee"
 	minfeetypes "github.com/celestiaorg/celestia-app/v6/x/minfee/types"
 	minttypes "github.com/celestiaorg/celestia-app/v6/x/mint/types"
@@ -86,6 +88,7 @@ var ModuleEncodingRegisters = []module.AppModuleBasic{
 	warp.AppModule{},
 	// celestia
 	blob.AppModule{},
+	fibre.AppModule{},
 	minfee.AppModule{},
 	mintModule{},
 	signal.AppModule{},
@@ -108,6 +111,7 @@ func (app *App) setModuleOrder() {
 		ibctransfertypes.ModuleName,
 		genutiltypes.ModuleName,
 		blobtypes.ModuleName,
+		fibretypes.ModuleName,
 		paramstypes.ModuleName,
 		authz.ModuleName,
 		signaltypes.ModuleName,
@@ -136,6 +140,7 @@ func (app *App) setModuleOrder() {
 		banktypes.ModuleName,
 		genutiltypes.ModuleName,
 		blobtypes.ModuleName,
+		fibretypes.ModuleName,
 		paramstypes.ModuleName,
 		authz.ModuleName,
 		vestingtypes.ModuleName,
@@ -169,6 +174,7 @@ func (app *App) setModuleOrder() {
 		evidencetypes.ModuleName,
 		ibctransfertypes.ModuleName,
 		blobtypes.ModuleName,
+		fibretypes.ModuleName,
 		vestingtypes.ModuleName,
 		feegrant.ModuleName,
 		paramstypes.ModuleName,
@@ -210,6 +216,7 @@ func allStoreKeys() []string {
 		circuittypes.StoreKey,     // added in v4
 		hyperlanetypes.ModuleName, // added in v4
 		warptypes.ModuleName,      // added in v4
-		valaddrtypes.StoreKey,
+		valaddrtypes.StoreKey,     // added in v7
+		fibretypes.StoreKey,       // added in v7
 	}
 }
