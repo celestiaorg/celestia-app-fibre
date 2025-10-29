@@ -19,6 +19,8 @@ const (
 
 // Store key prefixes
 var (
+	// TODO: change the order of these prefixes. Ideally: params, escrow account, withdrawals, processed payments.
+
 	// EscrowAccountKeyPrefix is the prefix for escrow account keys
 	EscrowAccountKeyPrefix = []byte{0x01}
 	// WithdrawalsBySignerKeyPrefix is the prefix for withdrawal keys indexed by signer
