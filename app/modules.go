@@ -14,6 +14,7 @@ import (
 	warptypes "github.com/bcp-innovations/hyperlane-cosmos/x/warp/types"
 	"github.com/celestiaorg/celestia-app/v6/x/blob"
 	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/celestia-app/v6/x/minfee"
 	minfeetypes "github.com/celestiaorg/celestia-app/v6/x/minfee/types"
 	minttypes "github.com/celestiaorg/celestia-app/v6/x/mint/types"
@@ -204,5 +205,6 @@ func allStoreKeys() []string {
 		circuittypes.StoreKey,     // added in v4
 		hyperlanetypes.ModuleName, // added in v4
 		warptypes.ModuleName,      // added in v4
+		fibretypes.StoreKey,
 	}
 }

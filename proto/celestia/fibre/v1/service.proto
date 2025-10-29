@@ -5,6 +5,7 @@ option go_package = "github.com/celestiaorg/celestia-app/x/fibre/types";
 
 import "celestia/fibre/v1/fibre.proto";
 
+// Row represents a single row of data with its proof and optional RLC root.
 message Row {
   uint32 index = 1;
   bytes data = 2;
@@ -12,25 +13,32 @@ message Row {
   optional bytes rlc_root = 4; // const len == 32 when present
 }
 
+// UploadRowsRequest is the request message for uploading rows to a validator.
 message UploadRowsRequest {
   celestia.fibre.v1.PaymentPromise promise = 1;
   repeated Row rows = 2;
   repeated bytes rlc_orig = 3; // each const len == 16
 }
 
+// UploadRowsResponse is the response message containing the validator's signature.
 message UploadRowsResponse {
   bytes validator_signature = 1; // const len == 32
 }
 
+// DownloadRowsRequest is the request message for downloading rows by commitment.
 message DownloadRowsRequest {
   bytes commitment = 1; // const len == 32
 }
 
+// DownloadRowsResponse is the response message containing the requested rows.
 message DownloadRowsResponse {
   repeated Row rows = 1;
 }
 
+// Fibre service provides methods for uploading and downloading rows.
 service Fibre {
+  // UploadRows uploads rows to a validator and receives a signature in return.
   rpc UploadRows(UploadRowsRequest) returns (UploadRowsResponse);
+  // DownloadRows downloads rows by commitment from a validator.
   rpc DownloadRows(DownloadRowsRequest) returns (DownloadRowsResponse);
 }

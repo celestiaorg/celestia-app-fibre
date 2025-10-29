@@ -63,6 +63,24 @@ func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
 	store.Set([]byte(types.ParamsKey), bz)
 }
 
+// CalculatePromiseCost computes the escrow cost for a payment promise based on module parameters.
+func (k Keeper) CalculatePromiseCost(ctx sdk.Context, promise *types.PaymentPromise) sdk.Coin {
+	if promise == nil {
+		return sdk.NewCoin(sdk.DefaultBondDenom, math.ZeroInt())
+	}
+
+	params := k.GetParams(ctx)
+	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
+	amount := math.NewIntFromUint64(gasRequired)
+	return sdk.NewCoin(sdk.DefaultBondDenom, amount)
+}
+
+// PaymentPromiseRetentionWindow returns the retention window duration for promises.
+func (k Keeper) PaymentPromiseRetentionWindow(ctx sdk.Context) time.Duration {
+	params := k.GetParams(ctx)
+	return params.PaymentPromiseRetentionWindow
+}
+
 // GetEscrowAccount retrieves an escrow account by signer address.
 func (k Keeper) GetEscrowAccount(ctx sdk.Context, signer string) (account types.EscrowAccount, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
@@ -205,12 +223,10 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
 	}
 
-	params := k.GetParams(ctx)
-	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
-
-	// TODO: This assumes 1 gas = 1 utia but the minimum gas price could be
-	// different.
-	requiredAmount := sdk.NewCoin("utia", math.NewInt(int64(gasRequired)))
+	requiredAmount := k.CalculatePromiseCost(ctx, promise)
+	if denom := escrowAccount.AvailableBalance.Denom; denom != "" && denom != requiredAmount.Denom {
+		requiredAmount = sdk.NewCoin(denom, requiredAmount.Amount)
+	}
 
 	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
 	if !hasSufficientBalance {

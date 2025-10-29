@@ -460,6 +460,12 @@ func (a *RemoteABCIClientV1) Query(ctx context.Context, req *abciv2.RequestQuery
 	}, nil
 }
 
+// QuerySequence implements abciv2.ABCI.
+// ABCI v1 does not support QuerySequence, so this method returns a default response.
+func (a *RemoteABCIClientV1) QuerySequence(context.Context, *abciv2.RequestQuerySequence) (*abciv2.ResponseQuerySequence, error) {
+	return &abciv2.ResponseQuerySequence{}, nil
+}
+
 // VerifyVoteExtension implements abciv2.ABCI
 func (a *RemoteABCIClientV1) VerifyVoteExtension(req *abciv2.RequestVerifyVoteExtension) (*abciv2.ResponseVerifyVoteExtension, error) {
 	return &abciv2.ResponseVerifyVoteExtension{}, nil
