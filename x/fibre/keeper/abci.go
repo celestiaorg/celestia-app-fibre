@@ -12,13 +12,13 @@ func (k Keeper) BeginBlocker(ctx sdk.Context) error {
 		return err
 	}
 
-	// TODO: Prune old processed promises (cleanup operation)
-	// This will be implemented when payment promise pruning is added
+	// TODO: Prune payment promises that are outside the retention window.
 
 	return nil
 }
 
-// processAvailableWithdrawals transfers funds from escrow to user accounts when withdrawal delay expires
+// processAvailableWithdrawals transfers funds from escrow to user accounts
+// after a withdrawal becomes available.
 func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 	currentTime := ctx.BlockTime()
 
@@ -28,7 +28,7 @@ func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 
 	for ; iterator.Valid(); iterator.Next() {
 		// Parse key to extract available_at timestamp and signer address
-		availableAt, signer, err := k.ParseWithdrawalsByAvailableKey(iterator.Key())
+		availableTime, signer, err := k.ParseWithdrawalsByAvailableKey(iterator.Key())
 		if err != nil {
 			// Log error but continue processing other withdrawals
 			k.Logger(ctx).Error("failed to parse withdrawals-by-available key", "error", err)
@@ -36,7 +36,7 @@ func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 		}
 
 		// Stop if we've reached withdrawals not yet available
-		if availableAt.After(currentTime) {
+		if availableTime.After(currentTime) {
 			break
 		}
 
@@ -53,15 +53,6 @@ func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 			continue
 		}
 
-		// Process withdrawal: transfer from module to user account
-		err = k.bankKeeper.SendCoinsFromModuleToAccount(
-			ctx, types.ModuleName, signerAddr, sdk.NewCoins(amount))
-		if err != nil {
-			// Log error but continue processing other withdrawals
-			k.Logger(ctx).Error("failed to process withdrawal", "error", err, "signer", signer)
-			continue
-		}
-
 		// Update escrow account balance (decrease total balance)
 		escrowAccount, found := k.GetEscrowAccount(ctx, signer)
 		if !found {
@@ -69,8 +60,21 @@ func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 			k.Logger(ctx).Error("escrow account not found during withdrawal processing", "signer", signer)
 			continue
 		}
+		if escrowAccount.Balance.IsLT(amount) {
+			// This shouldn't happen, but log and continue
+			k.Logger(ctx).Error("escrow account balance is less than withdrawal amount", "signer", signer, "balance", escrowAccount.Balance, "amount", amount)
+			continue
+		}
 		escrowAccount.Balance = escrowAccount.Balance.Sub(amount)
 		k.SetEscrowAccount(ctx, escrowAccount)
+
+		// Process withdrawal: transfer from module to user account
+		err = k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, signerAddr, sdk.NewCoins(amount))
+		if err != nil {
+			// Log error but continue processing other withdrawals
+			k.Logger(ctx).Error("failed to process withdrawal", "error", err, "signer", signer)
+			continue
+		}
 
 		// Remove from both withdrawal indexes
 		k.DeleteWithdrawal(ctx, withdrawal)
