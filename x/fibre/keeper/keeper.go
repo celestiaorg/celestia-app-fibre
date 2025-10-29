@@ -200,7 +200,7 @@ func (k Keeper) GetProcessedPayment(ctx sdk.Context, promiseHash []byte) (paymen
 }
 
 // SetProcessedPayment saves a processed payment to both indexes:
-// 1. Primary index: payment_promise/{hash}
+// 1. Primary index: processed_payments_by_hash/{hash}
 // 2. Secondary index: processed_payments_by_time/{processed_at}/{hash}
 func (k Keeper) SetProcessedPayment(ctx sdk.Context, payment types.ProcessedPayment) {
 	store := ctx.KVStore(k.storeKey)
