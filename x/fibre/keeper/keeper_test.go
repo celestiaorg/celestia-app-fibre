@@ -160,6 +160,70 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 		suite.Len(withdrawals, 1)
 		suite.Equal(want, withdrawals[0])
 	})
+
+	suite.T().Run("keeper should get withdrawals by available timestamp", func(t *testing.T) {
+		// Use unique timestamps to avoid conflicts with previous tests
+		params := suite.keeper.GetParams(suite.ctx)
+		baseTime := testTime.Add(100 * time.Hour) // Far in the future to avoid conflicts
+		signer2 := "celestia1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx5wwrruf7"
+
+		// Withdrawal 1: available earliest
+		withdrawal1 := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 100),
+			RequestedTimestamp: baseTime,
+			AvailableTimestamp: baseTime.Add(params.WithdrawalDelay),
+		}
+
+		// Withdrawal 2: available in the middle
+		withdrawal2 := types.Withdrawal{
+			Signer:             signer2,
+			Amount:             sdk.NewInt64Coin("utia", 200),
+			RequestedTimestamp: baseTime.Add(1 * time.Hour),
+			AvailableTimestamp: baseTime.Add(1 * time.Hour).Add(params.WithdrawalDelay),
+		}
+
+		// Withdrawal 3: available latest (should NOT be included)
+		withdrawal3 := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 300),
+			RequestedTimestamp: baseTime.Add(2 * time.Hour),
+			AvailableTimestamp: baseTime.Add(2 * time.Hour).Add(params.WithdrawalDelay),
+		}
+
+		suite.keeper.SetWithdrawal(suite.ctx, withdrawal1)
+		suite.keeper.SetWithdrawal(suite.ctx, withdrawal2)
+		suite.keeper.SetWithdrawal(suite.ctx, withdrawal3)
+
+		// Query for withdrawals available up to withdrawal2's time (inclusive)
+		queryTime := withdrawal2.AvailableTimestamp
+		iterator := suite.keeper.GetWithdrawalsByAvailableIterator(suite.ctx, queryTime)
+		defer iterator.Close()
+
+		// Should find withdrawal1 and withdrawal2, but not withdrawal3
+		var foundWithdrawals []types.Withdrawal
+		for ; iterator.Valid(); iterator.Next() {
+			availableAt, signerFromKey, err := suite.keeper.ParseWithdrawalsByAvailableKey(iterator.Key())
+			suite.NoError(err)
+
+			// Skip if not one of our test withdrawals (from previous tests)
+			if availableAt.Before(baseTime.Add(params.WithdrawalDelay)) {
+				continue
+			}
+
+			suite.False(availableAt.After(queryTime), "withdrawal should be available before or at query time")
+
+			var withdrawal types.Withdrawal
+			suite.cdc.MustUnmarshal(iterator.Value(), &withdrawal)
+			suite.Equal(signerFromKey, withdrawal.Signer, "signer from key should match withdrawal signer")
+			foundWithdrawals = append(foundWithdrawals, withdrawal)
+		}
+
+		// Should have found exactly 2 withdrawals
+		suite.Len(foundWithdrawals, 2, "should find withdrawals 1 and 2")
+		suite.Equal(withdrawal1, foundWithdrawals[0], "first withdrawal should match")
+		suite.Equal(withdrawal2, foundWithdrawals[1], "second withdrawal should match")
+	})
 }
 
 func (suite *KeeperTestSuite) TestProcessedPayment() {
