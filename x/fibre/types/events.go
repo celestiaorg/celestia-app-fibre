@@ -44,11 +44,12 @@ func NewEventWithdrawFromEscrowExecuted(signer string, amount sdk.Coin) *EventWi
 }
 
 // NewEventPayForFibre returns a new EventPayForFibre
-func NewEventPayForFibre(signer string, namespace []byte, commitment []byte) *EventPayForFibre {
+func NewEventPayForFibre(signer string, namespace []byte, commitment []byte, validatorCount uint32) *EventPayForFibre {
 	return &EventPayForFibre{
-		Signer:     signer,
-		Namespace:  namespace,
-		Commitment: commitment,
+		Signer:         signer,
+		Namespace:      namespace,
+		Commitment:     commitment,
+		ValidatorCount: validatorCount,
 	}
 }
 
