@@ -19,7 +19,7 @@ message Row {
 message Rows {
   repeated Row rows = 1;
   oneof rlc {
-    bytes coefficients = 2; // serialized rlc coefficients, 16 bytes per original row
+    bytes coefficients = 2; // flattened rlc coefficients, 16 bytes per original row
     bytes root = 3; // const len == 32 when present
   }
 }
