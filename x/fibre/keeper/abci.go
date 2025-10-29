@@ -12,7 +12,10 @@ func (k Keeper) BeginBlocker(ctx sdk.Context) error {
 		return err
 	}
 
-	// TODO: Prune payment promises that are outside the retention window.
+	// Prune processed payments that are outside the retention window
+	if err := k.pruneProcessedPayments(ctx); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -84,6 +87,51 @@ func (k Keeper) processAvailableWithdrawals(ctx sdk.Context) error {
 		if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 			// Log error but continue - event emission failure shouldn't stop processing
 			k.Logger(ctx).Error("failed to emit withdrawal executed event", "error", err, "signer", signer)
+		}
+	}
+
+	return nil
+}
+
+// pruneProcessedPayments removes processed payments that are outside
+// the retention window to prevent unbounded state growth.
+func (k Keeper) pruneProcessedPayments(ctx sdk.Context) error {
+	currentTime := ctx.BlockTime()
+	params := k.GetParams(ctx)
+
+	// Calculate the cutoff time: anything processed before this should be pruned
+	cutoffTime := currentTime.Add(-params.PaymentPromiseRetentionWindow)
+
+	// Iterate over processed payments by time, starting from earliest
+	iterator := k.GetProcessedPaymentsByTimeIterator(ctx, cutoffTime)
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		// Parse key to extract processed_at timestamp and payment promise hash
+		processedAt, paymentPromiseHash, err := k.ParseProcessedPaymentsByTimeKey(iterator.Key())
+		if err != nil {
+			// Log error but continue pruning other processed payments
+			k.Logger(ctx).Error("failed to parse processed-payments-by-time key", "error", err)
+			continue
+		}
+
+		// Stop if we've reached payments within the retention window
+		if processedAt.After(cutoffTime) {
+			break
+		}
+
+		// Get full processed payment from value
+		var processedPayment types.ProcessedPayment
+		k.cdc.MustUnmarshal(iterator.Value(), &processedPayment)
+
+		// Delete the processed payment from both indexes
+		k.DeleteProcessedPayment(ctx, processedPayment)
+
+		// Emit event for pruned processed payment
+		event := types.NewEventProcessedPaymentPruned(paymentPromiseHash, processedAt)
+		if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
+			// Log error but continue - event emission failure shouldn't stop processing
+			k.Logger(ctx).Error("failed to emit processed payment pruned event", "error", err, "hash", paymentPromiseHash)
 		}
 	}
 

@@ -14,6 +14,7 @@ var (
 	EventTypePayForFibre                = proto.MessageName(&EventPayForFibre{})
 	EventTypePaymentPromiseTimeout      = proto.MessageName(&EventPaymentPromiseTimeout{})
 	EventTypeUpdateFibreParams          = proto.MessageName(&EventUpdateFibreParams{})
+	EventTypeProcessedPaymentPruned     = proto.MessageName(&EventProcessedPaymentPruned{})
 )
 
 // NewEventDepositToEscrow returns a new EventDepositToEscrow
@@ -65,5 +66,13 @@ func NewEventUpdateFibreParams(authority string, params Params) *EventUpdateFibr
 	return &EventUpdateFibreParams{
 		Signer: authority,
 		Params: params,
+	}
+}
+
+// NewEventProcessedPaymentPruned returns a new EventProcessedPaymentPruned
+func NewEventProcessedPaymentPruned(paymentPromiseHash []byte, processedAt time.Time) *EventProcessedPaymentPruned {
+	return &EventProcessedPaymentPruned{
+		PaymentPromiseHash: paymentPromiseHash,
+		ProcessedAt:        processedAt,
 	}
 }
