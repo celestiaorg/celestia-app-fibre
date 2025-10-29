@@ -43,7 +43,6 @@ func (k Keeper) AllFibreProviders(goCtx context.Context, req *types.QueryAllFibr
 		})
 		return false
 	})
-
 	if err != nil {
 		return nil, errorsmod.Wrap(err, "failed to iterate fibre provider info")
 	}
