@@ -87,14 +87,14 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 	// Get withdrawal delay from params
 	params := ms.GetParams(ctx)
 	requestedTimestamp := ctx.BlockTime()
-	availableAt := requestedTimestamp.Add(params.WithdrawalDelay)
+	availableTimestamp := requestedTimestamp.Add(params.WithdrawalDelay)
 
 	// Create withdrawal request with available timestamp
 	withdrawal := types.Withdrawal{
 		Signer:             msg.Signer,
 		Amount:             msg.Amount,
 		RequestedTimestamp: requestedTimestamp,
-		AvailableTimestamp: availableAt,
+		AvailableTimestamp: availableTimestamp,
 	}
 
 	// Update escrow account available balance (lock the funds)
@@ -105,7 +105,7 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 	ms.SetWithdrawal(ctx, withdrawal)
 
 	// Emit event
-	event := types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, requestedTimestamp, availableAt)
+	event := types.NewEventWithdrawFromEscrowRequest(msg.Signer, msg.Amount, requestedTimestamp, availableTimestamp)
 	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
