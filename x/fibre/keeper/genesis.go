@@ -79,7 +79,7 @@ func (k Keeper) IterateWithdrawals(ctx sdk.Context, callback func(withdrawal typ
 // IterateProcessedPayments iterates over all processed payments and calls the provided callback function
 func (k Keeper) IterateProcessedPayments(ctx sdk.Context, callback func(entry types.ProcessedPayment) bool) {
 	store := ctx.KVStore(k.storeKey)
-	iterator := storetypes.KVStorePrefixIterator(store, types.PaymentPromiseKeyPrefix)
+	iterator := storetypes.KVStorePrefixIterator(store, types.ProcessedPaymentsByHashKeyPrefix)
 	defer iterator.Close()
 
 	for ; iterator.Valid(); iterator.Next() {
