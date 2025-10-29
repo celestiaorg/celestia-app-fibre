@@ -96,7 +96,7 @@ func (k Keeper) DeleteEscrowAccount(ctx sdk.Context, signer string) {
 // GetWithdrawal retrieves a withdrawal by signer and timestamp
 func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp time.Time) (withdrawal types.Withdrawal, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.WithdrawalKey(signer, requestedTimestamp)
+	key := types.WithdrawalsBySignerKey(signer, requestedTimestamp)
 	bz := store.Get(key)
 	if bz == nil {
 		return types.Withdrawal{}, false
@@ -106,19 +106,34 @@ func (k Keeper) GetWithdrawal(ctx sdk.Context, signer string, requestedTimestamp
 	return withdrawal, true
 }
 
-// SetWithdrawal saves a withdrawal to the store
+// SetWithdrawal saves a withdrawal to both indexes:
+// 1. Primary index: withdrawals_by_signer/{signer}/{requested_timestamp}
+// 2. Secondary index: withdrawals_by_available/{available_timestamp}/{signer}
 func (k Keeper) SetWithdrawal(ctx sdk.Context, withdrawal types.Withdrawal) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.WithdrawalKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
 	bz := k.cdc.MustMarshal(&withdrawal)
-	store.Set(key, bz)
+
+	// Store in primary index
+	primaryKey := types.WithdrawalsBySignerKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
+	store.Set(primaryKey, bz)
+
+	// Store in secondary index
+	secondaryKey := types.WithdrawalsByAvailableKey(withdrawal.AvailableTimestamp, withdrawal.Signer)
+	store.Set(secondaryKey, bz)
 }
 
-// DeleteWithdrawal removes a withdrawal from the store
-func (k Keeper) DeleteWithdrawal(ctx sdk.Context, signer string, requestedTimestamp time.Time) {
+// DeleteWithdrawal removes a withdrawal from both indexes.
+// This should be called when a withdrawal is processed or cancelled.
+func (k Keeper) DeleteWithdrawal(ctx sdk.Context, withdrawal types.Withdrawal) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.WithdrawalKey(signer, requestedTimestamp)
-	store.Delete(key)
+
+	// Delete from primary index
+	primaryKey := types.WithdrawalsBySignerKey(withdrawal.Signer, withdrawal.RequestedTimestamp)
+	store.Delete(primaryKey)
+
+	// Delete from secondary index
+	secondaryKey := types.WithdrawalsByAvailableKey(withdrawal.AvailableTimestamp, withdrawal.Signer)
+	store.Delete(secondaryKey)
 }
 
 // GetWithdrawalsBySigner retrieves all withdrawals for a signer
@@ -136,6 +151,40 @@ func (k Keeper) GetWithdrawalsBySigner(ctx sdk.Context, signer string) []types.W
 	}
 
 	return withdrawals
+}
+
+// GetWithdrawalsByAvailableIterator returns an iterator for all withdrawals available up to the given time
+func (k Keeper) GetWithdrawalsByAvailableIterator(ctx sdk.Context, upToTime time.Time) storetypes.Iterator {
+	store := ctx.KVStore(k.storeKey)
+	// Start from the beginning of the withdrawals-by-available index
+	start := types.WithdrawalsByAvailableKeyPrefix
+	// End at the last possible key for the given time
+	end := storetypes.PrefixEndBytes(types.WithdrawalsByAvailablePrefix(upToTime))
+	return store.Iterator(start, end)
+}
+
+// ParseWithdrawalsByAvailableKey parses the available_at timestamp and signer from the key
+func (k Keeper) ParseWithdrawalsByAvailableKey(key []byte) (available time.Time, signer string, err error) {
+	// Remove the prefix
+	key = key[len(types.WithdrawalsByAvailableKeyPrefix):]
+
+	// Parse the timestamp (first 29 bytes as per SDK's FormatTimeBytes)
+	timestampBytes := key[:29]
+
+	available, err = sdk.ParseTimeBytes(timestampBytes)
+	if err != nil {
+		return time.Time{}, "", fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	// Skip the separator "/"
+	key = key[29:]
+	if len(key) > 0 && key[0] == '/' {
+		key = key[1:]
+	}
+
+	// The rest is the signer address
+	signer = string(key)
+	return available, signer, nil
 }
 
 // GetProcessedPayment retrieves a processed payment by promiseHash

@@ -118,10 +118,12 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	})
 
 	suite.T().Run("keeper should set and get withdrawal", func(t *testing.T) {
+		params := suite.keeper.GetParams(suite.ctx)
 		want := types.Withdrawal{
 			Signer:             signer,
 			Amount:             sdk.NewInt64Coin("utia", 500),
 			RequestedTimestamp: testTime,
+			AvailableTimestamp: testTime.Add(params.WithdrawalDelay),
 		}
 
 		suite.keeper.SetWithdrawal(suite.ctx, want)
@@ -132,21 +134,125 @@ func (suite *KeeperTestSuite) TestWithdrawal() {
 	})
 
 	suite.T().Run("keeper should delete withdrawal", func(t *testing.T) {
-		suite.keeper.DeleteWithdrawal(suite.ctx, signer, testTime)
+		params := suite.keeper.GetParams(suite.ctx)
+		withdrawal := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 500),
+			RequestedTimestamp: testTime,
+			AvailableTimestamp: testTime.Add(params.WithdrawalDelay),
+		}
+		suite.keeper.DeleteWithdrawal(suite.ctx, withdrawal)
 		_, found := suite.keeper.GetWithdrawal(suite.ctx, signer, testTime)
 		suite.False(found)
 	})
 
 	suite.T().Run("keeper should get withdrawals by signer", func(t *testing.T) {
+		params := suite.keeper.GetParams(suite.ctx)
+		requestedAt := testTime.Add(2 * time.Hour)
 		want := types.Withdrawal{
 			Signer:             signer,
 			Amount:             sdk.NewInt64Coin("utia", 100),
-			RequestedTimestamp: testTime.Add(2 * time.Hour),
+			RequestedTimestamp: requestedAt,
+			AvailableTimestamp: requestedAt.Add(params.WithdrawalDelay),
 		}
 		suite.keeper.SetWithdrawal(suite.ctx, want)
 		withdrawals := suite.keeper.GetWithdrawalsBySigner(suite.ctx, signer)
 		suite.Len(withdrawals, 1)
 		suite.Equal(want, withdrawals[0])
+	})
+
+	suite.T().Run("keeper should parse withdrawals by available key", func(t *testing.T) {
+		testSigner := "celestia15drmhzw5kwgenvemy30rqqqgq52axf5wwrruf7"
+		testAvailableAt := testTime.Add(10 * time.Hour)
+
+		// Create a key using the types function
+		key := types.WithdrawalsByAvailableKey(testAvailableAt, testSigner)
+
+		// Parse it back
+		parsedTime, parsedSigner, err := suite.keeper.ParseWithdrawalsByAvailableKey(key)
+		suite.NoError(err)
+
+		// Verify parsed values match original
+		suite.Equal(testAvailableAt, parsedTime, "parsed time should match original")
+		suite.Equal(testSigner, parsedSigner, "parsed signer should match original")
+
+		// Test with different signer (different length)
+		testSigner2 := "celestia1abcdefghijklmnopqrstuvwxyz12345678901234"
+		testAvailableAt2 := testTime.Add(20 * time.Hour)
+
+		key2 := types.WithdrawalsByAvailableKey(testAvailableAt2, testSigner2)
+		parsedTime2, parsedSigner2, err2 := suite.keeper.ParseWithdrawalsByAvailableKey(key2)
+		suite.NoError(err2)
+		suite.Equal(testAvailableAt2, parsedTime2, "parsed time should match original")
+		suite.Equal(testSigner2, parsedSigner2, "parsed signer should match original")
+
+		// Test that we can distinguish between different times
+		suite.NotEqual(parsedTime, parsedTime2, "different times should parse differently")
+		suite.NotEqual(parsedSigner, parsedSigner2, "different signers should parse differently")
+	})
+
+	suite.T().Run("keeper should get withdrawals by available timestamp", func(t *testing.T) {
+		// Use unique timestamps to avoid conflicts with previous tests
+		params := suite.keeper.GetParams(suite.ctx)
+		baseTime := testTime.Add(100 * time.Hour) // Far in the future to avoid conflicts
+		signer2 := "celestia1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx5wwrruf7"
+
+		// Withdrawal 1: available earliest
+		withdrawal1 := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 100),
+			RequestedTimestamp: baseTime,
+			AvailableTimestamp: baseTime.Add(params.WithdrawalDelay),
+		}
+
+		// Withdrawal 2: available in the middle
+		withdrawal2 := types.Withdrawal{
+			Signer:             signer2,
+			Amount:             sdk.NewInt64Coin("utia", 200),
+			RequestedTimestamp: baseTime.Add(1 * time.Hour),
+			AvailableTimestamp: baseTime.Add(1 * time.Hour).Add(params.WithdrawalDelay),
+		}
+
+		// Withdrawal 3: available latest (should NOT be included)
+		withdrawal3 := types.Withdrawal{
+			Signer:             signer,
+			Amount:             sdk.NewInt64Coin("utia", 300),
+			RequestedTimestamp: baseTime.Add(2 * time.Hour),
+			AvailableTimestamp: baseTime.Add(2 * time.Hour).Add(params.WithdrawalDelay),
+		}
+
+		suite.keeper.SetWithdrawal(suite.ctx, withdrawal1)
+		suite.keeper.SetWithdrawal(suite.ctx, withdrawal2)
+		suite.keeper.SetWithdrawal(suite.ctx, withdrawal3)
+
+		// Query for withdrawals available up to withdrawal2's time (inclusive)
+		queryTime := withdrawal2.AvailableTimestamp
+		iterator := suite.keeper.GetWithdrawalsByAvailableIterator(suite.ctx, queryTime)
+		defer iterator.Close()
+
+		// Should find withdrawal1 and withdrawal2, but not withdrawal3
+		var foundWithdrawals []types.Withdrawal
+		for ; iterator.Valid(); iterator.Next() {
+			availableAt, signerFromKey, err := suite.keeper.ParseWithdrawalsByAvailableKey(iterator.Key())
+			suite.NoError(err)
+
+			// Skip if not one of our test withdrawals (from previous tests)
+			if availableAt.Before(baseTime.Add(params.WithdrawalDelay)) {
+				continue
+			}
+
+			suite.False(availableAt.After(queryTime), "withdrawal should be available before or at query time")
+
+			var withdrawal types.Withdrawal
+			suite.cdc.MustUnmarshal(iterator.Value(), &withdrawal)
+			suite.Equal(signerFromKey, withdrawal.Signer, "signer from key should match withdrawal signer")
+			foundWithdrawals = append(foundWithdrawals, withdrawal)
+		}
+
+		// Should have found exactly 2 withdrawals
+		suite.Len(foundWithdrawals, 2, "should find withdrawals 1 and 2")
+		suite.Equal(withdrawal1, foundWithdrawals[0], "first withdrawal should match")
+		suite.Equal(withdrawal2, foundWithdrawals[1], "second withdrawal should match")
 	})
 }
 
