@@ -29,6 +29,8 @@ var (
 	ParamsKeyPrefix = []byte{0x04}
 	// WithdrawalsByAvailableKeyPrefix is the prefix for withdrawal keys indexed by available time
 	WithdrawalsByAvailableKeyPrefix = []byte{0x05}
+	// ProcessedPaymentsByTimeKeyPrefix is the prefix for processed payment keys indexed by processed time
+	ProcessedPaymentsByTimeKeyPrefix = []byte{0x06}
 )
 
 // EscrowAccountKey returns the store key for an escrow account
@@ -70,4 +72,20 @@ func WithdrawalsByAvailableKey(availableAt time.Time, signer string) []byte {
 func WithdrawalsByAvailablePrefix(availableAt time.Time) []byte {
 	timestampBytes := sdk.FormatTimeBytes(availableAt)
 	return append(WithdrawalsByAvailableKeyPrefix, timestampBytes...)
+}
+
+// ProcessedPaymentsByTimeKey returns the store key for a processed payment indexed by processed time
+// This index is used for efficient time-ordered iteration in BeginBlocker for pruning
+func ProcessedPaymentsByTimeKey(processedAt time.Time, paymentPromiseHash []byte) []byte {
+	key := ProcessedPaymentsByTimeKeyPrefix
+	timestampBytes := sdk.FormatTimeBytes(processedAt)
+	key = append(key, timestampBytes...)
+	key = append(key, []byte("/")...)
+	return append(key, paymentPromiseHash...)
+}
+
+// ProcessedPaymentsByTimePrefix returns the prefix for all processed payments up to a certain time
+func ProcessedPaymentsByTimePrefix(processedAt time.Time) []byte {
+	timestampBytes := sdk.FormatTimeBytes(processedAt)
+	return append(ProcessedPaymentsByTimeKeyPrefix, timestampBytes...)
 }

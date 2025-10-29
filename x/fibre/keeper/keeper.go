@@ -199,19 +199,34 @@ func (k Keeper) GetProcessedPayment(ctx sdk.Context, promiseHash []byte) (paymen
 	return payment, true
 }
 
-// SetProcessedPayment saves a processed payment to the store
+// SetProcessedPayment saves a processed payment to both indexes:
+// 1. Primary index: payment_promise/{hash}
+// 2. Secondary index: processed_payments_by_time/{processed_at}/{hash}
 func (k Keeper) SetProcessedPayment(ctx sdk.Context, payment types.ProcessedPayment) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(payment.PaymentPromiseHash)
 	bz := k.cdc.MustMarshal(&payment)
-	store.Set(key, bz)
+
+	// Store in primary index (by hash)
+	primaryKey := types.PaymentPromiseKey(payment.PaymentPromiseHash)
+	store.Set(primaryKey, bz)
+
+	// Store in secondary index (by time)
+	secondaryKey := types.ProcessedPaymentsByTimeKey(payment.ProcessedAt, payment.PaymentPromiseHash)
+	store.Set(secondaryKey, bz)
 }
 
-// DeleteProcessedPayment removes a processed payment from the store
-func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, promiseHash []byte) {
+// DeleteProcessedPayment removes a processed payment from both indexes.
+// This should be called when pruning old processed payments.
+func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, payment types.ProcessedPayment) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(promiseHash)
-	store.Delete(key)
+
+	// Delete from primary index
+	primaryKey := types.PaymentPromiseKey(payment.PaymentPromiseHash)
+	store.Delete(primaryKey)
+
+	// Delete from secondary index
+	secondaryKey := types.ProcessedPaymentsByTimeKey(payment.ProcessedAt, payment.PaymentPromiseHash)
+	store.Delete(secondaryKey)
 }
 
 // IsPaymentPromiseProcessed returns true if a payment has been processed for the given promise.
@@ -257,6 +272,40 @@ func (k Keeper) ValidatePaymentPromiseStateless(ctx sdk.Context, promise *types.
 	}
 
 	return pp.Validate()
+}
+
+// GetProcessedPaymentsByTimeIterator returns an iterator for all processed payments up to the given time
+func (k Keeper) GetProcessedPaymentsByTimeIterator(ctx sdk.Context, upToTime time.Time) storetypes.Iterator {
+	store := ctx.KVStore(k.storeKey)
+	// Start from the beginning of the processed-payments-by-time index
+	start := types.ProcessedPaymentsByTimeKeyPrefix
+	// End at the last possible key for the given time
+	end := storetypes.PrefixEndBytes(types.ProcessedPaymentsByTimePrefix(upToTime))
+	return store.Iterator(start, end)
+}
+
+// ParseProcessedPaymentsByTimeKey parses the processed_at timestamp and payment promise hash from the key
+func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Time, paymentPromiseHash []byte, err error) {
+	// Remove the prefix
+	key = key[len(types.ProcessedPaymentsByTimeKeyPrefix):]
+
+	// Parse the timestamp (first 29 bytes as per SDK's FormatTimeBytes)
+	timestampBytes := key[:29]
+
+	processedAt, err = sdk.ParseTimeBytes(timestampBytes)
+	if err != nil {
+		return time.Time{}, nil, fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	// Skip the separator "/"
+	key = key[29:]
+	if len(key) > 0 && key[0] == '/' {
+		key = key[1:]
+	}
+
+	// The rest is the payment promise hash
+	paymentPromiseHash = key
+	return processedAt, paymentPromiseHash, nil
 }
 
 // ValidatePaymentPromiseStateful performs stateful validation of a payment promise.

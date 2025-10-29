@@ -345,3 +345,174 @@ func (suite *ABCITestSuite) TestBeginBlocker_WithdrawalDelayParamChange() {
 	withdrawals = suite.keeper.GetWithdrawalsBySigner(suite.ctx, signer)
 	suite.Empty(withdrawals, "all withdrawals should be processed")
 }
+
+func (suite *ABCITestSuite) TestBeginBlocker_PruneProcessedPayments() {
+	// Test that processed payments are pruned after the retention window
+
+	// Create some processed payments at different times
+	payment1Hash := []byte("payment-hash-1")
+	payment2Hash := []byte("payment-hash-2")
+	payment3Hash := []byte("payment-hash-3")
+
+	baseTime := suite.ctx.BlockTime()
+
+	// Payment 1: processed 30 days ago (should be pruned with 24h retention)
+	payment1 := types.ProcessedPayment{
+		PaymentPromiseHash: payment1Hash,
+		ProcessedAt:        baseTime.Add(-30 * 24 * time.Hour),
+	}
+	suite.keeper.SetProcessedPayment(suite.ctx, payment1)
+
+	// Payment 2: processed 12 hours ago (should NOT be pruned with 24h retention)
+	payment2 := types.ProcessedPayment{
+		PaymentPromiseHash: payment2Hash,
+		ProcessedAt:        baseTime.Add(-12 * time.Hour),
+	}
+	suite.keeper.SetProcessedPayment(suite.ctx, payment2)
+
+	// Payment 3: processed 25 hours ago (should be pruned with 24h retention)
+	payment3 := types.ProcessedPayment{
+		PaymentPromiseHash: payment3Hash,
+		ProcessedAt:        baseTime.Add(-25 * time.Hour),
+	}
+	suite.keeper.SetProcessedPayment(suite.ctx, payment3)
+
+	// Verify all payments are in the store
+	_, found := suite.keeper.GetProcessedPayment(suite.ctx, payment1Hash)
+	suite.True(found, "payment1 should be in store before pruning")
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment2Hash)
+	suite.True(found, "payment2 should be in store before pruning")
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment3Hash)
+	suite.True(found, "payment3 should be in store before pruning")
+
+	// Run BeginBlocker - should prune payment1 and payment3
+	err := suite.keeper.BeginBlocker(suite.ctx)
+	suite.NoError(err)
+
+	// Verify payment1 and payment3 were pruned
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment1Hash)
+	suite.False(found, "payment1 should be pruned (30 days old)")
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment3Hash)
+	suite.False(found, "payment3 should be pruned (25 hours old)")
+
+	// Verify payment2 was NOT pruned
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment2Hash)
+	suite.True(found, "payment2 should NOT be pruned (12 hours old)")
+
+	// Advance time by another 13 hours
+	suite.ctx = suite.ctx.WithBlockTime(baseTime.Add(13 * time.Hour))
+
+	// Run BeginBlocker again - should prune payment2 now
+	err = suite.keeper.BeginBlocker(suite.ctx)
+	suite.NoError(err)
+
+	// Verify payment2 was pruned
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment2Hash)
+	suite.False(found, "payment2 should be pruned after advancing time")
+}
+
+func (suite *ABCITestSuite) TestBeginBlocker_PruneWithCustomRetentionWindow() {
+	// Test pruning with a custom retention window
+
+	// Set custom retention window to 1 hour
+	params := suite.keeper.GetParams(suite.ctx)
+	params.PaymentPromiseRetentionWindow = 1 * time.Hour
+	suite.keeper.SetParams(suite.ctx, params)
+
+	baseTime := suite.ctx.BlockTime()
+
+	// Create payments at different times
+	payment1Hash := []byte("payment-hash-1")
+	payment2Hash := []byte("payment-hash-2")
+
+	// Payment 1: processed 2 hours ago (should be pruned with 1h retention)
+	payment1 := types.ProcessedPayment{
+		PaymentPromiseHash: payment1Hash,
+		ProcessedAt:        baseTime.Add(-2 * time.Hour),
+	}
+	suite.keeper.SetProcessedPayment(suite.ctx, payment1)
+
+	// Payment 2: processed 30 minutes ago (should NOT be pruned with 1h retention)
+	payment2 := types.ProcessedPayment{
+		PaymentPromiseHash: payment2Hash,
+		ProcessedAt:        baseTime.Add(-30 * time.Minute),
+	}
+	suite.keeper.SetProcessedPayment(suite.ctx, payment2)
+
+	// Verify both payments are in the store
+	_, found := suite.keeper.GetProcessedPayment(suite.ctx, payment1Hash)
+	suite.True(found)
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment2Hash)
+	suite.True(found)
+
+	// Run BeginBlocker - should prune only payment1
+	err := suite.keeper.BeginBlocker(suite.ctx)
+	suite.NoError(err)
+
+	// Verify payment1 was pruned
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment1Hash)
+	suite.False(found, "payment1 should be pruned (2 hours old with 1h retention)")
+
+	// Verify payment2 was NOT pruned
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, payment2Hash)
+	suite.True(found, "payment2 should NOT be pruned (30 minutes old with 1h retention)")
+}
+
+func (suite *ABCITestSuite) TestBeginBlocker_PruneEmptyState() {
+	// Test that pruning works correctly when there are no processed payments
+
+	// Run BeginBlocker on empty state
+	err := suite.keeper.BeginBlocker(suite.ctx)
+	suite.NoError(err, "BeginBlocker should not error on empty state")
+}
+
+func (suite *ABCITestSuite) TestBeginBlocker_PruneAndWithdrawal() {
+	// Test that both pruning and withdrawal processing work together in the same block
+
+	// Create a test account for withdrawal
+	privKey := secp256k1.GenPrivKey()
+	signerAddr := sdk.AccAddress(privKey.PubKey().Address())
+	signer := signerAddr.String()
+
+	// Deposit to escrow
+	depositAmount := sdk.NewCoin("utia", math.NewInt(1000000))
+	_, err := suite.msgServer.DepositToEscrow(suite.ctx, &types.MsgDepositToEscrow{
+		Signer: signer,
+		Amount: depositAmount,
+	})
+	suite.NoError(err)
+
+	// Request withdrawal
+	withdrawalAmount := sdk.NewCoin("utia", math.NewInt(500000))
+	_, err = suite.msgServer.RequestWithdrawal(suite.ctx, &types.MsgRequestWithdrawal{
+		Signer: signer,
+		Amount: withdrawalAmount,
+	})
+	suite.NoError(err)
+
+	// Create an old processed payment that should be pruned
+	oldPaymentHash := []byte("old-payment-hash")
+	baseTime := suite.ctx.BlockTime()
+	oldPayment := types.ProcessedPayment{
+		PaymentPromiseHash: oldPaymentHash,
+		ProcessedAt:        baseTime.Add(-30 * 24 * time.Hour),
+	}
+	suite.keeper.SetProcessedPayment(suite.ctx, oldPayment)
+
+	// Advance time past withdrawal delay
+	params := suite.keeper.GetParams(suite.ctx)
+	suite.ctx = suite.ctx.WithBlockTime(suite.ctx.BlockTime().Add(params.WithdrawalDelay))
+
+	// Run BeginBlocker - should both process withdrawal and prune payment
+	err = suite.keeper.BeginBlocker(suite.ctx)
+	suite.NoError(err)
+
+	// Verify withdrawal was processed
+	escrowAccount, found := suite.keeper.GetEscrowAccount(suite.ctx, signer)
+	suite.True(found)
+	suite.Equal(depositAmount.Sub(withdrawalAmount), escrowAccount.Balance)
+
+	// Verify old payment was pruned
+	_, found = suite.keeper.GetProcessedPayment(suite.ctx, oldPaymentHash)
+	suite.False(found, "old payment should be pruned")
+}

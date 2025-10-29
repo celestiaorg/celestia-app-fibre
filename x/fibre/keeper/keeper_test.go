@@ -275,7 +275,11 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 	})
 
 	suite.T().Run("keeper should delete processed payment", func(t *testing.T) {
-		suite.keeper.DeleteProcessedPayment(suite.ctx, []byte("test-hash"))
+		want := types.ProcessedPayment{
+			PaymentPromiseHash: []byte("test-hash"),
+			ProcessedAt:        suite.ctx.BlockTime(),
+		}
+		suite.keeper.DeleteProcessedPayment(suite.ctx, want)
 		_, found := suite.keeper.GetProcessedPayment(suite.ctx, []byte("test-hash"))
 		suite.False(found)
 	})

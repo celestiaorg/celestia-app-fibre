@@ -48,3 +48,10 @@ message EventUpdateFibreParams {
   string signer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   Params params = 2 [(gogoproto.nullable) = false];
 }
+
+// EventProcessedPaymentPruned is emitted when a processed payment is pruned
+// due to being outside the retention window.
+message EventProcessedPaymentPruned {
+  bytes payment_promise_hash = 1;
+  google.protobuf.Timestamp processed_at = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+}
