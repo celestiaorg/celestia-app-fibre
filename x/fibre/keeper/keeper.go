@@ -190,7 +190,7 @@ func (k Keeper) ParseWithdrawalsByAvailableKey(key []byte) (available time.Time,
 // GetProcessedPayment retrieves a processed payment by promiseHash
 func (k Keeper) GetProcessedPayment(ctx sdk.Context, promiseHash []byte) (payment types.ProcessedPayment, isFound bool) {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(promiseHash)
+	key := types.ProcessedPaymentsByHashKey(promiseHash)
 	bz := store.Get(key)
 	if bz == nil {
 		return types.ProcessedPayment{}, false
@@ -221,7 +221,7 @@ func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, payment types.ProcessedP
 	store := ctx.KVStore(k.storeKey)
 
 	// Delete from primary index
-	primaryKey := types.PaymentPromiseKey(payment.PaymentPromiseHash)
+	primaryKey := types.ProcessedPaymentsByHashKey(payment.PaymentPromiseHash)
 	store.Delete(primaryKey)
 
 	// Delete from secondary index
@@ -238,14 +238,14 @@ func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.Paymen
 	if err != nil {
 		return false
 	}
-	key := types.PaymentPromiseKey(hash)
+	key := types.ProcessedPaymentsByHashKey(hash)
 	return store.Has(key)
 }
 
 // IsPaymentProcessedByHash returns true if a payment has been processed for the given promise hash.
 func (k Keeper) IsPaymentProcessedByHash(ctx sdk.Context, promiseHash []byte) bool {
 	store := ctx.KVStore(k.storeKey)
-	key := types.PaymentPromiseKey(promiseHash)
+	key := types.ProcessedPaymentsByHashKey(promiseHash)
 	return store.Has(key)
 }
 

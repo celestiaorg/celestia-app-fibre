@@ -23,8 +23,8 @@ var (
 	EscrowAccountKeyPrefix = []byte{0x01}
 	// WithdrawalsBySignerKeyPrefix is the prefix for withdrawal keys indexed by signer
 	WithdrawalsBySignerKeyPrefix = []byte{0x02}
-	// PaymentPromiseKeyPrefix is the prefix for processed payment promise keys
-	PaymentPromiseKeyPrefix = []byte{0x03}
+	// ProcessedPaymentsByHashKeyPrefix is the prefix for processed payment promise keys indexed by hash
+	ProcessedPaymentsByHashKeyPrefix = []byte{0x03}
 	// ParamsKeyPrefix is the prefix for params
 	ParamsKeyPrefix = []byte{0x04}
 	// WithdrawalsByAvailableKeyPrefix is the prefix for withdrawal keys indexed by available time
@@ -51,11 +51,10 @@ func WithdrawalsBySignerPrefix(signer string) []byte {
 	return append(WithdrawalsBySignerKeyPrefix, []byte(signer)...)
 }
 
-// PaymentPromiseKey returns the store key for a payment promise. Note: all
-// payment promises that are stored in the SDK module state have already been
-// processed.
-func PaymentPromiseKey(payment_promise_hash []byte) []byte {
-	return append(PaymentPromiseKeyPrefix, payment_promise_hash...)
+// ProcessedPaymentsByHashKey returns the store key for a processed payment indexed by hash.
+// Note: all payment promises that are stored in the SDK module state have already been processed.
+func ProcessedPaymentsByHashKey(paymentPromiseHash []byte) []byte {
+	return append(ProcessedPaymentsByHashKeyPrefix, paymentPromiseHash...)
 }
 
 // WithdrawalsByAvailableKey returns the store key for a withdrawal indexed by available time
