@@ -34,6 +34,7 @@ message EventPayForFibre {
   string signer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   bytes namespace = 2;
   bytes commitment = 3;
+  uint32 validator_count = 4;
 }
 
 // EventPaymentPromiseTimeout is emitted when a PaymentPromise timeout is processed.

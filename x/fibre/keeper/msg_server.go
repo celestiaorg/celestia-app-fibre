@@ -181,7 +181,7 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	ms.SetProcessedPayment(ctx, processedPayment)
 
 	// Emit event
-	event := types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment)
+	event := types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment, uint32(len(msg.ValidatorSignatures)))
 	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
