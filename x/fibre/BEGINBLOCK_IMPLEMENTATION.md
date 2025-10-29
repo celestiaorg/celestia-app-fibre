@@ -10,12 +10,14 @@ This document describes the implementation of automatic withdrawal processing in
 
 Withdrawals are stored using a dual-index pattern for efficient querying:
 
-**Primary Index: Withdrawals by Signer**
+#### Primary Index: Withdrawals by Signer
+
 - **Key Prefix**: `0x02` (`WithdrawalsBySignerKeyPrefix`)
 - **Key Format**: `0x02/{signer}/{requested_timestamp}`
 - **Purpose**: User queries - "show me my pending withdrawals"
 
-**Secondary Index: Withdrawals by Available Time**
+#### Secondary Index: Withdrawals by Available Time
+
 - **Key Prefix**: `0x05` (`WithdrawalsByAvailableKeyPrefix`)
 - **Key Format**: `0x05/{available_at_timestamp}/{signer}`
 - **Purpose**: BeginBlocker processing - "show me all withdrawals ready to process"
@@ -33,16 +35,20 @@ Modified withdrawal management methods to transparently handle dual-index update
 - `GetWithdrawalsByAvailableIterator(ctx, upToTime)` - Returns an iterator for all withdrawals available up to the given time
 - `ParseWithdrawalsByAvailableKey(key)` - Parses the availability timestamp and signer from a key
 
-**Design Choice**: Both `SetWithdrawal` and `DeleteWithdrawal` use the `AvailableTimestamp` field from the `Withdrawal` struct itself. This makes the API clean and eliminates the possibility of using the wrong timestamp - the withdrawal is self-contained and carries its own availability time.
+#### Design Choice
+
+Both `SetWithdrawal` and `DeleteWithdrawal` use the `AvailableTimestamp` field from the `Withdrawal` struct itself. This makes the API clean and eliminates the possibility of using the wrong timestamp - the withdrawal is self-contained and carries its own availability time.
 
 ### 3. Updated Withdrawal Request (`x/fibre/keeper/msg_server.go`)
 
 Modified `RequestWithdrawal` message handler to:
+
 1. Compute `availableAt` from current `WithdrawalDelay` parameter
 2. Create `Withdrawal` struct with both `RequestedTimestamp` and `AvailableTimestamp` set
 3. Call `SetWithdrawal(ctx, withdrawal)` which stores to both indexes atomically
 
 The single `SetWithdrawal` call ensures atomicity - both indexes are updated together, preventing inconsistencies:
+
 - Primary: `withdrawals_by_signer/{signer}/{requested_timestamp}` → Full `Withdrawal` struct (for user queries)
 - Secondary: `withdrawals_by_available/{available_timestamp}/{signer}` → Full `Withdrawal` struct (for BeginBlocker processing)
 
@@ -65,6 +71,7 @@ func (k Keeper) BeginBlocker(ctx sdk.Context) error {
 ```
 
 The `processAvailableWithdrawals()` function:
+
 1. Gets the current block time
 2. Iterates through the available withdrawal index up to current time
 3. For each available withdrawal:
