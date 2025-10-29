@@ -324,6 +324,21 @@ func TestPaymentPromiseValidateBasic(t *testing.T) {
 			},
 			wantErr: sdkerrors.ErrInvalidRequest,
 		},
+		{
+			name: "zero creation timestamp",
+			msg: PaymentPromise{
+				SignerPublicKey:   signerPublicKey,
+				Namespace:         namespace,
+				BlobSize:          blobSize,
+				Commitment:        commitment,
+				BlobVersion:       blobVersion,
+				CreationTimestamp: time.Time{}, // zero time
+				Signature:         signature,
+				Height:            height,
+				ChainId:           chainId,
+			},
+			wantErr: sdkerrors.ErrInvalidRequest,
+		},
 	}
 
 	for _, tc := range testCases {

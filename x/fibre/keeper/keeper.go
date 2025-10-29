@@ -310,13 +310,32 @@ func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Ti
 
 // ValidatePaymentPromiseStateful performs stateful validation of a payment promise.
 // It checks:
-// 1. The payment promise has not already been processed
-// 2. The escrow account exists for the signer
-// 3. The escrow account has sufficient available balance
+// 1. The creation_timestamp is within valid bounds
+// 2. The payment promise has not already been processed
+// 3. The escrow account exists for the signer
+// 4. The escrow account has sufficient available balance
 //
 // This method does NOT perform stateless validation.
 // Callers should perform stateless validation separately via pp.Validate().
 func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) error {
+	// Validate creation_timestamp bounds
+	// Spec requirement: creation_timestamp <= current confirmed timestamp
+	// and creation_timestamp > (header_timestamp - withdrawal_delay)
+	params := k.GetParams(ctx)
+	currentTime := ctx.BlockTime()
+	creationTime := promise.CreationTimestamp
+
+	// Check creation_timestamp is not in the future
+	if creationTime.After(currentTime) {
+		return fmt.Errorf("creation_timestamp %v is greater than current timestamp %v", creationTime, currentTime)
+	}
+
+	// Check creation_timestamp is not too old (must be greater than header_timestamp - withdrawal_delay)
+	minAllowedTime := currentTime.Add(-params.WithdrawalDelay)
+	if !creationTime.After(minAllowedTime) {
+		return fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
+	}
+
 	// Check if payment promise has already been processed
 	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
 		return fmt.Errorf("payment promise has already been processed")
@@ -331,7 +350,6 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 	}
 
 	// Check sufficient available balance
-	params := k.GetParams(ctx)
 	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
 
 	// TODO: This assumes 1 gas = 1 utia but the minimum gas price could be

@@ -462,6 +462,41 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 	})
 }
 
+func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
+	suite.T().Run("payment promise with future creation timestamp should be rejected", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		// Set creation timestamp to the future
+		paymentPromise.CreationTimestamp = suite.ctx.BlockTime().Add(1 * time.Hour)
+
+		// Validate should fail because creation timestamp is in the future
+		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "creation_timestamp")
+		suite.Contains(err.Error(), "greater than current timestamp")
+	})
+
+	suite.T().Run("payment promise with timestamp before withdrawal delay should be rejected", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		params := suite.keeper.GetParams(suite.ctx)
+		currentTime := suite.ctx.BlockTime()
+
+		// Set creation timestamp to be older than (currentTime - withdrawalDelay)
+		// This means it's too old and should be rejected
+		paymentPromise.CreationTimestamp = currentTime.Add(-params.WithdrawalDelay).Add(-1 * time.Second)
+
+		// Validate should fail because creation timestamp is too old
+		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "creation_timestamp")
+		suite.Contains(err.Error(), "must be greater than")
+		suite.Contains(err.Error(), "current_time - withdrawal_delay")
+	})
+}
+
 // createPaymentPromise creates a properly signed and valid payment promise for testing
 func (suite *KeeperTestSuite) createPaymentPromise() types.PaymentPromise {
 	privKey := secp256k1.GenPrivKey()
