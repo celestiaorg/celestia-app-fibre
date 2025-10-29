@@ -296,7 +296,7 @@ func (suite *ABCITestSuite) TestBeginBlocker_WithdrawalDelayParamChange() {
 	suite.keeper.SetParams(suite.ctx, params)
 
 	// Advance time to original availableAt (T + 24h)
-	// The withdrawal should still be processed because we stored the actual RequestedTimestamp
+	// The withdrawal should still be processed because we stored the actual AvailableTimestamp
 	suite.ctx = suite.ctx.WithBlockTime(requestTime.Add(originalDelay))
 
 	// Run BeginBlocker - should process withdrawal even though current delay is 48h
