@@ -50,7 +50,7 @@ message EventUpdateFibreParams {
 }
 
 // EventProcessedPaymentPruned is emitted when a processed payment is pruned
-// due to being outside the retention window.
+// from the state machine due to being outside the retention window.
 message EventProcessedPaymentPruned {
   bytes payment_promise_hash = 1;
   google.protobuf.Timestamp processed_at = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];

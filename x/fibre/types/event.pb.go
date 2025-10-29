@@ -380,7 +380,7 @@ func (m *EventUpdateFibreParams) GetParams() Params {
 }
 
 // EventProcessedPaymentPruned is emitted when a processed payment is pruned
-// due to being outside the retention window.
+// from the state machine due to being outside the retention window.
 type EventProcessedPaymentPruned struct {
 	PaymentPromiseHash []byte    `protobuf:"bytes,1,opt,name=payment_promise_hash,json=paymentPromiseHash,proto3" json:"payment_promise_hash,omitempty"`
 	ProcessedAt        time.Time `protobuf:"bytes,2,opt,name=processed_at,json=processedAt,proto3,stdtime" json:"processed_at"`
