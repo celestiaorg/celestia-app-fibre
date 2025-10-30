@@ -5,29 +5,44 @@ option go_package = "github.com/celestiaorg/celestia-app/x/fibre/types";
 
 import "celestia/fibre/v1/fibre.proto";
 
+// Row represents a row of data in a Fibre blob.
 message Row {
   uint32 index = 1;
   bytes data = 2;
   repeated bytes proof = 3;
-  optional bytes rlc_root = 4; // const len == 32 when present
 }
 
+// Rows represents a collection of rows in a Fibre blob.
+// With two ways of proving data correctness:
+// 1. Using RLC coefficients when there is not enough rows to reconstruct the data blob. (Upload case)
+// 2. Using a Merkle root of RLC tree, when there is sufficient rows to reconstruct the data blob. (Download case)
+message Rows {
+  repeated Row rows = 1;
+  oneof rlc {
+    bytes coefficients = 2; // flattened rlc coefficients, 16 bytes per original row
+    bytes root = 3; // const len == 32 when present
+  }
+}
+
+// UploadRowsRequest is the request message for the UploadRows RPC method.
 message UploadRowsRequest {
   celestia.fibre.v1.PaymentPromise promise = 1;
-  repeated Row rows = 2;
-  repeated bytes rlc_orig = 3; // each const len == 16
+  Rows rows = 2; // with rlc coefficients
 }
 
+// UploadRowsResponse is the response message for the UploadRows RPC method.
 message UploadRowsResponse {
   bytes validator_signature = 1; // const len == 32
 }
 
+// DownloadRowsRequest is the request message for the DownloadRows RPC method.
 message DownloadRowsRequest {
   bytes commitment = 1; // const len == 32
 }
 
+// DownloadRowsResponse is the response message for the DownloadRows RPC method.
 message DownloadRowsResponse {
-  repeated Row rows = 1;
+  Rows rows = 1; // with rlc root
 }
 
 service Fibre {
