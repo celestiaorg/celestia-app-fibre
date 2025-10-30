@@ -143,12 +143,12 @@ func (s *IntegrationTestSuite) TestGetHostWithRegistration() {
 	t.Logf("Transaction submitted successfully. TxHash: %s, Height: %d", txResp.TxHash, txResp.Height)
 
 	host, err = s.hostRegistry.GetHost(s.cctx.GoContext(), s.validator)
-	require.NoError(t, err, "PullHost should now succeed")
+	require.NoError(t, err)
 	require.NotEmpty(t, host.String())
 	require.Equal(t, testHost, host.String(), "host should match what we registered")
 
 	host, err = s.hostRegistry.PullHost(s.cctx.GoContext(), s.validator)
-	require.NoError(t, err, "PullHost should now succeed")
+	require.NoError(t, err)
 	require.NotEmpty(t, host.String())
 	require.Equal(t, testHost2, host.String(), "host should match what we registered")
 }
