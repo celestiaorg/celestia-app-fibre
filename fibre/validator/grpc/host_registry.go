@@ -16,7 +16,7 @@ var _ validator.HostRegistry = &HostRegistry{}
 // It uses the [types.QueryClient] to query the fibre provider information for validators in the active set.
 type HostRegistry struct {
 	types.QueryClient
-	cachedHosts map[string]validator.Host
+	cachedHosts map[string]validator.Host //
 }
 
 func NewHostRegistry(queryClient types.QueryClient) *HostRegistry {
@@ -27,13 +27,20 @@ func NewHostRegistry(queryClient types.QueryClient) *HostRegistry {
 }
 
 func (g *HostRegistry) GetHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
-	addr := val.Address.String()
+	valConAddr := sdk.ConsAddress(val.Address.Bytes()).String()
+	// check the cache first
+	if host, ok := g.cachedHosts[valConAddr]; ok {
+		return host, nil
+	}
+
 	// if the cache is empty, fetch all active fibre providers
 	if len(g.cachedHosts) == 0 {
 		g.PullAll(ctx)
-	}
-	if host, ok := g.cachedHosts[addr]; ok {
-		return host, nil
+		if host, ok := g.cachedHosts[valConAddr]; ok {
+			return host, nil
+		} else {
+			return "", fmt.Errorf("host not found for validator %s", valConAddr)
+		}
 	}
 
 	// look up the specific validator's host if it's missing from the cache. It might have
@@ -43,7 +50,7 @@ func (g *HostRegistry) GetHost(ctx context.Context, val *core.Validator) (valida
 
 // PullAll pulls all active fibre providers from the query client and caches them, overwriting any existing cached hosts.
 func (g *HostRegistry) PullAll(ctx context.Context) error {
-	resp, err := g.QueryClient.AllActiveFibreProviders(ctx, &types.QueryAllActiveFibreProvidersRequest{})
+	resp, err := g.QueryClient.AllFibreProviders(ctx, &types.QueryAllFibreProvidersRequest{})
 	if err != nil {
 		return err
 	}
