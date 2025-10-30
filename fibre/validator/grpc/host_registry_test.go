@@ -7,11 +7,13 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator/grpc"
+	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
 	"github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
 	core "github.com/cometbft/cometbft/types"
 	cmtservice "github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -29,6 +31,7 @@ type IntegrationTestSuite struct {
 	ecfg         encoding.Config
 	cctx         testnode.Context
 	hostRegistry *grpc.HostRegistry
+	validator    *core.Validator
 }
 
 func (s *IntegrationTestSuite) SetupSuite() {
@@ -41,10 +44,6 @@ func (s *IntegrationTestSuite) SetupSuite() {
 	s.ecfg = encoding.MakeConfig(app.ModuleEncodingRegisters...)
 
 	s.hostRegistry = grpc.NewHostRegistry(types.NewQueryClient(s.cctx.GRPCClient))
-}
-
-func (s *IntegrationTestSuite) TestGetHost() {
-	t := s.T()
 
 	// Wait for at least one block to be produced before querying
 	_, err := s.cctx.WaitForHeight(1)
@@ -55,37 +54,28 @@ func (s *IntegrationTestSuite) TestGetHost() {
 	valSetResp, err := tmserviceClient.GetLatestValidatorSet(s.cctx.GoContext(), &cmtservice.GetLatestValidatorSetRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, valSetResp)
-	require.NotEmpty(t, valSetResp.Validators, "validator set should not be empty")
+	require.Len(t, valSetResp.Validators, 1, "validator set should have one validator")
+	cmtVal := valSetResp.Validators[0]
 
-	// Test GetHost for each validator in the set
-	// In a fresh testnode, validators won't have fibre provider info registered yet,
-	// so we expect GetHost to return an error for each validator
-	for i, cmtVal := range valSetResp.Validators {
-		// Convert cmtservice.Validator address (Bech32 string) to core.Validator
-		// The address is in Bech32 format (e.g., celestiavalcons...)
-		consAddr, err := sdk.ConsAddressFromBech32(cmtVal.Address)
-		require.NoError(t, err, "failed to decode validator consensus address for validator %d", i)
-
-		// Create a core.Validator with the address
-		coreVal := &core.Validator{
-			Address:     consAddr.Bytes(),
-			VotingPower: cmtVal.VotingPower,
-		}
-
-		// Get the host for this validator
-		// In a fresh testnode, validators won't have fibre provider info registered,
-		// so we expect an error here
-		host, err := s.hostRegistry.GetHost(s.cctx.GoContext(), coreVal)
-		if err != nil {
-			// Expected error: host not found for validator
-			require.ErrorContains(t, err, "host not found for validator")
-			t.Logf("Validator %d with address %s does not have fibre provider info registered (expected)", i, cmtVal.Address)
-		} else {
-			// If host is found (e.g., if fibre provider info was registered), verify it's not empty
-			require.NotEmpty(t, host.String(), "host should not be empty for validator %d", i)
-			t.Logf("Validator %d with address %s has host: %s", i, cmtVal.Address, host.String())
-		}
+	// Convert cmtservice.Validator address (Bech32 string) to core.Validator
+	// The address is in Bech32 format (e.g., celestiavalcons...)
+	consAddr, err := sdk.ConsAddressFromBech32(cmtVal.Address)
+	require.NoError(t, err, "failed to decode validator consensus address")
+	s.validator = &core.Validator{
+		Address:     consAddr.Bytes(), // this matches PrivateKey().PubKey().Address().Bytes()
+		VotingPower: cmtVal.VotingPower,
 	}
+}
+
+func (s *IntegrationTestSuite) TestGetHostEmpty() {
+	t := s.T()
+
+	// Get the host for this validator
+	// In a fresh testnode, validators won't have fibre provider info registered,
+	// so we expect an error here
+	host, err := s.hostRegistry.GetHost(s.cctx.GoContext(), s.validator)
+	require.Error(t, err)
+	require.Empty(t, host.String())
 
 	// Now try with a fake validator (not in state), should error
 	fakeAddr := make([]byte, 20) // Standard address length
@@ -98,4 +88,67 @@ func (s *IntegrationTestSuite) TestGetHost() {
 	}
 	_, err = s.hostRegistry.GetHost(s.cctx.GoContext(), fakeVal)
 	require.Error(t, err, "should error when getting host for non-existent validator")
+}
+
+func (s *IntegrationTestSuite) TestGetHostWithRegistration() {
+	t := s.T()
+
+	// Wait for at least one block to be produced before querying
+	_, err := s.cctx.WaitForHeight(1)
+	require.NoError(t, err, "failed to wait for first block")
+
+	// Get the validator's operator address from the staking module
+	// Since we only have one validator in testnode, we can just use that one
+	stakingClient := stakingtypes.NewQueryClient(s.cctx.GRPCClient)
+	validatorsResp, err := stakingClient.Validators(s.cctx.GoContext(), &stakingtypes.QueryValidatorsRequest{})
+	require.NoError(t, err)
+	require.NotEmpty(t, validatorsResp.Validators, "staking validators should not be empty")
+
+	// In a single validator testnode, just use the first (and only) validator
+	valOperatorAddr := validatorsResp.Validators[0].OperatorAddress
+	t.Logf("Using validator operator address: %s for consensus address: %s", valOperatorAddr, s.validator.Address.String())
+
+	// Create a TxClient to submit the transaction
+	txClient, err := testnode.NewTxClientFromContext(s.cctx)
+	require.NoError(t, err, "failed to create tx client")
+
+	// Create and submit MsgSetFibreProviderInfo
+	testHost := "validator.example.com:8080"
+	msg := &types.MsgSetFibreProviderInfo{
+		Signer: valOperatorAddr,
+		Host:   testHost,
+	}
+
+	// Submit the transaction
+	txResp, err := txClient.SubmitTx(s.cctx.GoContext(), []sdk.Msg{msg}, user.SetGasLimit(200000), user.SetFee(5000))
+	require.NoError(t, err, "failed to submit transaction")
+	require.Equal(t, uint32(0), txResp.Code, "transaction failed with code %d", txResp.Code)
+	t.Logf("Transaction submitted successfully. TxHash: %s, Height: %d", txResp.TxHash, txResp.Height)
+
+	host, err := s.hostRegistry.GetHost(s.cctx.GoContext(), s.validator)
+	require.NoError(t, err, "GetHost should now succeed")
+	require.NotEmpty(t, host.String())
+	require.Equal(t, testHost, host.String(), "host should match what we registered")
+
+	// Submit another transaction to update the host
+	testHost2 := "validator.example.com:8081"
+	msg = &types.MsgSetFibreProviderInfo{
+		Signer: valOperatorAddr,
+		Host:   testHost2,
+	}
+
+	txResp, err = txClient.SubmitTx(s.cctx.GoContext(), []sdk.Msg{msg}, user.SetGasLimit(200000), user.SetFee(5000))
+	require.NoError(t, err, "failed to submit transaction")
+	require.Equal(t, uint32(0), txResp.Code, "transaction failed with code %d", txResp.Code)
+	t.Logf("Transaction submitted successfully. TxHash: %s, Height: %d", txResp.TxHash, txResp.Height)
+
+	host, err = s.hostRegistry.GetHost(s.cctx.GoContext(), s.validator)
+	require.NoError(t, err, "PullHost should now succeed")
+	require.NotEmpty(t, host.String())
+	require.Equal(t, testHost, host.String(), "host should match what we registered")
+
+	host, err = s.hostRegistry.PullHost(s.cctx.GoContext(), s.validator)
+	require.NoError(t, err, "PullHost should now succeed")
+	require.NotEmpty(t, host.String())
+	require.Equal(t, testHost2, host.String(), "host should match what we registered")
 }
