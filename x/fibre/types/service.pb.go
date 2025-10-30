@@ -31,9 +31,6 @@ type Row struct {
 	Index uint32   `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
 	Data  []byte   `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	Proof [][]byte `protobuf:"bytes,3,rep,name=proof,proto3" json:"proof,omitempty"`
-	// Types that are valid to be assigned to XRlcRoot:
-	//	*Row_RlcRoot
-	XRlcRoot isRow_XRlcRoot `protobuf_oneof:"_rlc_root"`
 }
 
 func (m *Row) Reset()         { *m = Row{} }
@@ -69,25 +66,6 @@ func (m *Row) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Row proto.InternalMessageInfo
 
-type isRow_XRlcRoot interface {
-	isRow_XRlcRoot()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type Row_RlcRoot struct {
-	RlcRoot []byte `protobuf:"bytes,4,opt,name=rlc_root,json=rlcRoot,proto3,oneof" json:"rlc_root,omitempty"`
-}
-
-func (*Row_RlcRoot) isRow_XRlcRoot() {}
-
-func (m *Row) GetXRlcRoot() isRow_XRlcRoot {
-	if m != nil {
-		return m.XRlcRoot
-	}
-	return nil
-}
-
 func (m *Row) GetIndex() uint32 {
 	if m != nil {
 		return m.Index
@@ -109,31 +87,109 @@ func (m *Row) GetProof() [][]byte {
 	return nil
 }
 
-func (m *Row) GetRlcRoot() []byte {
-	if x, ok := m.GetXRlcRoot().(*Row_RlcRoot); ok {
-		return x.RlcRoot
+type Rows struct {
+	Rows []*Row `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	// Types that are valid to be assigned to Rlc:
+	//	*Rows_Coefficients
+	//	*Rows_Root
+	Rlc isRows_Rlc `protobuf_oneof:"rlc"`
+}
+
+func (m *Rows) Reset()         { *m = Rows{} }
+func (m *Rows) String() string { return proto.CompactTextString(m) }
+func (*Rows) ProtoMessage()    {}
+func (*Rows) Descriptor() ([]byte, []int) {
+	return fileDescriptor_15ef7a812f3b6799, []int{1}
+}
+func (m *Rows) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Rows) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Rows.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *Rows) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Rows.Merge(m, src)
+}
+func (m *Rows) XXX_Size() int {
+	return m.Size()
+}
+func (m *Rows) XXX_DiscardUnknown() {
+	xxx_messageInfo_Rows.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Rows proto.InternalMessageInfo
+
+type isRows_Rlc interface {
+	isRows_Rlc()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type Rows_Coefficients struct {
+	Coefficients []byte `protobuf:"bytes,2,opt,name=coefficients,proto3,oneof" json:"coefficients,omitempty"`
+}
+type Rows_Root struct {
+	Root []byte `protobuf:"bytes,3,opt,name=root,proto3,oneof" json:"root,omitempty"`
+}
+
+func (*Rows_Coefficients) isRows_Rlc() {}
+func (*Rows_Root) isRows_Rlc()         {}
+
+func (m *Rows) GetRlc() isRows_Rlc {
+	if m != nil {
+		return m.Rlc
+	}
+	return nil
+}
+
+func (m *Rows) GetRows() []*Row {
+	if m != nil {
+		return m.Rows
+	}
+	return nil
+}
+
+func (m *Rows) GetCoefficients() []byte {
+	if x, ok := m.GetRlc().(*Rows_Coefficients); ok {
+		return x.Coefficients
+	}
+	return nil
+}
+
+func (m *Rows) GetRoot() []byte {
+	if x, ok := m.GetRlc().(*Rows_Root); ok {
+		return x.Root
 	}
 	return nil
 }
 
 // XXX_OneofWrappers is for the internal use of the proto package.
-func (*Row) XXX_OneofWrappers() []interface{} {
+func (*Rows) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*Row_RlcRoot)(nil),
+		(*Rows_Coefficients)(nil),
+		(*Rows_Root)(nil),
 	}
 }
 
 type UploadRowsRequest struct {
 	Promise *PaymentPromise `protobuf:"bytes,1,opt,name=promise,proto3" json:"promise,omitempty"`
-	Rows    []*Row          `protobuf:"bytes,2,rep,name=rows,proto3" json:"rows,omitempty"`
-	RlcOrig [][]byte        `protobuf:"bytes,3,rep,name=rlc_orig,json=rlcOrig,proto3" json:"rlc_orig,omitempty"`
+	Rows    *Rows           `protobuf:"bytes,2,opt,name=rows,proto3" json:"rows,omitempty"`
 }
 
 func (m *UploadRowsRequest) Reset()         { *m = UploadRowsRequest{} }
 func (m *UploadRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*UploadRowsRequest) ProtoMessage()    {}
 func (*UploadRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_15ef7a812f3b6799, []int{1}
+	return fileDescriptor_15ef7a812f3b6799, []int{2}
 }
 func (m *UploadRowsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -169,16 +225,9 @@ func (m *UploadRowsRequest) GetPromise() *PaymentPromise {
 	return nil
 }
 
-func (m *UploadRowsRequest) GetRows() []*Row {
+func (m *UploadRowsRequest) GetRows() *Rows {
 	if m != nil {
 		return m.Rows
-	}
-	return nil
-}
-
-func (m *UploadRowsRequest) GetRlcOrig() [][]byte {
-	if m != nil {
-		return m.RlcOrig
 	}
 	return nil
 }
@@ -191,7 +240,7 @@ func (m *UploadRowsResponse) Reset()         { *m = UploadRowsResponse{} }
 func (m *UploadRowsResponse) String() string { return proto.CompactTextString(m) }
 func (*UploadRowsResponse) ProtoMessage()    {}
 func (*UploadRowsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_15ef7a812f3b6799, []int{2}
+	return fileDescriptor_15ef7a812f3b6799, []int{3}
 }
 func (m *UploadRowsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -235,7 +284,7 @@ func (m *DownloadRowsRequest) Reset()         { *m = DownloadRowsRequest{} }
 func (m *DownloadRowsRequest) String() string { return proto.CompactTextString(m) }
 func (*DownloadRowsRequest) ProtoMessage()    {}
 func (*DownloadRowsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_15ef7a812f3b6799, []int{3}
+	return fileDescriptor_15ef7a812f3b6799, []int{4}
 }
 func (m *DownloadRowsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -272,14 +321,14 @@ func (m *DownloadRowsRequest) GetCommitment() []byte {
 }
 
 type DownloadRowsResponse struct {
-	Rows []*Row `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+	Rows *Rows `protobuf:"bytes,1,opt,name=rows,proto3" json:"rows,omitempty"`
 }
 
 func (m *DownloadRowsResponse) Reset()         { *m = DownloadRowsResponse{} }
 func (m *DownloadRowsResponse) String() string { return proto.CompactTextString(m) }
 func (*DownloadRowsResponse) ProtoMessage()    {}
 func (*DownloadRowsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_15ef7a812f3b6799, []int{4}
+	return fileDescriptor_15ef7a812f3b6799, []int{5}
 }
 func (m *DownloadRowsResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -308,7 +357,7 @@ func (m *DownloadRowsResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DownloadRowsResponse proto.InternalMessageInfo
 
-func (m *DownloadRowsResponse) GetRows() []*Row {
+func (m *DownloadRowsResponse) GetRows() *Rows {
 	if m != nil {
 		return m.Rows
 	}
@@ -317,6 +366,7 @@ func (m *DownloadRowsResponse) GetRows() []*Row {
 
 func init() {
 	proto.RegisterType((*Row)(nil), "celestia.fibre.v1.Row")
+	proto.RegisterType((*Rows)(nil), "celestia.fibre.v1.Rows")
 	proto.RegisterType((*UploadRowsRequest)(nil), "celestia.fibre.v1.UploadRowsRequest")
 	proto.RegisterType((*UploadRowsResponse)(nil), "celestia.fibre.v1.UploadRowsResponse")
 	proto.RegisterType((*DownloadRowsRequest)(nil), "celestia.fibre.v1.DownloadRowsRequest")
@@ -326,35 +376,35 @@ func init() {
 func init() { proto.RegisterFile("celestia/fibre/v1/service.proto", fileDescriptor_15ef7a812f3b6799) }
 
 var fileDescriptor_15ef7a812f3b6799 = []byte{
-	// 441 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x92, 0xbf, 0x8e, 0xd3, 0x40,
-	0x10, 0xc6, 0xb3, 0x97, 0x1c, 0x07, 0x93, 0x50, 0xdc, 0xde, 0x09, 0x99, 0x48, 0x98, 0x60, 0xf1,
-	0x27, 0x42, 0xc2, 0x56, 0x82, 0xa8, 0xe8, 0x22, 0x40, 0x48, 0x14, 0x9c, 0x16, 0x51, 0x40, 0x13,
-	0x6d, 0x9c, 0x3d, 0xb3, 0x92, 0xed, 0x59, 0x76, 0x37, 0xf1, 0xdd, 0x1b, 0x50, 0xd2, 0xf1, 0x40,
-	0x34, 0x94, 0x57, 0x52, 0xa2, 0xe4, 0x45, 0x90, 0xff, 0x85, 0x70, 0xb1, 0x94, 0x6e, 0x77, 0xe6,
-	0xf7, 0x79, 0xbe, 0xcf, 0x3b, 0x70, 0x3f, 0x14, 0xb1, 0x30, 0x56, 0xf2, 0xe0, 0x5c, 0xce, 0xb4,
-	0x08, 0x96, 0xa3, 0xc0, 0x08, 0xbd, 0x94, 0xa1, 0xf0, 0x95, 0x46, 0x8b, 0xf4, 0xb8, 0x06, 0xfc,
-	0x02, 0xf0, 0x97, 0xa3, 0xfe, 0xbd, 0x5d, 0x4d, 0xd9, 0x2b, 0x14, 0x9e, 0x86, 0x36, 0xc3, 0x8c,
-	0x9e, 0xc2, 0xa1, 0x4c, 0xe7, 0xe2, 0xc2, 0x21, 0x03, 0x32, 0xbc, 0xcd, 0xca, 0x0b, 0xa5, 0xd0,
-	0x99, 0x73, 0xcb, 0x9d, 0x83, 0x01, 0x19, 0xf6, 0x58, 0x71, 0xce, 0x49, 0xa5, 0x11, 0xcf, 0x9d,
-	0xf6, 0xa0, 0x3d, 0xec, 0xb1, 0xf2, 0x42, 0x5d, 0xb8, 0xa9, 0xe3, 0x70, 0xaa, 0x11, 0xad, 0xd3,
-	0xc9, 0xe9, 0xb7, 0x2d, 0x76, 0xa4, 0xe3, 0x90, 0x21, 0xda, 0x6f, 0x84, 0x4c, 0xba, 0x70, 0x6b,
-	0x5a, 0x03, 0xde, 0x0f, 0x02, 0xc7, 0x1f, 0x55, 0x8c, 0x7c, 0xce, 0x30, 0x33, 0x4c, 0x7c, 0x5d,
-	0x08, 0x63, 0xe9, 0x4b, 0x38, 0x52, 0x1a, 0x13, 0x69, 0x44, 0x61, 0xa2, 0x3b, 0x7e, 0xe0, 0xef,
-	0xa4, 0xf1, 0xcf, 0xf8, 0x65, 0x22, 0x52, 0x7b, 0x56, 0x82, 0xac, 0x56, 0xd0, 0xa7, 0xd0, 0xd1,
-	0x98, 0x19, 0xe7, 0x60, 0xd0, 0x1e, 0x76, 0xc7, 0x77, 0x1a, 0x94, 0x0c, 0x33, 0x56, 0x30, 0xf4,
-	0x6e, 0xe9, 0x15, 0xb5, 0x8c, 0xaa, 0x10, 0xb9, 0xd3, 0xf7, 0x5a, 0x46, 0xde, 0x6b, 0xa0, 0xdb,
-	0xc6, 0x8c, 0xc2, 0xd4, 0x08, 0x1a, 0xc0, 0xc9, 0x92, 0xc7, 0x72, 0xce, 0x2d, 0xea, 0xa9, 0x91,
-	0x51, 0xca, 0xed, 0x42, 0x97, 0x2e, 0x7b, 0x8c, 0x6e, 0x5a, 0x1f, 0xea, 0x8e, 0xf7, 0x02, 0x4e,
-	0x5e, 0x61, 0x96, 0x5e, 0x4f, 0xe8, 0x02, 0x84, 0x98, 0x24, 0xd2, 0xe6, 0x11, 0x2a, 0xf9, 0x56,
-	0xc5, 0x9b, 0xc0, 0xe9, 0xff, 0xb2, 0x6a, 0x7e, 0x1d, 0x8e, 0xec, 0x0f, 0x37, 0xfe, 0x49, 0xe0,
-	0xf0, 0x4d, 0x5e, 0xa6, 0x9f, 0x00, 0xfe, 0x65, 0xa1, 0x0f, 0x1b, 0x54, 0x3b, 0x6f, 0xd0, 0x7f,
-	0xb4, 0x87, 0xaa, 0x0c, 0x4d, 0xa1, 0xb7, 0x6d, 0x94, 0x3e, 0x6e, 0x90, 0x35, 0xfc, 0x80, 0xfe,
-	0x93, 0xbd, 0x5c, 0x39, 0x60, 0xf2, 0xee, 0xd7, 0xca, 0x25, 0x57, 0x2b, 0x97, 0xfc, 0x59, 0xb9,
-	0xe4, 0xfb, 0xda, 0x6d, 0x5d, 0xad, 0xdd, 0xd6, 0xef, 0xb5, 0xdb, 0xfa, 0x3c, 0x8a, 0xa4, 0xfd,
-	0xb2, 0x98, 0xf9, 0x21, 0x26, 0x41, 0xfd, 0x31, 0xd4, 0xd1, 0xe6, 0xfc, 0x8c, 0x2b, 0x15, 0x5c,
-	0x54, 0xbb, 0x6e, 0x2f, 0x95, 0x30, 0xb3, 0x1b, 0xc5, 0xa6, 0x3f, 0xff, 0x1b, 0x00, 0x00, 0xff,
-	0xff, 0x1a, 0xd3, 0x9e, 0x14, 0x3e, 0x03, 0x00, 0x00,
+	// 448 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x53, 0x41, 0x6f, 0xd3, 0x30,
+	0x14, 0x6e, 0x96, 0x16, 0xa4, 0xb7, 0x70, 0x98, 0x57, 0x41, 0x54, 0x89, 0x50, 0xa2, 0x01, 0x15,
+	0x13, 0x89, 0x5a, 0xc4, 0x89, 0xdb, 0x60, 0x08, 0x89, 0xcb, 0x64, 0xc4, 0x01, 0x2e, 0x93, 0x9b,
+	0xba, 0xc5, 0x52, 0x93, 0x17, 0x6c, 0xb7, 0xd9, 0x0e, 0xfc, 0x07, 0xfe, 0x13, 0x17, 0x8e, 0x3b,
+	0x72, 0x44, 0xed, 0x1f, 0x41, 0xb1, 0x93, 0xd2, 0xd1, 0x48, 0xbd, 0xf9, 0xbd, 0xf7, 0x7d, 0xfe,
+	0xbe, 0xcf, 0xd6, 0x83, 0x47, 0x09, 0x9f, 0x73, 0xa5, 0x05, 0x8b, 0xa7, 0x62, 0x2c, 0x79, 0xbc,
+	0x1c, 0xc6, 0x8a, 0xcb, 0xa5, 0x48, 0x78, 0x94, 0x4b, 0xd4, 0x48, 0x8e, 0x6a, 0x40, 0x64, 0x00,
+	0xd1, 0x72, 0xd8, 0x7b, 0xb8, 0xcb, 0xb1, 0x33, 0xc3, 0x08, 0xcf, 0xc1, 0xa5, 0x58, 0x90, 0x2e,
+	0x74, 0x44, 0x36, 0xe1, 0x57, 0xbe, 0xd3, 0x77, 0x06, 0xf7, 0xa8, 0x2d, 0x08, 0x81, 0xf6, 0x84,
+	0x69, 0xe6, 0x1f, 0xf4, 0x9d, 0x81, 0x47, 0xcd, 0xb9, 0x44, 0xe6, 0x12, 0x71, 0xea, 0xbb, 0x7d,
+	0x77, 0xe0, 0x51, 0x5b, 0x84, 0x0b, 0x68, 0x53, 0x2c, 0x14, 0x79, 0x0e, 0x6d, 0x89, 0x85, 0xf2,
+	0x9d, 0xbe, 0x3b, 0x38, 0x1c, 0xdd, 0x8f, 0x76, 0xfc, 0x44, 0x14, 0x0b, 0x6a, 0x30, 0xe4, 0x04,
+	0xbc, 0x04, 0xf9, 0x74, 0x2a, 0x12, 0xc1, 0x33, 0xad, 0xac, 0xca, 0xfb, 0x16, 0xbd, 0xd5, 0x25,
+	0xdd, 0xf2, 0x46, 0xd4, 0xbe, 0x5b, 0x4d, 0x4d, 0x75, 0xd6, 0x01, 0x57, 0xce, 0x93, 0xf0, 0x3b,
+	0x1c, 0x7d, 0xca, 0xe7, 0xc8, 0x26, 0xa5, 0x38, 0xe5, 0xdf, 0x16, 0x5c, 0x69, 0xf2, 0x1a, 0xee,
+	0xe6, 0x12, 0x53, 0xa1, 0xb8, 0x49, 0x73, 0x38, 0x7a, 0xdc, 0x60, 0xe3, 0x82, 0x5d, 0xa7, 0x3c,
+	0xd3, 0x17, 0x16, 0x48, 0x6b, 0x06, 0x39, 0xad, 0x02, 0x1c, 0x18, 0xe6, 0x83, 0xe6, 0x00, 0xca,
+	0x26, 0x08, 0xcf, 0x81, 0x6c, 0xcb, 0xab, 0x1c, 0x33, 0xc5, 0x49, 0x0c, 0xc7, 0x4b, 0x36, 0x17,
+	0x13, 0xa6, 0x51, 0x5e, 0x2a, 0x31, 0xcb, 0x98, 0x5e, 0x48, 0xeb, 0xc5, 0xa3, 0x64, 0x33, 0xfa,
+	0x58, 0x4f, 0xc2, 0x57, 0x70, 0xfc, 0x16, 0x8b, 0xec, 0xff, 0x1c, 0x01, 0x40, 0x82, 0x69, 0x2a,
+	0x74, 0x69, 0xb4, 0xa2, 0x6f, 0x75, 0xc2, 0x37, 0xd0, 0xbd, 0x4d, 0xab, 0xf4, 0x4f, 0x37, 0x7f,
+	0xb0, 0x3f, 0xc2, 0xe8, 0xa7, 0x03, 0x9d, 0x77, 0x65, 0x9f, 0x7c, 0x06, 0xf8, 0x17, 0x86, 0x9c,
+	0x34, 0xd0, 0x76, 0x9e, 0xba, 0xf7, 0x64, 0x0f, 0xaa, 0x72, 0x74, 0x09, 0xde, 0xb6, 0x53, 0xf2,
+	0xb4, 0x81, 0xd6, 0xf0, 0x02, 0xbd, 0x67, 0x7b, 0x71, 0x56, 0xe0, 0xec, 0xc3, 0xaf, 0x55, 0xe0,
+	0xdc, 0xac, 0x02, 0xe7, 0xcf, 0x2a, 0x70, 0x7e, 0xac, 0x83, 0xd6, 0xcd, 0x3a, 0x68, 0xfd, 0x5e,
+	0x07, 0xad, 0x2f, 0xc3, 0x99, 0xd0, 0x5f, 0x17, 0xe3, 0x28, 0xc1, 0x34, 0xae, 0x2f, 0x43, 0x39,
+	0xdb, 0x9c, 0x5f, 0xb0, 0x3c, 0x8f, 0xaf, 0xaa, 0xdd, 0xd0, 0xd7, 0x39, 0x57, 0xe3, 0x3b, 0x66,
+	0x33, 0x5e, 0xfe, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x43, 0x7d, 0x6c, 0x7f, 0x6e, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -494,15 +544,6 @@ func (m *Row) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.XRlcRoot != nil {
-		{
-			size := m.XRlcRoot.Size()
-			i -= size
-			if _, err := m.XRlcRoot.MarshalTo(dAtA[i:]); err != nil {
-				return 0, err
-			}
-		}
-	}
 	if len(m.Proof) > 0 {
 		for iNdEx := len(m.Proof) - 1; iNdEx >= 0; iNdEx-- {
 			i -= len(m.Proof[iNdEx])
@@ -527,19 +568,81 @@ func (m *Row) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Row_RlcRoot) MarshalTo(dAtA []byte) (int, error) {
+func (m *Rows) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Rows) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Row_RlcRoot) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *Rows) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
-	if m.RlcRoot != nil {
-		i -= len(m.RlcRoot)
-		copy(dAtA[i:], m.RlcRoot)
-		i = encodeVarintService(dAtA, i, uint64(len(m.RlcRoot)))
+	_ = i
+	var l int
+	_ = l
+	if m.Rlc != nil {
+		{
+			size := m.Rlc.Size()
+			i -= size
+			if _, err := m.Rlc.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if len(m.Rows) > 0 {
+		for iNdEx := len(m.Rows) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.Rows[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintService(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Rows_Coefficients) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Rows_Coefficients) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Coefficients != nil {
+		i -= len(m.Coefficients)
+		copy(dAtA[i:], m.Coefficients)
+		i = encodeVarintService(dAtA, i, uint64(len(m.Coefficients)))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *Rows_Root) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *Rows_Root) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.Root != nil {
+		i -= len(m.Root)
+		copy(dAtA[i:], m.Root)
+		i = encodeVarintService(dAtA, i, uint64(len(m.Root)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	return len(dAtA) - i, nil
 }
@@ -563,28 +666,17 @@ func (m *UploadRowsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.RlcOrig) > 0 {
-		for iNdEx := len(m.RlcOrig) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.RlcOrig[iNdEx])
-			copy(dAtA[i:], m.RlcOrig[iNdEx])
-			i = encodeVarintService(dAtA, i, uint64(len(m.RlcOrig[iNdEx])))
-			i--
-			dAtA[i] = 0x1a
-		}
-	}
-	if len(m.Rows) > 0 {
-		for iNdEx := len(m.Rows) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Rows[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintService(dAtA, i, uint64(size))
+	if m.Rows != nil {
+		{
+			size, err := m.Rows.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
 			}
-			i--
-			dAtA[i] = 0x12
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
 		}
+		i--
+		dAtA[i] = 0x12
 	}
 	if m.Promise != nil {
 		{
@@ -681,19 +773,17 @@ func (m *DownloadRowsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.Rows) > 0 {
-		for iNdEx := len(m.Rows) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Rows[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintService(dAtA, i, uint64(size))
+	if m.Rows != nil {
+		{
+			size, err := m.Rows.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
 			}
-			i--
-			dAtA[i] = 0xa
+			i -= size
+			i = encodeVarintService(dAtA, i, uint64(size))
 		}
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -728,20 +818,47 @@ func (m *Row) Size() (n int) {
 			n += 1 + l + sovService(uint64(l))
 		}
 	}
-	if m.XRlcRoot != nil {
-		n += m.XRlcRoot.Size()
-	}
 	return n
 }
 
-func (m *Row_RlcRoot) Size() (n int) {
+func (m *Rows) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.RlcRoot != nil {
-		l = len(m.RlcRoot)
+	if len(m.Rows) > 0 {
+		for _, e := range m.Rows {
+			l = e.Size()
+			n += 1 + l + sovService(uint64(l))
+		}
+	}
+	if m.Rlc != nil {
+		n += m.Rlc.Size()
+	}
+	return n
+}
+
+func (m *Rows_Coefficients) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Coefficients != nil {
+		l = len(m.Coefficients)
+		n += 1 + l + sovService(uint64(l))
+	}
+	return n
+}
+func (m *Rows_Root) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Root != nil {
+		l = len(m.Root)
 		n += 1 + l + sovService(uint64(l))
 	}
 	return n
@@ -756,17 +873,9 @@ func (m *UploadRowsRequest) Size() (n int) {
 		l = m.Promise.Size()
 		n += 1 + l + sovService(uint64(l))
 	}
-	if len(m.Rows) > 0 {
-		for _, e := range m.Rows {
-			l = e.Size()
-			n += 1 + l + sovService(uint64(l))
-		}
-	}
-	if len(m.RlcOrig) > 0 {
-		for _, b := range m.RlcOrig {
-			l = len(b)
-			n += 1 + l + sovService(uint64(l))
-		}
+	if m.Rows != nil {
+		l = m.Rows.Size()
+		n += 1 + l + sovService(uint64(l))
 	}
 	return n
 }
@@ -803,11 +912,9 @@ func (m *DownloadRowsResponse) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.Rows) > 0 {
-		for _, e := range m.Rows {
-			l = e.Size()
-			n += 1 + l + sovService(uint64(l))
-		}
+	if m.Rows != nil {
+		l = m.Rows.Size()
+		n += 1 + l + sovService(uint64(l))
 	}
 	return n
 }
@@ -932,9 +1039,93 @@ func (m *Row) Unmarshal(dAtA []byte) error {
 			m.Proof = append(m.Proof, make([]byte, postIndex-iNdEx))
 			copy(m.Proof[len(m.Proof)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		default:
+			iNdEx = preIndex
+			skippy, err := skipService(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthService
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Rows) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowService
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Rows: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Rows: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RlcRoot", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Rows", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Rows = append(m.Rows, &Row{})
+			if err := m.Rows[len(m.Rows)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Coefficients", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -963,7 +1154,40 @@ func (m *Row) Unmarshal(dAtA []byte) error {
 			}
 			v := make([]byte, postIndex-iNdEx)
 			copy(v, dAtA[iNdEx:postIndex])
-			m.XRlcRoot = &Row_RlcRoot{v}
+			m.Rlc = &Rows_Coefficients{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Root", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowService
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthService
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthService
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := make([]byte, postIndex-iNdEx)
+			copy(v, dAtA[iNdEx:postIndex])
+			m.Rlc = &Rows_Root{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1080,42 +1304,12 @@ func (m *UploadRowsRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Rows = append(m.Rows, &Row{})
-			if err := m.Rows[len(m.Rows)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if m.Rows == nil {
+				m.Rows = &Rows{}
+			}
+			if err := m.Rows.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RlcOrig", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthService
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLengthService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.RlcOrig = append(m.RlcOrig, make([]byte, postIndex-iNdEx))
-			copy(m.RlcOrig[len(m.RlcOrig)-1], dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1364,8 +1558,10 @@ func (m *DownloadRowsResponse) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Rows = append(m.Rows, &Row{})
-			if err := m.Rows[len(m.Rows)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if m.Rows == nil {
+				m.Rows = &Rows{}
+			}
+			if err := m.Rows.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
