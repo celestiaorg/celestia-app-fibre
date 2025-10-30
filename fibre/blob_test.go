@@ -2,6 +2,9 @@ package fibre
 
 import (
 	"testing"
+
+	"github.com/celestiaorg/rsema1d"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
@@ -68,4 +71,140 @@ func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBlob_EncodeDecode(t *testing.T) {
+	testData := []byte("test data for encoding")
+
+	cfg := BlobConfig{
+		OriginalRows:  8,
+		ParityRows:    24,
+		CodingWorkers: 2,
+		RowSizeMin:    64,
+		MaxBlobSize:   1024,
+	}
+
+	blob, err := NewBlob(testData, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, blob)
+
+	commitment := blob.Commitment()
+
+	reconstructBlob := NewEmptyBlob(cfg, commitment)
+
+	totalRows := cfg.OriginalRows + cfg.ParityRows
+	for i := 0; i < totalRows; i++ {
+		row, err := blob.Row(i)
+		require.NoError(t, err)
+
+		isDone, err := reconstructBlob.SetRow(row)
+		require.NoError(t, err)
+		if isDone {
+			break
+		}
+	}
+
+	err = reconstructBlob.Reconstruct()
+	require.NoError(t, err)
+
+	reconstructedData := reconstructBlob.Data()
+	require.Equal(t, testData, reconstructedData)
+}
+
+func TestBlob_NotEnoughRows(t *testing.T) {
+	cfg := BlobConfig{
+		OriginalRows:  8,
+		ParityRows:    24,
+		CodingWorkers: 2,
+		RowSizeMin:    64,
+		MaxBlobSize:   1024,
+	}
+
+	blob, err := NewBlob([]byte("test data"), cfg)
+	require.NoError(t, err)
+
+	reconstructBlob := NewEmptyBlob(cfg, blob.Commitment())
+
+	for i := 0; i < 3; i++ {
+		row, err := blob.Row(i)
+		require.NoError(t, err)
+		_, err = reconstructBlob.SetRow(row)
+		require.NoError(t, err)
+	}
+
+	err = reconstructBlob.Reconstruct()
+	require.ErrorIs(t, err, ErrNotEnoughRows)
+}
+
+func TestBlob_NotFound(t *testing.T) {
+	cfg := BlobConfig{
+		OriginalRows:  8,
+		ParityRows:    24,
+		CodingWorkers: 2,
+		RowSizeMin:    64,
+		MaxBlobSize:   1024,
+	}
+
+	blob := NewEmptyBlob(cfg, Commitment{})
+	err := blob.Reconstruct()
+	require.ErrorIs(t, err, ErrBlobNotFound)
+}
+
+func TestBlob_ErasureCoding(t *testing.T) {
+	testData := []byte("test erasure coding reconstruction")
+
+	cfg := BlobConfig{
+		OriginalRows:  4,
+		ParityRows:    8,
+		CodingWorkers: 2,
+		RowSizeMin:    64,
+		MaxBlobSize:   1024,
+	}
+
+	blob, err := NewBlob(testData, cfg)
+	require.NoError(t, err)
+
+	commitment := blob.Commitment()
+
+	totalRows := cfg.OriginalRows + cfg.ParityRows
+	allRows := make([]*rsema1d.RowInclusionProof, totalRows)
+	for i := 0; i < totalRows; i++ {
+		row, err := blob.Row(i)
+		require.NoError(t, err)
+		allRows[i] = row
+	}
+
+	testReconstruct := func(t *testing.T, rows []*rsema1d.RowInclusionProof) {
+		reconstructBlob := NewEmptyBlob(cfg, commitment)
+
+		for _, row := range rows {
+			_, err = reconstructBlob.SetRow(row)
+			require.NoError(t, err)
+		}
+
+		err = reconstructBlob.Reconstruct()
+		require.NoError(t, err)
+
+		reconstructedData := reconstructBlob.Data()
+		require.Equal(t, testData, reconstructedData)
+	}
+
+	t.Run("FirstKRows", func(t *testing.T) {
+		testReconstruct(t, allRows[:cfg.OriginalRows])
+	})
+
+	t.Run("LastKRows", func(t *testing.T) {
+		testReconstruct(t, allRows[totalRows-cfg.OriginalRows:])
+	})
+
+	t.Run("MixedRows", func(t *testing.T) {
+		mixedRows := make([]*rsema1d.RowInclusionProof, 0, cfg.OriginalRows)
+		for i := 0; i < cfg.OriginalRows; i++ {
+			idx := i * 2
+			if idx < totalRows {
+				mixedRows = append(mixedRows, allRows[idx])
+			}
+		}
+		testReconstruct(t, mixedRows)
+	})
 }

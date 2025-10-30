@@ -6,13 +6,23 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync/atomic"
 
 	"github.com/celestiaorg/rsema1d"
 	"github.com/celestiaorg/rsema1d/field"
+	"github.com/klauspost/reedsolomon"
 )
 
-// ErrBlobTooLarge is returned when the blob size exceeds BlobConfig.MaxDataSize.
-var ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
+var (
+	// ErrBlobTooLarge is returned when the blob size exceeds BlobConfig.MaxDataSize.
+	ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
+	// ErrBlobNotFound is returned when no rows were retrieved for the blob.
+	ErrBlobNotFound = errors.New("blob not found: no rows retrieved")
+	// ErrNotEnoughRows is returned when not enough rows were retrieved to reconstruct the blob.
+	ErrNotEnoughRows = errors.New("not enough rows to reconstruct blob")
+	// ErrBlobCommitmentMismatch is returned when the reconstructed commitment doesn't match the expected one.
+	ErrBlobCommitmentMismatch = errors.New("commitment mismatch: reconstructed data doesn't match expected commitment")
+)
 
 // Commitment is a commitment to a blob.
 // TODO(@Wondertan): merge with rsema1d.Commitment once it has these methods.
@@ -117,6 +127,10 @@ type Blob struct {
 	header blobHeaderV0
 	// data holds the decoded original data (without header).
 	data []byte
+
+	// fields for reconstruction
+	rows          [][]byte
+	rowsCollected atomic.Int32
 }
 
 // NewBlob creates a new [Blob] instance by encoding the data.
@@ -149,6 +163,16 @@ func NewBlob(data []byte, cfg BlobConfig) (d *Blob, err error) {
 	}
 
 	return d, nil
+}
+
+// NewEmptyBlob creates a new [Blob] instance for receiving and reconstructing data.
+func NewEmptyBlob(cfg BlobConfig, commitment Commitment) *Blob {
+	totalRows := cfg.OriginalRows + cfg.ParityRows
+	return &Blob{
+		cfg:        cfg,
+		commitment: commitment,
+		rows:       make([][]byte, totalRows),
+	}
 }
 
 // Commitment returns the commitment to the blob.
@@ -197,6 +221,96 @@ func (d *Blob) Row(index int) (*rsema1d.RowInclusionProof, error) {
 	}
 
 	return d.extendedData.GenerateRowInclusionProof(index)
+}
+
+// SetRow adds and verifies [*rsema1d.RowInclusionProof] to the blob.
+// Returns true if enough rows have been collected for [Reconstruct] (>= OriginalRows).
+// It is safe to call this method concurrently only for disjoint indices.
+func (d *Blob) SetRow(row *rsema1d.RowInclusionProof) (bool, error) {
+	// verify the inclusion proof
+	config := &rsema1d.Config{
+		K:           d.cfg.OriginalRows,
+		N:           d.cfg.ParityRows,
+		RowSize:     len(row.Row),
+		WorkerCount: d.cfg.CodingWorkers,
+	}
+	err := rsema1d.VerifyRowInclusionProof(row, rsema1d.Commitment(d.commitment), config)
+	if err != nil {
+		return false, fmt.Errorf("verifying row %d: %w", row.Index, err)
+	}
+
+	// check if we already have enough rows - avoid further writes
+	if int(d.rowsCollected.Load()) >= d.cfg.OriginalRows {
+		return true, nil
+	}
+
+	// store row and increment counter
+	d.rows[row.Index] = row.Row
+	return int(d.rowsCollected.Add(1)) >= d.cfg.OriginalRows, nil
+}
+
+// Reconstruct checks the accumulated rows and reconstructs the original data.
+// It is not safe to call this method concurrently.
+//
+// Returns:
+//   - [ErrBlobNotFound] if no rows were accumulated
+//   - [ErrNotEnoughRows] if some rows were accumulated but not enough to reconstruct
+//   - [ErrBlobCommitmentMismatch] if the reconstructed commitment doesn't match the expected one
+//   - Reconstruction or decoding errors if either process fails
+func (d *Blob) Reconstruct() error {
+	// TODO(@Wondertan): Move and encapsulate inside rsema1d
+
+	// check if we have enough rows
+	collected := int(d.rowsCollected.Load())
+	switch {
+	case collected == 0:
+		return ErrBlobNotFound
+	case collected < d.cfg.OriginalRows:
+		return fmt.Errorf("%w: collected %d rows, need %d", ErrNotEnoughRows, collected, d.cfg.OriginalRows)
+	case collected >= d.cfg.OriginalRows:
+	}
+
+	// use reedsolomon decoder directly as opposed to rsema1d.Reconstruct
+	// the decoder is used to reconstruct missing shards in-place which is more efficient than copying data and
+	// passing indicies as a slice of integers.
+	enc, err := reedsolomon.New(d.cfg.OriginalRows, d.cfg.ParityRows, reedsolomon.WithLeopardGF16(true))
+	if err != nil {
+		return fmt.Errorf("creating reedsolomon decoder: %w", err)
+	}
+
+	// reconstruct missing shards in-place
+	if err := enc.Reconstruct(d.rows); err != nil {
+		return fmt.Errorf("reconstructing rows: %w", err)
+	}
+
+	// use EncodeParity to verify the commitment and populate extendedData and rlcCoeffs
+	config := &rsema1d.Config{
+		K:           d.cfg.OriginalRows,
+		N:           d.cfg.ParityRows,
+		RowSize:     len(d.rows[0]), // NOTE: successful reconstruct must fill all rows, so if this ever panics something is really wrong
+		WorkerCount: d.cfg.CodingWorkers,
+	}
+	extendedData, reconstructedCommitment, rlcCoeffs, err := rsema1d.EncodeParity(d.rows, config)
+	if err != nil {
+		return fmt.Errorf("encoding parity: %w", err)
+	}
+
+	// verify commitment matches
+	if !d.commitment.Equals(Commitment(reconstructedCommitment)) {
+		return fmt.Errorf("%w: expected %s, got %s",
+			ErrBlobCommitmentMismatch, d.commitment.String(), Commitment(reconstructedCommitment).String())
+	}
+
+	// decode header and extract original data from the first K rows, then cache it
+	originalData, err := d.header.decodeFromRows(d.rows[:d.cfg.OriginalRows], d.cfg)
+	if err != nil {
+		return fmt.Errorf("decoding data from rows: %w", err)
+	}
+
+	d.data = originalData
+	d.extendedData = extendedData
+	d.rlcCoeffs = rlcCoeffs
+	return nil
 }
 
 const (
