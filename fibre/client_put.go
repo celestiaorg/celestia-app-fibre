@@ -88,13 +88,6 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 		span.SetStatus(codes.Error, "failed to confirm PayForFibre transaction")
 		return result, fmt.Errorf("confirming PayForFibre transaction: %w", err)
 	}
-
-	if txResp.Code != 0 {
-		err := fmt.Errorf("PayForFibre transaction failed with code %d", txResp.Code)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "PayForFibre transaction failed")
-		return result, err
-	}
 	span.AddEvent("pff_confirmed", trace.WithAttributes(
 		attribute.Int64("height", txResp.Height),
 	))
