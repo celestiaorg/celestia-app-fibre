@@ -15,13 +15,13 @@ var _ validator.HostRegistry = &HostRegistry{}
 // HostRegistry is a registry of validator hosts. It caches the hosts for validators in the active set.
 // It uses the [types.QueryClient] to query the fibre provider information for validators in the active set.
 type HostRegistry struct {
-	types.QueryClient
+	queryClient types.QueryClient
 	cachedHosts map[string]validator.Host //
 }
 
 func NewHostRegistry(queryClient types.QueryClient) *HostRegistry {
 	return &HostRegistry{
-		QueryClient: queryClient,
+		queryClient: queryClient,
 		cachedHosts: make(map[string]validator.Host),
 	}
 }
@@ -35,7 +35,9 @@ func (g *HostRegistry) GetHost(ctx context.Context, val *core.Validator) (valida
 
 	// if the cache is empty, fetch all active fibre providers
 	if len(g.cachedHosts) == 0 {
-		g.PullAll(ctx)
+		if err := g.PullAll(ctx); err != nil {
+			return "", err
+		}
 		if host, ok := g.cachedHosts[valConAddr]; ok {
 			return host, nil
 		} else {
@@ -50,7 +52,7 @@ func (g *HostRegistry) GetHost(ctx context.Context, val *core.Validator) (valida
 
 // PullAll pulls all active fibre providers from the query client and caches them, overwriting any existing cached hosts.
 func (g *HostRegistry) PullAll(ctx context.Context) error {
-	resp, err := g.QueryClient.AllFibreProviders(ctx, &types.QueryAllFibreProvidersRequest{})
+	resp, err := g.queryClient.AllFibreProviders(ctx, &types.QueryAllFibreProvidersRequest{})
 	if err != nil {
 		return err
 	}
@@ -63,7 +65,7 @@ func (g *HostRegistry) PullAll(ctx context.Context) error {
 // PullHost pulls the host for a specific validator from the query client and caches it, overwriting any existing cached host.
 func (g *HostRegistry) PullHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
 	consAddr := sdk.ConsAddress(val.Address.Bytes())
-	resp, err := g.QueryClient.FibreProviderInfo(ctx, &types.QueryFibreProviderInfoRequest{
+	resp, err := g.queryClient.FibreProviderInfo(ctx, &types.QueryFibreProviderInfoRequest{
 		ValidatorConsensusAddress: consAddr.String(),
 	})
 	if err != nil {
