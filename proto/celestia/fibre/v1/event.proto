@@ -34,6 +34,7 @@ message EventPayForFibre {
   string signer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   bytes namespace = 2;
   bytes commitment = 3;
+  uint32 validator_count = 4;
 }
 
 // EventPaymentPromiseTimeout is emitted when a PaymentPromise timeout is processed.
@@ -47,4 +48,11 @@ message EventPaymentPromiseTimeout {
 message EventUpdateFibreParams {
   string signer = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
   Params params = 2 [(gogoproto.nullable) = false];
+}
+
+// EventProcessedPaymentPruned is emitted when a processed payment is pruned
+// from the state machine due to being outside the retention window.
+message EventProcessedPaymentPruned {
+  bytes payment_promise_hash = 1;
+  google.protobuf.Timestamp processed_at = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
 }

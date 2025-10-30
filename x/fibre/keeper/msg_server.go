@@ -87,6 +87,13 @@ func (ms msgServer) RequestWithdrawal(goCtx context.Context, msg *types.MsgReque
 	// Get withdrawal delay from params
 	params := ms.GetParams(ctx)
 	requestedTimestamp := ctx.BlockTime()
+
+	// Verify no existing withdrawal request at current timestamp (prevents key collision)
+	_, existing := ms.GetWithdrawal(ctx, msg.Signer, requestedTimestamp)
+	if existing {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "withdrawal request already exists for signer %s at timestamp %v", msg.Signer, requestedTimestamp)
+	}
+
 	availableTimestamp := requestedTimestamp.Add(params.WithdrawalDelay)
 
 	// Create withdrawal request with available timestamp
@@ -181,7 +188,7 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	ms.SetProcessedPayment(ctx, processedPayment)
 
 	// Emit event
-	event := types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment)
+	event := types.NewEventPayForFibre(signerAddr, msg.PaymentPromise.Namespace, msg.PaymentPromise.Commitment, uint32(len(msg.ValidatorSignatures)))
 	if err := ctx.EventManager().EmitTypedEvent(event); err != nil {
 		return nil, err
 	}
