@@ -21,6 +21,8 @@ import (
 	minttypes "github.com/celestiaorg/celestia-app/v6/x/mint/types"
 	"github.com/celestiaorg/celestia-app/v6/x/signal"
 	signaltypes "github.com/celestiaorg/celestia-app/v6/x/signal/types"
+	"github.com/celestiaorg/celestia-app/v6/x/valaddr"
+	valaddrtypes "github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
@@ -90,6 +92,7 @@ var ModuleEncodingRegisters = []module.AppModuleBasic{
 	minfee.AppModule{},
 	mintModule{},
 	signal.AppModule{},
+	valaddr.AppModule{},
 }
 
 func (app *App) setModuleOrder() {
@@ -115,6 +118,7 @@ func (app *App) setModuleOrder() {
 		minfeetypes.ModuleName,
 		icatypes.ModuleName,
 		packetforwardtypes.ModuleName,
+		valaddrtypes.ModuleName,
 	)
 
 	app.ModuleManager.SetOrderPreBlockers(
@@ -144,6 +148,7 @@ func (app *App) setModuleOrder() {
 		minfeetypes.ModuleName,
 		packetforwardtypes.ModuleName,
 		icatypes.ModuleName,
+		valaddrtypes.ModuleName,
 	)
 
 	// NOTE: The genutils module must occur after staking so that pools are
@@ -181,6 +186,7 @@ func (app *App) setModuleOrder() {
 		circuittypes.ModuleName,
 		hyperlanetypes.ModuleName,
 		warptypes.ModuleName,
+		valaddrtypes.ModuleName,
 	)
 }
 
@@ -210,6 +216,7 @@ func allStoreKeys() []string {
 		circuittypes.StoreKey,     // added in v4
 		hyperlanetypes.ModuleName, // added in v4
 		warptypes.ModuleName,      // added in v4
+		valaddrtypes.StoreKey,     // added in v7
 		fibretypes.StoreKey,       // added in v7
 	}
 }
