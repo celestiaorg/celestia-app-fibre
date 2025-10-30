@@ -30,8 +30,8 @@ type PaymentPromise struct {
 	ChainID string
 	// Namespace is the namespace the blob is associated with.
 	Namespace share.Namespace
-	// BlobSize is the size of the blob in bytes.
-	BlobSize uint32
+	// UploadSize is the upload size of the blob (with padding, without parity), matching [Blob.UploadSize].
+	UploadSize uint32
 	// BlobVersion is the version of the blob format.
 	BlobVersion uint32
 	// Commitment is the hash of the row root and the RLC root.
@@ -41,7 +41,7 @@ type PaymentPromise struct {
 	// Signature is the signer's signature over the sign bytes returned by [PaymentPromise.SignBytes].
 	Signature []byte
 	// Height is the height used to determine the validator set.
-	Height int64
+	Height uint64
 
 	// cached sign bytes and hash
 	signBytesOnce sync.Once
@@ -88,9 +88,9 @@ func (p *PaymentPromise) FromProto(pbMsg *types.PaymentPromise) error {
 
 	*p = PaymentPromise{
 		ChainID:           pbMsg.ChainId,
-		Height:            pbMsg.Height,
+		Height:            uint64(pbMsg.Height),
 		Namespace:         ns,
-		BlobSize:          pbMsg.BlobSize,
+		UploadSize:        pbMsg.BlobSize,
 		BlobVersion:       pbMsg.BlobVersion,
 		Commitment:        commitment,
 		CreationTimestamp: pbMsg.CreationTimestamp,
@@ -104,9 +104,9 @@ func (p *PaymentPromise) FromProto(pbMsg *types.PaymentPromise) error {
 func (p *PaymentPromise) ToProto() *types.PaymentPromise {
 	return &types.PaymentPromise{
 		ChainId:           p.ChainID,
-		Height:            p.Height,
+		Height:            int64(p.Height),
 		Namespace:         p.Namespace.Bytes(),
-		BlobSize:          p.BlobSize,
+		BlobSize:          p.UploadSize,
 		BlobVersion:       p.BlobVersion,
 		Commitment:        p.Commitment[:],
 		CreationTimestamp: p.CreationTimestamp,
@@ -128,9 +128,9 @@ func (p *PaymentPromise) Validate() error {
 		return errors.New("chain id must not be empty")
 	}
 
-	// blob size must be positive
-	if p.BlobSize == 0 {
-		return errors.New("blob size must be positive")
+	// upload size must be positive
+	if p.UploadSize == 0 {
+		return errors.New("upload size must be positive")
 	}
 
 	// commitment must be 32 bytes (enforced by type)
@@ -148,7 +148,7 @@ func (p *PaymentPromise) Validate() error {
 	}
 
 	// height must be positive
-	if p.Height <= 0 {
+	if p.Height == 0 {
 		return fmt.Errorf("height must be positive, got %d", p.Height)
 	}
 
@@ -206,13 +206,13 @@ func (p *PaymentPromise) SignBytes() ([]byte, error) {
 		// append namespace (29 bytes)
 		buf = append(buf, p.Namespace.Bytes()...)
 		// append blob_size (4 bytes, big-endian)
-		buf = binary.BigEndian.AppendUint32(buf, p.BlobSize)
+		buf = binary.BigEndian.AppendUint32(buf, p.UploadSize)
 		// append commitment (32 bytes)
 		buf = append(buf, p.Commitment[:]...)
 		// append blob_version (4 bytes, big-endian)
 		buf = binary.BigEndian.AppendUint32(buf, p.BlobVersion)
 		// append height (8 bytes, big-endian)
-		buf = binary.BigEndian.AppendUint64(buf, uint64(p.Height))
+		buf = binary.BigEndian.AppendUint64(buf, p.Height)
 		// append timestamp bytes
 		buf = append(buf, timestampBytes...)
 

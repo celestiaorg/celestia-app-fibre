@@ -67,12 +67,12 @@ func TestServerUploadRows(t *testing.T) {
 		{
 			name: "TimestampTooOld",
 			requestModifier: func(req *types.UploadRowsRequest) {
-				// set timestamp 15 seconds ago (exceeds default 10s MaxClockDrift)
-				req.Promise.CreationTimestamp = time.Now().Add(-15 * time.Second)
+				// set timestamp 2 hours ago (exceeds default 1 hour PaymentPromiseTimeout)
+				req.Promise.CreationTimestamp = time.Now().Add(-2 * time.Hour)
 			},
 			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "timestamp too old")
+				require.Contains(t, err.Error(), "payment promise expired")
 			},
 		},
 		{
@@ -115,6 +115,17 @@ func TestServerUploadRows(t *testing.T) {
 			},
 			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
 				require.Error(t, err)
+			},
+		},
+		{
+			name: "InvalidUploadSize",
+			requestModifier: func(req *types.UploadRowsRequest) {
+				// set wrong upload size
+				req.Promise.BlobSize = 12345
+			},
+			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "upload size mismatch")
 			},
 		},
 	}
@@ -171,6 +182,7 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 
 // makeTestRequest creates a valid UploadRowsRequest for the given test setup.
 // Optional modifier can be provided to customize the request after construction.
+// The promise is automatically re-signed after modification.
 func makeTestRequest(
 	t *testing.T,
 	valSet validator.Set,
@@ -190,22 +202,34 @@ func makeTestRequest(
 	pubKey, err := key.GetPubKey()
 	require.NoError(t, err)
 
+	// sign function that can be called to (re)sign the promise
+	signPromise := func(promisePb *types.PaymentPromise) {
+		// load into PaymentPromise to compute sign bytes
+		promise := &fibre.PaymentPromise{}
+		require.NoError(t, promise.FromProto(promisePb))
+
+		signBytes, err := promise.SignBytes()
+		require.NoError(t, err)
+		signature, _, err := keyring.Sign(fibre.DefaultKeyName, signBytes, txsigning.SignMode_SIGN_MODE_DIRECT)
+		require.NoError(t, err)
+
+		// update proto with new signature
+		promisePb.Signature = signature
+	}
+
 	promise := &fibre.PaymentPromise{
 		ChainID:           "celestia",
 		Height:            100,
 		Namespace:         namespace,
-		BlobSize:          uint32(blob.Size()),
+		UploadSize:        uint32(blob.UploadSize()),
 		BlobVersion:       0,
 		Commitment:        blob.Commitment(),
 		CreationTimestamp: time.Now(),
 		SignerKey:         pubKey.(*secp256k1.PubKey),
 	}
 
-	signBytes, err := promise.SignBytes()
-	require.NoError(t, err)
-	signature, _, err := keyring.Sign(fibre.DefaultKeyName, signBytes, txsigning.SignMode_SIGN_MODE_DIRECT)
-	require.NoError(t, err)
-	promise.Signature = signature
+	promisePb := promise.ToProto()
+	signPromise(promisePb)
 
 	// get row assignment for server validator
 	totalRows := blobCfg.OriginalRows + blobCfg.ParityRows
@@ -234,7 +258,7 @@ func makeTestRequest(
 	}
 
 	req := &types.UploadRowsRequest{
-		Promise: promise.ToProto(),
+		Promise: promisePb,
 		Rows: &types.Rows{
 			Rows: rows,
 			Rlc:  &types.Rows_Coefficients{Coefficients: rlcCoeffsBytes},
@@ -244,6 +268,10 @@ func makeTestRequest(
 	// apply request modifier after construction
 	if requestModifier != nil {
 		requestModifier(req)
+		// automatically re-sign the promise after modification, unless signature was explicitly removed
+		if len(req.Promise.Signature) > 0 {
+			signPromise(req.Promise)
+		}
 	}
 
 	return req

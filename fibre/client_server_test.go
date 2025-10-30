@@ -1,5 +1,3 @@
-// Package fibre_test provides integration tests for the fibre client-server implementation.
-// Tests validate end-to-end upload and download flows using real gRPC connections.
 package fibre_test
 
 import (

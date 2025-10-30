@@ -70,6 +70,10 @@ func DefaultBlobConfigV0() BlobConfig {
 // Row size is calculated as ceil((dataLen + headerSize) / OriginalRows),
 // rounded up to the nearest multiple of RowSizeMin.
 func (c BlobConfig) RowSize(dataLen int) int {
+	if dataLen == 0 {
+		return 0
+	}
+
 	totalLen := dataLen + blobHeaderLen
 	rowSize := (totalLen + c.OriginalRows - 1) / c.OriginalRows // ceil(totalLen / OriginalRows)
 
@@ -85,6 +89,12 @@ func (c BlobConfig) RowSize(dataLen int) int {
 // This is the row size that would result from encoding a blob of MaxBlobSize.
 func (c BlobConfig) MaxRowSize() int {
 	return c.RowSize(c.MaxBlobSize)
+}
+
+// UploadSize calculates size of blob data with padding and w/o parity.
+// This is the size included in the [PaymentPromise] and the one actually paid for.
+func (c BlobConfig) UploadSize(dataLen int) int {
+	return c.RowSize(dataLen) * c.OriginalRows
 }
 
 // Blob represents encoded data with Reed-Solomon erasure coding.
@@ -149,10 +159,6 @@ func (d *Blob) RLCCoeffs() []field.GF128 {
 // RowSize returns the size of each row in bytes.
 // Returns 0 if no original data available to determine row size.
 func (d *Blob) RowSize() int {
-	if len(d.data) == 0 {
-		return 0
-	}
-
 	return d.cfg.RowSize(len(d.data))
 }
 
@@ -162,14 +168,10 @@ func (d *Blob) DataSize() int {
 	return len(d.data)
 }
 
-// Size returns the total size of the blob including the header overhead.
-// Returns 0 if no original data available to determine blob size.
-func (d *Blob) Size() int {
-	dataSize := d.DataSize()
-	if dataSize == 0 {
-		return 0
-	}
-	return blobHeaderLen + dataSize
+// UploadSize calculates size of the [Blob] data with padding and w/o parity.
+// This is the size included in the [PaymentPromise] and the one actually paid for.
+func (d *Blob) UploadSize() int {
+	return d.cfg.UploadSize(d.DataSize())
 }
 
 // Data returns the cached original data (without header).
@@ -178,13 +180,13 @@ func (d *Blob) Data() []byte {
 	return d.data
 }
 
-// Row returns the [rsema1d.RowProof] for the given index from the extended data.
-func (d *Blob) Row(index int) (*rsema1d.RowProof, error) {
+// Row returns the [rsema1d.RowInclusionProof] for the given index from the extended data.
+func (d *Blob) Row(index int) (*rsema1d.RowInclusionProof, error) {
 	if d.extendedData == nil {
 		return nil, fmt.Errorf("no extended data available")
 	}
 
-	return d.extendedData.GenerateRowProof(index)
+	return d.extendedData.GenerateRowInclusionProof(index)
 }
 
 const (

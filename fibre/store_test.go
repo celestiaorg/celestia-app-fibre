@@ -173,12 +173,12 @@ func makeRowsFrom(t *testing.T, blob *fibre.Blob, indices ...int) *types.Rows {
 }
 
 // makeTestPaymentPromise creates a test payment promise for store tests.
-func makeTestPaymentPromise(height int64, commitment fibre.Commitment) *fibre.PaymentPromise {
+func makeTestPaymentPromise(height uint64, commitment fibre.Commitment) *fibre.PaymentPromise {
 	return &fibre.PaymentPromise{
 		ChainID:           "test-chain",
 		Height:            height,
 		Namespace:         share.MustNewV0Namespace([]byte("test")),
-		BlobSize:          1024,
+		UploadSize:        1024,
 		Commitment:        commitment,
 		CreationTimestamp: time.Date(2025, 10, 21, 15, 30, 0, 0, time.UTC),
 		SignerKey:         secp256k1.GenPrivKey().PubKey().(*secp256k1.PubKey),

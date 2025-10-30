@@ -17,15 +17,11 @@ import (
 type ServerConfig struct {
 	// ChainID is the chain identifier for domain separation in [PaymentPromise] validation.
 	ChainID string
+	// BlockTime is the expected block time for calculating height-based timeouts.
+	BlockTime time.Duration
 
 	BlobConfig
-
-	// MaxClockDrift is the maximum allowed time difference between the server's clock and the payment promise timestamp.
-	// Promises with timestamps older than (now - MaxClockDrift) will be rejected.
-	MaxClockDrift time.Duration
-	// MaxHeightDrift is the maximum allowed height difference between the current chain height and the payment promise height.
-	// Promises with heights less than (currentHeight - MaxHeightDrift) will be rejected.
-	MaxHeightDrift int64
+	StoreConfig
 
 	// Log is the logger for the server.
 	// If nil, slog.Default() will be used.
@@ -38,16 +34,18 @@ type ServerConfig struct {
 // DefaultServerConfig returns a [ServerConfig] with default values.
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		ChainID:        "celestia",
-		BlobConfig:     DefaultBlobConfigV0(),
-		MaxClockDrift:  10 * time.Second,
-		MaxHeightDrift: 3,
+		ChainID:     "celestia",
+		BlockTime:   time.Second * 6,
+		BlobConfig:  DefaultBlobConfigV0(),
+		StoreConfig: DefaultStoreConfig(),
 	}
 }
 
 // Server implements the Fibre gRPC service for validators.
 // It handles upload and download requests from clients.
 type Server struct {
+	types.UnimplementedFibreServer
+
 	cfg ServerConfig
 
 	privVal core.PrivValidator

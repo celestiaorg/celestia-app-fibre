@@ -37,9 +37,9 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	span.AddEvent("promise_validated", trace.WithAttributes(
 		attribute.String("promise_hash", hex.EncodeToString(promiseHash)),
 		attribute.String("blob_commitment", promise.Commitment.String()),
-		attribute.Int64("promise_height", promise.Height),
+		attribute.Int64("promise_height", int64(promise.Height)),
 		attribute.String("namespace", promise.Namespace.String()),
-		attribute.Int64("blob_size", int64(promise.BlobSize)),
+		attribute.Int64("upload_size", int64(promise.UploadSize)),
 	))
 
 	// verify assignment - check that all rows belong to us
@@ -83,7 +83,7 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	span.AddEvent("signature_generated")
 
 	log.InfoContext(ctx, "successful upload",
-		"blob_size", promise.BlobSize,
+		"upload_size", promise.UploadSize,
 		"rows", len(req.Rows.Rows),
 		"row_size", len(req.Rows.Rows[0].Data),
 	)
@@ -109,22 +109,23 @@ func (s *Server) verifyPromise(ctx context.Context, promisePb *types.PaymentProm
 	if promise.BlobVersion != uint32(s.cfg.BlobVersion) {
 		return nil, nil, fmt.Errorf("blob version mismatch: expected %d, got %d", s.cfg.BlobVersion, promise.BlobVersion)
 	}
-	oldestAllowed := time.Now().UTC().Add(-s.cfg.MaxClockDrift)
+	oldestAllowed := time.Now().UTC().Add(-s.cfg.PaymentPromiseTimeout)
 	if promise.CreationTimestamp.Before(oldestAllowed) {
-		return nil, nil, fmt.Errorf("payment promise timestamp too old: %s is before %s (max drift: %s)",
+		return nil, nil, fmt.Errorf("payment promise expired: %s is before %s (timeout: %s)",
 			promise.CreationTimestamp.Format(time.RFC3339),
 			oldestAllowed.Format(time.RFC3339),
-			s.cfg.MaxClockDrift)
+			s.cfg.PaymentPromiseTimeout)
 	}
 	// use height of the latest valset to verify height in the promise
 	currentValSet, err := s.valGet.Head(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting current validator set: %w", err)
 	}
-	minAllowedHeight := int64(currentValSet.Height) - s.cfg.MaxHeightDrift
-	if promise.Height < minAllowedHeight {
-		return nil, nil, fmt.Errorf("payment promise height too far in past: %d is before min allowed %d (current: %d, max drift: %d)",
-			promise.Height, minAllowedHeight, currentValSet.Height, s.cfg.MaxHeightDrift)
+	// calculate max height drift based on promise timeout and block time
+	maxHeightDrift := uint64(s.cfg.PaymentPromiseTimeout / s.cfg.BlockTime)
+	if currentValSet.Height > maxHeightDrift && promise.Height < currentValSet.Height-maxHeightDrift {
+		return nil, nil, fmt.Errorf("payment promise height too far in past: %d is before min allowed %d (current: %d, timeout: %s, block time: %s)",
+			promise.Height, currentValSet.Height-maxHeightDrift, currentValSet.Height, s.cfg.PaymentPromiseTimeout, s.cfg.BlockTime)
 	}
 
 	// stateless validation
@@ -154,7 +155,7 @@ func (s *Server) verifyPromise(ctx context.Context, promisePb *types.PaymentProm
 // It fetches the validator set at the promise height, identifies this validator,
 // computes the shard map, and checks that every row index belongs to this validator.
 func (s *Server) verifyAssignment(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
-	valSet, err := s.valGet.GetByHeight(ctx, uint64(promise.Height))
+	valSet, err := s.valGet.GetByHeight(ctx, promise.Height)
 	if err != nil {
 		return fmt.Errorf("getting validator set at height %d: %w", promise.Height, err)
 	}
@@ -187,18 +188,12 @@ func (s *Server) verifyRows(ctx context.Context, promise *PaymentPromise, rows *
 		return err
 	}
 
-	// validate row size is within allowed bounds
-	if rowSize < s.cfg.RowSizeMin {
-		return fmt.Errorf("row size %d is below minimum allowed %d", rowSize, s.cfg.RowSizeMin)
+	// validate upload size matches the row size
+	expectedUploadSize := rowSize * s.cfg.OriginalRows
+	if int(promise.UploadSize) != expectedUploadSize {
+		return fmt.Errorf("upload size mismatch: promise has %d, but row size %d * %d original rows = %d",
+			promise.UploadSize, rowSize, s.cfg.OriginalRows, expectedUploadSize)
 	}
-	maxRowSize := s.cfg.MaxRowSize()
-	if rowSize > maxRowSize {
-		return fmt.Errorf("row size %d exceeds maximum allowed %d", rowSize, maxRowSize)
-	}
-
-	// TODO(@Wondertan): validate blob size is consistent with row size
-	// This requires inverting the RowSize calculation which needs further analysis
-	// to properly account for rounding and edge cases.
 
 	rlcCoeffs, err := parseRLCCoeffs(rows.GetCoefficients(), s.cfg.OriginalRows)
 	if err != nil {
