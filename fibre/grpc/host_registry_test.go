@@ -6,7 +6,7 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
-	"github.com/celestiaorg/celestia-app/v6/fibre/validator/grpc"
+	"github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
 	"github.com/celestiaorg/celestia-app/v6/x/valaddr/types"

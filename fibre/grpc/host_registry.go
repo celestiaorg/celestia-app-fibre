@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
@@ -27,6 +28,21 @@ func NewHostRegistry(queryClient types.QueryClient) *HostRegistry {
 }
 
 func (g *HostRegistry) GetHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
+	host, err := g.getHost(ctx, val)
+	if err != nil {
+		return "", err
+	}
+
+	// check if the host is a valid URL
+	_, err = url.Parse(host.String())
+	if err != nil {
+		return "", fmt.Errorf("got invalid host %s: %w", host.String(), err)
+	}
+
+	return host, nil
+}
+
+func (g *HostRegistry) getHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
 	valConAddr := sdk.ConsAddress(val.Address.Bytes()).String()
 	// check the cache first
 	if host, ok := g.cachedHosts[valConAddr]; ok {
@@ -74,6 +90,7 @@ func (g *HostRegistry) PullHost(ctx context.Context, val *core.Validator) (valid
 	if !resp.Found {
 		return "", fmt.Errorf("host not found for validator %s", consAddr.String())
 	}
+
 	g.cachedHosts[val.Address.String()] = validator.Host(resp.Info.Host)
 	return validator.Host(resp.Info.Host), nil
 }
