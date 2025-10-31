@@ -17,7 +17,7 @@ var _ validator.HostRegistry = &HostRegistry{}
 // It uses the [types.QueryClient] to query the fibre provider information for validators in the active set.
 type HostRegistry struct {
 	queryClient types.QueryClient
-	cachedHosts map[string]validator.Host //
+	cachedHosts map[string]validator.Host
 }
 
 func NewHostRegistry(queryClient types.QueryClient) *HostRegistry {
