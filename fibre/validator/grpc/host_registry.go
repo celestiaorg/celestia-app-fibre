@@ -19,6 +19,7 @@ type HostRegistry struct {
 	cachedHosts map[string]validator.Host //
 }
 
+// NewHostRegistry creates a new [HostRegistry] instance with the provided query client.
 func NewHostRegistry(queryClient types.QueryClient) *HostRegistry {
 	return &HostRegistry{
 		queryClient: queryClient,
