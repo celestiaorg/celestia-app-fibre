@@ -217,12 +217,12 @@ multiplexer/abci/
 ## Implementation Order
 
 1. ✅ Draft plan (this document)
-2. ⏳ Verify prerequisites (PRs #30 and #50)
-3. ⏳ Create `fibre_server.go` with helper functions
-4. ⏳ Add CLI flags
-5. ⏳ Implement non-multiplexer integration
-6. ⏳ Implement multiplexer integration
-7. ⏳ Add tests
+2. ✅ Verify prerequisites (PRs #30 and #50) - Both merged
+3. ✅ Create `fibre_server.go` with helper functions
+4. ✅ Add CLI flags
+5. ✅ Implement non-multiplexer integration
+6. ✅ Implement multiplexer integration
+7. ✅ Add tests (unit tests for `isValidatorNode`, graceful shutdown implemented)
 8. ⏳ Manual testing
 9. ⏳ Documentation
 
