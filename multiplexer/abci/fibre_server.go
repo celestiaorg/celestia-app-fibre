@@ -30,7 +30,7 @@ func isValidatorNode(cfg *cmtcfg.Config) bool {
 // If isValidator is false, this function does nothing and returns nil, nil.
 // If isValidator is true and initialization fails, returns an error (preventing node startup).
 func (m *Multiplexer) startFibreServer(
-	ctx context.Context,
+	_ context.Context,
 	cmtNode *node.Node,
 	grpcServer *grpc.Server,
 	isValidator bool,
