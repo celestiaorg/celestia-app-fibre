@@ -88,21 +88,21 @@ func startCommandHandler(
 	}
 
 	// Start gRPC server if enabled
+	// IMPORTANT: Register Fibre service BEFORE starting the gRPC server
+	// to avoid "Server.RegisterService after Server.Serve" error
 	var grpcServer *grpc.Server
-	if svrCfg.GRPC.Enable {
-		var err error
-		grpcServer, clientCtx, err = startGRPCServer(ctx, g, svrCtx, clientCtx, appInstance, svrCfg, cmtNode)
-		if err != nil {
-			return fmt.Errorf("failed to start gRPC server: %w", err)
-		}
-	}
-
-	// Check if node is a validator and start Fibre server if needed
-	// Fibre server requires gRPC to be enabled
 	var fibreServer *fibre.Server
 	if svrCfg.GRPC.Enable {
-		isValidator := isValidatorNode(svrCtx.Config)
+		// Create and configure gRPC server (but don't start serving yet)
 		var err error
+		grpcServer, clientCtx, err = createGRPCServer(svrCtx, clientCtx, appInstance, svrCfg, cmtNode)
+		if err != nil {
+			return fmt.Errorf("failed to create gRPC server: %w", err)
+		}
+
+		// Register Fibre server BEFORE starting the gRPC server
+		// This ensures all services are registered before Server.Serve() is called
+		isValidator := isValidatorNode(svrCtx.Config)
 		fibreServer, err = startFibreServer(
 			ctx,
 			svrCtx,
@@ -118,6 +118,11 @@ func startCommandHandler(
 			}
 			// Non-validator nodes can continue without Fibre server
 			svrCtx.Logger.Error("failed to start Fibre server (non-validator)", "error", err)
+		}
+
+		// Now start the gRPC server (after all services are registered)
+		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
+			return fmt.Errorf("failed to start gRPC server: %w", err)
 		}
 
 		// Add graceful shutdown for Fibre server
@@ -189,12 +194,9 @@ func startCometNode(svrCtx *server.Context, appInstance servertypes.Application)
 	return cmtNode, nil
 }
 
-// startGRPCServer creates and starts a gRPC server, returning the server and updated client context.
-// The ctx parameter is the cancellation context that will be used for graceful shutdown.
-// The g parameter is the error group that manages the goroutines.
-func startGRPCServer(
-	ctx context.Context,
-	g *errgroup.Group,
+// createGRPCServer creates and configures the gRPC server but does not start serving.
+// This allows services (like Fibre) to be registered before the server starts.
+func createGRPCServer(
 	svrCtx *server.Context,
 	clientCtx client.Context,
 	appInstance servertypes.Application,
@@ -232,6 +234,28 @@ func startGRPCServer(
 	blockAPI := coregrpc.NewBlockAPI(coreEnv)
 	coregrpc.RegisterBlockAPIServer(grpcServer, blockAPI)
 
+	svrCtx.Logger.Info("gRPC server created and configured", "address", svrCfg.GRPC.Address)
+
+	return grpcServer, clientCtx, nil
+}
+
+// startGRPCServer starts the gRPC server and BlockAPI event listener.
+// The server must have all services registered before this is called.
+func startGRPCServer(
+	ctx context.Context,
+	g *errgroup.Group,
+	svrCtx *server.Context,
+	svrCfg serverconfig.Config,
+	grpcServer *grpc.Server,
+	cmtNode *node.Node,
+) error {
+	// Configure RPC for BlockAPI event listener
+	coreEnv, err := cmtNode.ConfigureRPC()
+	if err != nil {
+		return fmt.Errorf("failed to configure RPC for CometBFT node: %w", err)
+	}
+	blockAPI := coregrpc.NewBlockAPI(coreEnv)
+
 	// Start BlockAPI event listener using the cancellation context
 	// This ensures it can be gracefully shut down when signals are received
 	g.Go(func() error {
@@ -251,7 +275,7 @@ func startGRPCServer(
 
 	svrCtx.Logger.Info("gRPC server started", "address", svrCfg.GRPC.Address)
 
-	return grpcServer, clientCtx, nil
+	return nil
 }
 
 // startAPIServer starts the API server.
