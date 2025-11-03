@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sync"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
@@ -17,6 +18,7 @@ var _ validator.HostRegistry = &HostRegistry{}
 // It uses the [types.QueryClient] to query the fibre provider information for validators in the active set.
 type HostRegistry struct {
 	queryClient types.QueryClient
+	mu          sync.RWMutex
 	cachedHosts map[string]validator.Host
 }
 
@@ -44,17 +46,18 @@ func (g *HostRegistry) GetHost(ctx context.Context, val *core.Validator) (valida
 
 func (g *HostRegistry) getHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
 	valConAddr := sdk.ConsAddress(val.Address.Bytes()).String()
+
 	// check the cache first
-	if host, ok := g.cachedHosts[valConAddr]; ok {
+	if host, ok := g.readHost(valConAddr); ok {
 		return host, nil
 	}
 
 	// if the cache is empty, fetch all active fibre providers
-	if len(g.cachedHosts) == 0 {
+	if g.cacheLen() == 0 {
 		if err := g.PullAll(ctx); err != nil {
 			return "", err
 		}
-		if host, ok := g.cachedHosts[valConAddr]; ok {
+		if host, ok := g.readHost(valConAddr); ok {
 			return host, nil
 		} else {
 			return "", fmt.Errorf("host not found for validator %s", valConAddr)
@@ -72,6 +75,9 @@ func (g *HostRegistry) PullAll(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
 	for _, provider := range resp.Providers {
 		g.cachedHosts[provider.ValidatorConsensusAddress] = validator.Host(provider.Info.Host)
 	}
@@ -91,6 +97,30 @@ func (g *HostRegistry) PullHost(ctx context.Context, val *core.Validator) (valid
 		return "", fmt.Errorf("host not found for validator %s", consAddr.String())
 	}
 
-	g.cachedHosts[val.Address.String()] = validator.Host(resp.Info.Host)
-	return validator.Host(resp.Info.Host), nil
+	host := validator.Host(resp.Info.Host)
+	g.writeHost(consAddr.String(), host)
+
+	return host, nil
+}
+
+// readHost reads a host from the cache with a read lock.
+func (g *HostRegistry) readHost(key string) (validator.Host, bool) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	host, ok := g.cachedHosts[key]
+	return host, ok
+}
+
+// writeHost writes a single host to the cache with a write lock.
+func (g *HostRegistry) writeHost(key string, host validator.Host) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.cachedHosts[key] = host
+}
+
+// cacheLen returns the length of the cache with a read lock.
+func (g *HostRegistry) cacheLen() int {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return len(g.cachedHosts)
 }
