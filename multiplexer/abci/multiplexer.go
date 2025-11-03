@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"cosmossdk.io/log"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/multiplexer/internal"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -181,15 +182,31 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 
 		// Check if node is a validator and start Fibre server if needed
 		// Fibre server requires gRPC to be enabled and CometBFT node to be running
+		var fibreServer *fibre.Server
 		if m.cmNode != nil {
 			isValidator := isValidatorNode(m.svrCtx.Config)
-			if err := m.startFibreServer(m.ctx, m.cmNode, grpcServer, isValidator); err != nil {
+			var err error
+			fibreServer, err = m.startFibreServer(m.ctx, m.cmNode, grpcServer, isValidator)
+			if err != nil {
 				if isValidator {
 					// Validator nodes must have Fibre server working
 					return fmt.Errorf("failed to start Fibre server (validator node): %w", err)
 				}
 				// Non-validator nodes can continue without Fibre server
 				m.logger.Error("failed to start Fibre server (non-validator)", "error", err)
+			}
+
+			// Add graceful shutdown for Fibre server
+			if fibreServer != nil {
+				m.g.Go(func() error {
+					<-m.ctx.Done()
+					m.logger.Info("Stopping Fibre server")
+					if err := fibreServer.Stop(); err != nil {
+						m.logger.Error("Error stopping Fibre server", "error", err)
+						return err
+					}
+					return nil
+				})
 			}
 		} else {
 			m.logger.Info("CometBFT node is not running, skipping Fibre server startup")

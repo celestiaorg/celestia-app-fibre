@@ -28,7 +28,8 @@ func isValidatorNode(cfg *cmtcfg.Config) bool {
 }
 
 // startFibreServer initializes and registers the Fibre server with the gRPC server for a validator node.
-// If isValidator is false, this function does nothing and returns nil.
+// Returns the Fibre server instance and an error. The server should be stopped gracefully during shutdown.
+// If isValidator is false, this function does nothing and returns nil, nil.
 // If isValidator is true and initialization fails, returns an error (preventing node startup).
 func startFibreServer(
 	ctx context.Context,
@@ -37,17 +38,17 @@ func startFibreServer(
 	cmtNode *node.Node,
 	grpcServer *grpc.Server,
 	isValidator bool,
-) error {
+) (*fibre.Server, error) {
 	// Check if Fibre server is enabled via flag
 	fibreEnabled := svrCtx.Viper.GetBool(FibreEnableFlag)
 	if !fibreEnabled {
 		svrCtx.Logger.Info("Fibre server is disabled via flag, skipping startup")
-		return nil
+		return nil, nil
 	}
 
 	if !isValidator {
 		svrCtx.Logger.Info("Node is not a validator, skipping Fibre server startup")
-		return nil
+		return nil, nil
 	}
 
 	svrCtx.Logger.Info("Initializing Fibre server for validator node")
@@ -55,12 +56,12 @@ func startFibreServer(
 	// Get PrivValidator from CometBFT node
 	privVal := cmtNode.PrivValidator()
 	if privVal == nil {
-		return fmt.Errorf("failed to get PrivValidator from CometBFT node")
+		return nil, fmt.Errorf("failed to get PrivValidator from CometBFT node")
 	}
 
 	// Create QueryClient from gRPC connection
 	if clientCtx.GRPCClient == nil {
-		return fmt.Errorf("gRPC client is not initialized")
+		return nil, fmt.Errorf("gRPC client is not initialized")
 	}
 	queryClient := types.NewQueryClient(clientCtx.GRPCClient)
 
@@ -68,7 +69,7 @@ func startFibreServer(
 	// We need to create a BlockAPIClient from the gRPC connection
 	// Since BlockAPI is registered on the gRPC server, we can use the client connection
 	if clientCtx.GRPCClient == nil {
-		return fmt.Errorf("gRPC client is not initialized for BlockAPI")
+		return nil, fmt.Errorf("gRPC client is not initialized for BlockAPI")
 	}
 	// Create BlockAPIClient from the gRPC client connection
 	blockAPIClient := coregrpc.NewBlockAPIClient(clientCtx.GRPCClient)
@@ -96,15 +97,15 @@ func startFibreServer(
 			storePath = filepath.Join(homeDir, "data", "fibre-store")
 		}
 		if err := os.MkdirAll(storePath, 0755); err != nil {
-			return fmt.Errorf("failed to create Fibre store directory: %w", err)
+			return nil, fmt.Errorf("failed to create Fibre store directory: %w", err)
 		}
 		store, err = fibre.NewBadgerStore(storePath, storeCfg)
 		if err != nil {
-			return fmt.Errorf("failed to create Fibre store: %w", err)
+			return nil, fmt.Errorf("failed to create Fibre store: %w", err)
 		}
 		svrCtx.Logger.Info("Using Badger store for Fibre server", "path", storePath)
 	} else {
-		return fmt.Errorf("invalid store type: %s (must be 'memory' or 'badger')", storeType)
+		return nil, fmt.Errorf("invalid store type: %s (must be 'memory' or 'badger')", storeType)
 	}
 
 	// Create ServerConfig
@@ -140,7 +141,7 @@ func startFibreServer(
 		serverCfg,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create Fibre server: %w", err)
+		return nil, fmt.Errorf("failed to create Fibre server: %w", err)
 	}
 
 	// Register Fibre server with gRPC server
@@ -151,5 +152,5 @@ func startFibreServer(
 		"block-time", serverCfg.BlockTime,
 		"store-type", storeType)
 
-	return nil
+	return fibreServer, nil
 }
