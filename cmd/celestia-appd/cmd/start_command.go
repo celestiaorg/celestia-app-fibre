@@ -22,10 +22,12 @@ import (
 	db "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
+	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
+	"github.com/cosmos/cosmos-sdk/telemetry"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -142,11 +144,15 @@ func startCommandHandler(
 	}
 
 	// Start API server if enabled
-	// Note: API server requires app instance to register routes
-	// For now, we skip it - can be added later if needed
 	if svrCfg.API.Enable && grpcServer != nil {
-		svrCtx.Logger.Info("API server is enabled but not yet implemented in custom start handler")
-		// TODO: Implement API server setup with appInstance.RegisterAPIRoutes
+		metrics, err := startTelemetry(svrCfg)
+		if err != nil {
+			return fmt.Errorf("failed to start telemetry: %w", err)
+		}
+
+		if err := startAPIServer(ctx, g, svrCtx, clientCtx, appInstance, svrCfg, grpcServer, metrics); err != nil {
+			return fmt.Errorf("failed to start API server: %w", err)
+		}
 	}
 
 	// Wait for signal - all services are now managed by the error group
@@ -278,14 +284,44 @@ func startGRPCServer(
 	return nil
 }
 
-// startAPIServer starts the API server.
-func startAPIServer(svrCtx *server.Context, svrCfg serverconfig.Config, grpcServer *grpc.Server) error {
-	// API server needs client context - we'll create a minimal one
-	// The actual implementation should use the client context from startCommandHandler
-	// For now, this is a placeholder - API server setup needs the app instance
-	svrCtx.Logger.Info("API server startup not fully implemented yet", "address", svrCfg.API.Address)
-	// TODO: Implement full API server setup similar to multiplexer
+// startAPIServer initializes and starts the API server, setting up routes, telemetry, and running it within an error group.
+func startAPIServer(
+	ctx context.Context,
+	g *errgroup.Group,
+	svrCtx *server.Context,
+	clientCtx client.Context,
+	appInstance servertypes.Application,
+	svrCfg serverconfig.Config,
+	grpcServer *grpc.Server,
+	metrics *telemetry.Metrics,
+) error {
+	// Set home directory in client context
+	clientCtx = clientCtx.WithHomeDir(svrCtx.Config.RootDir)
+
+	// Create API server
+	apiSrv := api.New(clientCtx, svrCtx.Logger.With(log.ModuleKey, "api-server"), grpcServer)
+
+	// Register API routes from the application
+	appInstance.RegisterAPIRoutes(apiSrv, svrCfg.API)
+
+	// Set telemetry if enabled
+	if svrCfg.Telemetry.Enabled {
+		apiSrv.SetTelemetry(metrics)
+	}
+
+	// Start API server in a goroutine using the cancellation context
+	// This ensures it can be gracefully shut down when signals are received
+	svrCtx.Logger.Info("Starting API server", "address", svrCfg.API.Address)
+	g.Go(func() error {
+		return apiSrv.Start(ctx, svrCfg)
+	})
+
 	return nil
+}
+
+// startTelemetry initializes telemetry metrics if telemetry is enabled in the configuration.
+func startTelemetry(cfg serverconfig.Config) (*telemetry.Metrics, error) {
+	return telemetry.New(cfg.Telemetry)
 }
 
 // getTraceWriter gets the trace writer from server context, similar to multiplexer.
