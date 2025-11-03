@@ -9,6 +9,16 @@ import (
 )
 
 // modifyRootCommand sets the default root command without adding a multiplexer.
+// It uses a custom start command handler to integrate Fibre server for validators.
 func modifyRootCommand(rootCommand *cobra.Command) {
-	server.AddCommands(rootCommand, app.NodeHome, NewAppServer, appExporter, addStartFlags)
+	server.AddCommandsWithStartCmdOptions(
+		rootCommand,
+		app.NodeHome,
+		NewAppServer,
+		appExporter,
+		server.StartCmdOptions{
+			AddFlags:            addStartFlags,
+			StartCommandHandler: startCommandHandler,
+		},
+	)
 }
