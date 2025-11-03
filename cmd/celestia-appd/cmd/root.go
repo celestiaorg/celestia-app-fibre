@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"cosmossdk.io/log"
 	confixcmd "cosmossdk.io/tools/confix/cmd"
@@ -39,6 +40,17 @@ const (
 
 	// DelayedPrecommitTimeoutFlag is a flag that can be used to override the DelayedPrecommitTimeout.
 	DelayedPrecommitTimeoutFlag = "delayed-precommit-timeout"
+
+	// FibreEnableFlag enables or disables the Fibre server
+	FibreEnableFlag = "fibre.enable"
+	// FibreStoreTypeFlag specifies the store type: "memory" or "badger"
+	FibreStoreTypeFlag = "fibre.store-type"
+	// FibreStorePathFlag specifies the path for the badger store
+	FibreStorePathFlag = "fibre.store-path"
+	// FibreChainIDFlag specifies the chain ID (default: from config)
+	FibreChainIDFlag = "fibre.chain-id"
+	// FibreBlockTimeFlag specifies the expected block time
+	FibreBlockTimeFlag = "fibre.block-time"
 )
 
 // NewRootCmd creates a new root command for celestia-appd.
@@ -155,6 +167,13 @@ func addStartFlags(startCmd *cobra.Command) {
 
 	startCmd.Flags().Duration(DelayedPrecommitTimeoutFlag, 0, "Override the DelayedPrecommitTimeout to control block time. Note: only for testing purposes.")
 	startCmd.Flags().Bool(FlagForceNoBBR, false, "bypass the requirement to use bbr locally")
+
+	// Fibre server flags
+	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable Fibre server (default: true for validators)")
+	startCmd.Flags().String(FibreStoreTypeFlag, "badger", "Store type: \"memory\" or \"badger\" (default: \"badger\")")
+	startCmd.Flags().String(FibreStorePathFlag, "", "Path for badger store (default: <home>/data/fibre-store)")
+	startCmd.Flags().String(FibreChainIDFlag, "", "Chain ID for Fibre server (default: from config)")
+	startCmd.Flags().Duration(FibreBlockTimeFlag, 6*time.Second, "Expected block time for Fibre server (default: 6s)")
 }
 
 // replaceLogger optionally replaces the logger with a file logger if the flag

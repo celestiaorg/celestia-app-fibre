@@ -12,8 +12,8 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	cmtcfg "github.com/cometbft/cometbft/config"
-	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"github.com/cometbft/cometbft/node"
+	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
 	"google.golang.org/grpc"
@@ -38,6 +38,13 @@ func startFibreServer(
 	grpcServer *grpc.Server,
 	isValidator bool,
 ) error {
+	// Check if Fibre server is enabled via flag
+	fibreEnabled := svrCtx.Viper.GetBool(FibreEnableFlag)
+	if !fibreEnabled {
+		svrCtx.Logger.Info("Fibre server is disabled via flag, skipping startup")
+		return nil
+	}
+
 	if !isValidator {
 		svrCtx.Logger.Info("Node is not a validator, skipping Fibre server startup")
 		return nil
@@ -67,33 +74,65 @@ func startFibreServer(
 	blockAPIClient := coregrpc.NewBlockAPIClient(clientCtx.GRPCClient)
 	valGet := validator.NewGrpcGetter(blockAPIClient)
 
-	// Create Store (badger by default)
-	homeDir := svrCtx.Config.RootDir
-	storePath := filepath.Join(homeDir, "data", "fibre-store")
-	if err := os.MkdirAll(storePath, 0755); err != nil {
-		return fmt.Errorf("failed to create Fibre store directory: %w", err)
+	// Create Store based on CLI flag
+	storeType := svrCtx.Viper.GetString(FibreStoreTypeFlag)
+	if storeType == "" {
+		storeType = "badger" // default
 	}
 
 	storeCfg := fibre.DefaultStoreConfig()
-	store, err := fibre.NewBadgerStore(storePath, storeCfg)
-	if err != nil {
-		return fmt.Errorf("failed to create Fibre store: %w", err)
+	var store *fibre.Store
+	var err error
+
+	if storeType == "memory" {
+		store = fibre.NewMemoryStore(storeCfg)
+		svrCtx.Logger.Info("Using in-memory store for Fibre server")
+	} else if storeType == "badger" {
+		// Get store path from flag or use default
+		storePath := svrCtx.Viper.GetString(FibreStorePathFlag)
+		if storePath == "" {
+			// Default to <home>/data/fibre-store
+			homeDir := svrCtx.Config.RootDir
+			storePath = filepath.Join(homeDir, "data", "fibre-store")
+		}
+		if err := os.MkdirAll(storePath, 0755); err != nil {
+			return fmt.Errorf("failed to create Fibre store directory: %w", err)
+		}
+		store, err = fibre.NewBadgerStore(storePath, storeCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create Fibre store: %w", err)
+		}
+		svrCtx.Logger.Info("Using Badger store for Fibre server", "path", storePath)
+	} else {
+		return fmt.Errorf("invalid store type: %s (must be 'memory' or 'badger')", storeType)
 	}
 
 	// Create ServerConfig
 	serverCfg := fibre.DefaultServerConfig()
-	serverCfg.ChainID = svrCtx.Viper.GetString("chain-id")
-	if serverCfg.ChainID == "" {
+
+	// Get chain ID from flag, config, or genesis
+	chainID := svrCtx.Viper.GetString(FibreChainIDFlag)
+	if chainID == "" {
+		chainID = svrCtx.Viper.GetString("chain-id")
+	}
+	if chainID == "" {
 		// Fallback: try to get chain ID from genesis
 		genDoc := cmtNode.GenesisDoc()
 		if genDoc != nil {
-			serverCfg.ChainID = genDoc.ChainID
+			chainID = genDoc.ChainID
 		} else {
 			// Default fallback
-			serverCfg.ChainID = "celestia"
+			chainID = "celestia"
 		}
 	}
-	// BlockTime defaults to 6s from DefaultServerConfig
+	serverCfg.ChainID = chainID
+
+	// Get block time from flag or use default
+	blockTime := svrCtx.Viper.GetDuration(FibreBlockTimeFlag)
+	if blockTime > 0 {
+		serverCfg.BlockTime = blockTime
+	}
+	// Otherwise BlockTime defaults to 6s from DefaultServerConfig
 
 	// Create Fibre Server
 	fibreServer, err := fibre.NewServer(
@@ -110,7 +149,10 @@ func startFibreServer(
 	// Register Fibre server with gRPC server
 	types.RegisterFibreServer(grpcServer, fibreServer)
 
-	svrCtx.Logger.Info("Fibre server registered with gRPC server", "chain-id", serverCfg.ChainID, "store-path", storePath)
+	svrCtx.Logger.Info("Fibre server registered with gRPC server",
+		"chain-id", serverCfg.ChainID,
+		"block-time", serverCfg.BlockTime,
+		"store-type", storeType)
 
 	return nil
 }
