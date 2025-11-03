@@ -110,11 +110,8 @@ func startFibreServer(
 	// Create ServerConfig
 	serverCfg := fibre.DefaultServerConfig()
 
-	// Get chain ID from flag, config, or genesis
-	chainID := svrCtx.Viper.GetString(FibreChainIDFlag)
-	if chainID == "" {
-		chainID = svrCtx.Viper.GetString("chain-id")
-	}
+	// Get chain ID from config or genesis (should match the node's chain ID)
+	chainID := svrCtx.Viper.GetString("chain-id")
 	if chainID == "" {
 		// Fallback: try to get chain ID from genesis
 		genDoc := cmtNode.GenesisDoc()

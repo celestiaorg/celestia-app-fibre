@@ -47,8 +47,6 @@ const (
 	FibreStoreTypeFlag = "fibre.store-type"
 	// FibreStorePathFlag specifies the path for the badger store
 	FibreStorePathFlag = "fibre.store-path"
-	// FibreChainIDFlag specifies the chain ID (default: from config)
-	FibreChainIDFlag = "fibre.chain-id"
 	// FibreBlockTimeFlag specifies the expected block time
 	FibreBlockTimeFlag = "fibre.block-time"
 )
@@ -172,7 +170,6 @@ func addStartFlags(startCmd *cobra.Command) {
 	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable Fibre server (default: true for validators)")
 	startCmd.Flags().String(FibreStoreTypeFlag, "badger", "Store type: \"memory\" or \"badger\" (default: \"badger\")")
 	startCmd.Flags().String(FibreStorePathFlag, "", "Path for badger store (default: <home>/data/fibre-store)")
-	startCmd.Flags().String(FibreChainIDFlag, "", "Chain ID for Fibre server (default: from config)")
 	startCmd.Flags().Duration(FibreBlockTimeFlag, 6*time.Second, "Expected block time for Fibre server (default: 6s)")
 }
 
