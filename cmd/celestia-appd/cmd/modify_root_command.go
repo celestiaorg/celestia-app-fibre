@@ -3,6 +3,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/spf13/cobra"
@@ -21,4 +23,9 @@ func modifyRootCommand(rootCommand *cobra.Command) {
 			StartCommandHandler: startCommandHandler,
 		},
 	)
+
+	// Enhance start command documentation with Fibre server information
+	if err := enhanceStartCommandHelp(rootCommand); err != nil {
+		panic(fmt.Errorf("failed to enhance start command help: %w", err))
+	}
 }
