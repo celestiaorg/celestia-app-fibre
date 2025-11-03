@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
-	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -69,7 +69,7 @@ func (m *Multiplexer) startFibreServer(
 	}
 	// Create BlockAPIClient from the gRPC client connection
 	blockAPIClient := coregrpc.NewBlockAPIClient(m.clientContext.GRPCClient)
-	valGet := validator.NewGrpcGetter(blockAPIClient)
+	valGet := fibregrpc.NewSetGetter(blockAPIClient)
 
 	// Create Store based on CLI flag
 	storeType := m.svrCtx.Viper.GetString("fibre.store-type")
