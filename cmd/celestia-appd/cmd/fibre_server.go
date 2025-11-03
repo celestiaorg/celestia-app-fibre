@@ -10,6 +10,7 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -120,7 +121,7 @@ func startFibreServer(
 			chainID = genDoc.ChainID
 		} else {
 			// Default fallback
-			chainID = "celestia"
+			chainID = appconsts.MainnetChainID
 		}
 	}
 	serverCfg.ChainID = chainID

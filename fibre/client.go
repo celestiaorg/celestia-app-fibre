@@ -9,6 +9,7 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
@@ -65,7 +66,7 @@ type ClientConfig struct {
 func DefaultClientConfig() ClientConfig {
 	return ClientConfig{
 		DefaultKeyName:              DefaultKeyName,
-		ChainID:                     "celestia",
+		ChainID:                     appconsts.MainnetChainID,
 		BlobConfig:                  DefaultBlobConfigV0(),
 		UploadTargetVotingPower:     cmtmath.Fraction{Numerator: 2, Denominator: 3},
 		UploadTargetSignaturesCount: cmtmath.Fraction{Numerator: 2, Denominator: 3},
