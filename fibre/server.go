@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cometbft/cometbft/crypto"
 	core "github.com/cometbft/cometbft/types"
@@ -35,7 +34,7 @@ type ServerConfig struct {
 // DefaultServerConfig returns a [ServerConfig] with default values.
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
-		ChainID:     appconsts.MainnetChainID,
+		ChainID:     "celestia",
 		BlockTime:   time.Second * 6,
 		BlobConfig:  DefaultBlobConfigV0(),
 		StoreConfig: DefaultStoreConfig(),
