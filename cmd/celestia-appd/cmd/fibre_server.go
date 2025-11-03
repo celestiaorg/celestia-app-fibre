@@ -86,10 +86,11 @@ func startFibreServer(
 	var store *fibre.Store
 	var err error
 
-	if storeType == "memory" {
+	switch storeType {
+	case "memory":
 		store = fibre.NewMemoryStore(storeCfg)
 		svrCtx.Logger.Info("Using in-memory store for Fibre server")
-	} else if storeType == "badger" {
+	case "badger":
 		// Get store path from flag or use default
 		storePath := svrCtx.Viper.GetString(FibreStorePathFlag)
 		if storePath == "" {
@@ -105,7 +106,7 @@ func startFibreServer(
 			return nil, fmt.Errorf("failed to create Fibre store: %w", err)
 		}
 		svrCtx.Logger.Info("Using Badger store for Fibre server", "path", storePath)
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid store type: %s (must be 'memory' or 'badger')", storeType)
 	}
 
