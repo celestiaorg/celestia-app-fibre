@@ -167,10 +167,10 @@ func addStartFlags(startCmd *cobra.Command) {
 	startCmd.Flags().Bool(FlagForceNoBBR, false, "bypass the requirement to use bbr locally")
 
 	// Fibre server flags
-	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable or disable the Fibre server. When enabled, the server automatically starts for validator nodes. Non-validator nodes skip Fibre server startup.")
-	startCmd.Flags().String(FibreStoreTypeFlag, "badger", "Storage backend type for Fibre server data. Valid options are \"memory\" (ephemeral, for testing only) or \"badger\" (persistent on disk).")
+	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable or disable the Fibre server.")
+	startCmd.Flags().String(FibreStoreTypeFlag, "badger", "Storage backend type for Fibre server data. Valid options are \"memory\" (ephemeral) or \"badger\" (persistent on disk).")
 	startCmd.Flags().String(FibreStorePathFlag, "", "Directory path for the BadgerDB store. Only used when --fibre.store-type=badger. If not specified, defaults to <home>/data/fibre-store")
-	startCmd.Flags().Duration(FibreBlockTimeFlag, 6*time.Second, "Expected block time for calculating height-based timeouts in the Fibre server. Should match your network's actual block time. Accepts duration strings like \"6s\".")
+	startCmd.Flags().Duration(FibreBlockTimeFlag, 6*time.Second, "Expected block time for calculating height-based timeouts in the Fibre server. Accepts duration strings like \"6s\".")
 }
 
 // replaceLogger optionally replaces the logger with a file logger if the flag
