@@ -179,6 +179,22 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		}
 		m.clientContext = clientContext // update client context with grpc
 
+		// Check if node is a validator and start Fibre server if needed
+		// Fibre server requires gRPC to be enabled and CometBFT node to be running
+		if m.cmNode != nil {
+			isValidator := isValidatorNode(m.svrCtx.Config)
+			if err := m.startFibreServer(m.ctx, m.cmNode, grpcServer, isValidator); err != nil {
+				if isValidator {
+					// Validator nodes must have Fibre server working
+					return fmt.Errorf("failed to start Fibre server (validator node): %w", err)
+				}
+				// Non-validator nodes can continue without Fibre server
+				m.logger.Error("failed to start Fibre server (non-validator)", "error", err)
+			}
+		} else {
+			m.logger.Info("CometBFT node is not running, skipping Fibre server startup")
+		}
+
 		// startAPIServer starts the api server for a native app. If using an embedded app
 		// it will use that instead.
 		if m.svrCfg.API.Enable {
@@ -191,6 +207,8 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 				return err
 			}
 		}
+	} else {
+		m.logger.Info("gRPC server is disabled, skipping Fibre server startup")
 	}
 	return nil
 }

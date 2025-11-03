@@ -43,6 +43,12 @@ func startCommandHandler(
 		return fmt.Errorf("cannot start app without CometBFT")
 	}
 
+	// Create cancellation context and error group FIRST, before starting any services
+	// This ensures all services can be gracefully shut down when signals are received
+	ctx, cancelFn := context.WithCancel(context.Background())
+	g, ctx := errgroup.WithContext(ctx)
+	server.ListenForQuitSignals(g, true, cancelFn, svrCtx.Logger)
+
 	// Get server config
 	svrCfg, err := serverconfig.GetConfig(svrCtx.Viper)
 	if err != nil {
@@ -84,7 +90,7 @@ func startCommandHandler(
 	var grpcServer *grpc.Server
 	if svrCfg.GRPC.Enable {
 		var err error
-		grpcServer, clientCtx, err = startGRPCServer(svrCtx, clientCtx, appInstance, svrCfg, cmtNode)
+		grpcServer, clientCtx, err = startGRPCServer(ctx, g, svrCtx, clientCtx, appInstance, svrCfg, cmtNode)
 		if err != nil {
 			return fmt.Errorf("failed to start gRPC server: %w", err)
 		}
@@ -95,7 +101,7 @@ func startCommandHandler(
 	if svrCfg.GRPC.Enable {
 		isValidator := isValidatorNode(svrCtx.Config)
 		if err := startFibreServer(
-			context.Background(),
+			ctx,
 			svrCtx,
 			clientCtx,
 			cmtNode,
@@ -121,10 +127,7 @@ func startCommandHandler(
 		// TODO: Implement API server setup with appInstance.RegisterAPIRoutes
 	}
 
-	// Wait for signal - use the same pattern as multiplexer
-	ctx, cancelFn := context.WithCancel(context.Background())
-	g, _ := errgroup.WithContext(ctx)
-	server.ListenForQuitSignals(g, true, cancelFn, svrCtx.Logger)
+	// Wait for signal - all services are now managed by the error group
 	return g.Wait()
 }
 
@@ -170,7 +173,11 @@ func startCometNode(svrCtx *server.Context, appInstance servertypes.Application)
 }
 
 // startGRPCServer creates and starts a gRPC server, returning the server and updated client context.
+// The ctx parameter is the cancellation context that will be used for graceful shutdown.
+// The g parameter is the error group that manages the goroutines.
 func startGRPCServer(
+	ctx context.Context,
+	g *errgroup.Group,
 	svrCtx *server.Context,
 	clientCtx client.Context,
 	appInstance servertypes.Application,
@@ -208,24 +215,22 @@ func startGRPCServer(
 	blockAPI := coregrpc.NewBlockAPI(coreEnv)
 	coregrpc.RegisterBlockAPIServer(grpcServer, blockAPI)
 
-	// Start BlockAPI event listener in background
-	go func() {
-		if err := blockAPI.StartNewBlockEventListener(context.Background()); err != nil {
-			svrCtx.Logger.Error("BlockAPI event listener error", "error", err)
-		}
-	}()
+	// Start BlockAPI event listener using the cancellation context
+	// This ensures it can be gracefully shut down when signals are received
+	g.Go(func() error {
+		return blockAPI.StartNewBlockEventListener(ctx)
+	})
 
-	// Start gRPC server in a goroutine
-	go func() {
-		if err := servergrpc.StartGRPCServer(
-			context.Background(),
+	// Start gRPC server using the cancellation context
+	// This ensures it can be gracefully shut down when signals are received
+	g.Go(func() error {
+		return servergrpc.StartGRPCServer(
+			ctx,
 			svrCtx.Logger.With(log.ModuleKey, "grpc-server"),
 			svrCfg.GRPC,
 			grpcServer,
-		); err != nil {
-			svrCtx.Logger.Error("gRPC server error", "error", err)
-		}
-	}()
+		)
+	})
 
 	svrCtx.Logger.Info("gRPC server started", "address", svrCfg.GRPC.Address)
 
