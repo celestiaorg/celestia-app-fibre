@@ -169,7 +169,7 @@ celestia-app and celestia-core start multiple servers to handle different types 
 
 | Server       | Default Address                | Configuration                 | Purpose                                                                                                                                      |
 |--------------|--------------------------------|-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| **gRPC**     | `localhost:9090`               | `app.toml` under `[grpc]`     | gRPC for application-specific queries. Provides access to Cosmos SDK modules (bank, governance, etc.) and Celestia-specific modules (blob).  |
+| **gRPC**     | `localhost:9090`               | `app.toml` under `[grpc]`     | gRPC for application-specific queries. Provides access to Cosmos SDK modules (bank, governance, etc.) and Celestia-specific modules (blob). The Fibre server is also registered on this gRPC server for validator nodes. |
 | **REST API** | `tcp://localhost:1317`         | `app.toml` under `[api]`      | RESTful HTTP API that proxies requests to the gRPC server via gRPC-gateway. Provides the same functionality as gRPC but over HTTP with JSON. |
 | **gRPC-Web** | *Uses REST API server address* | `app.toml` under `[grpc-web]` | Browser-compatible gRPC API that allows web applications to interact with the gRPC server.                                                   |
 
@@ -195,18 +195,20 @@ This repository includes dependencies on private GitHub repositories. To build t
 
 2. **Configure Git authentication**:
    Add the following line to your `$HOME/.netrc` file (create it if it doesn't exist):
-   
-   ```
+
+   ```ascii
    machine github.com login <YOUR_GITHUB_USERNAME> password <YOUR_GITHUB_PAT_TOKEN>
    ```
-   
+
    **Important**: Replace `<YOUR_GITHUB_USERNAME>` with your actual GitHub username and `<YOUR_GITHUB_PAT_TOKEN>` with the token you generated in step 1.
 
-   **Security Notes**: 
+   **Security Notes**:
    - Ensure your `.netrc` file has appropriate permissions:
+
      ```shell
      chmod 600 ~/.netrc
      ```
+
    - Never commit your `.netrc` file to version control as it contains sensitive credentials
    - Verify that `~/.netrc` is in your global `.gitignore` or the repository's `.gitignore`
 
