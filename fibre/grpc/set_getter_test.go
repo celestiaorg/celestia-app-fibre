@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func TestGrpcGetter_GetByHeight_Success(t *testing.T) {
+func TestSetGetter_GetByHeight_Success(t *testing.T) {
 	const testHeight = uint64(100)
 
 	// Create test validators
@@ -32,7 +32,7 @@ func TestGrpcGetter_GetByHeight_Success(t *testing.T) {
 	}
 
 	// Create getter and fetch validator set
-	getter := fibregrpc.NewGrpcGetter(mockClient)
+	getter := fibregrpc.NewSetGetter(mockClient)
 	result, err := getter.GetByHeight(context.Background(), testHeight)
 
 	// Verify results
@@ -43,10 +43,10 @@ func TestGrpcGetter_GetByHeight_Success(t *testing.T) {
 	require.Equal(t, int64(300), result.TotalVotingPower()) // 3 validators * 100 voting power each
 }
 
-func TestGrpcGetter_GetByHeight_ZeroHeight(t *testing.T) {
+func TestSetGetter_GetByHeight_ZeroHeight(t *testing.T) {
 	// Test that GetByHeight rejects zero height
 	var client coregrpc.BlockAPIClient
-	getter := fibregrpc.NewGrpcGetter(client)
+	getter := fibregrpc.NewSetGetter(client)
 
 	_, err := getter.GetByHeight(context.Background(), 0)
 	if err == nil {

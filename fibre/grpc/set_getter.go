@@ -9,29 +9,29 @@ import (
 	core "github.com/cometbft/cometbft/types"
 )
 
-// GrpcGetter implements the [SetGetter] interface by fetching [Set]
+// SetGetter implements the [SetGetter] interface by fetching [Set]
 // using the BlockAPI gRPC client.
-type GrpcGetter struct {
+type SetGetter struct {
 	client coregrpc.BlockAPIClient
 }
 
-// NewGrpcGetter creates a new [GrpcGetter] instance with the provided BlockAPI gRPC client.
-func NewGrpcGetter(client coregrpc.BlockAPIClient) *GrpcGetter {
-	return &GrpcGetter{
+// NewSetGetter creates a new [SetGetter] instance with the provided BlockAPI gRPC client.
+func NewSetGetter(client coregrpc.BlockAPIClient) *SetGetter {
+	return &SetGetter{
 		client: client,
 	}
 }
 
 // Head returns the latest [Set] by calling getByHeight with 0 height.
 // This avoids an additional roundtrip to get the status first.
-func (g *GrpcGetter) Head(ctx context.Context) (validator.Set, error) {
+func (g *SetGetter) Head(ctx context.Context) (validator.Set, error) {
 	return g.getByHeight(ctx, 0)
 }
 
 // GetByHeight returns the [Set] at the specified height.
-// Height must be greater than 0. Use [GrpcGetter.Head] to get the latest [Set].
+// Height must be greater than 0. Use [SetGetter.Head] to get the latest [Set].
 // TODO(@Wondertan): Ensure that server side can handle head+1 case gracefully
-func (g *GrpcGetter) GetByHeight(ctx context.Context, height uint64) (validator.Set, error) {
+func (g *SetGetter) GetByHeight(ctx context.Context, height uint64) (validator.Set, error) {
 	if height == 0 {
 		return validator.Set{}, fmt.Errorf("height must be greater than 0, use Head() to get the latest validator set")
 	}
@@ -39,7 +39,7 @@ func (g *GrpcGetter) GetByHeight(ctx context.Context, height uint64) (validator.
 }
 
 // getByHeight is the private implementation that allows 0 height for latest validator set.
-func (g *GrpcGetter) getByHeight(ctx context.Context, height uint64) (validator.Set, error) {
+func (g *SetGetter) getByHeight(ctx context.Context, height uint64) (validator.Set, error) {
 	signedHeight := int64(height)
 
 	// fetch the validator set for this height (0 means latest)
@@ -64,4 +64,4 @@ func (g *GrpcGetter) getByHeight(ctx context.Context, height uint64) (validator.
 	}, nil
 }
 
-var _ validator.SetGetter = (*GrpcGetter)(nil)
+var _ validator.SetGetter = (*SetGetter)(nil)
