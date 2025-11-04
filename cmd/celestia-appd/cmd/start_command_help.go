@@ -1,5 +1,3 @@
-//go:build multiplexer
-
 package cmd
 
 import (
@@ -17,7 +15,11 @@ func enhanceStartCommandHelp(rootCmd *cobra.Command) error {
 		return fmt.Errorf("failed to find start command: %w", err)
 	}
 
+	// Get existing Long description or use Short as base
 	existingLong := startCmd.Long
+	if existingLong == "" {
+		existingLong = startCmd.Short
+	}
 
 	// Add Fibre server documentation section
 	fibreDocs := `
@@ -54,6 +56,11 @@ Fibre Server Configuration:
 
 	// Append Fibre docs to existing Long description
 	startCmd.Long = strings.TrimSpace(existingLong) + fibreDocs
+
+	// Also enhance the example if it exists
+	if startCmd.Example != "" {
+		startCmd.Example += "\n\n  # Example: Start with Fibre server enabled (default)\n  celestia-appd start"
+	}
 
 	return nil
 }
