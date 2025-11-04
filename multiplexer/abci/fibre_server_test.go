@@ -3,55 +3,72 @@
 package abci
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
-	cmtcfg "github.com/cometbft/cometbft/config"
+	"github.com/cometbft/cometbft/crypto"
+	"github.com/cometbft/cometbft/crypto/ed25519"
+	cmtprivval "github.com/cometbft/cometbft/privval"
+	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
+// mockNode is a minimal mock implementation of nodeWithPrivValidator for testing
+type mockNode struct {
+	privVal cmttypes.PrivValidator
+}
+
+func (m *mockNode) PrivValidator() cmttypes.PrivValidator {
+	return m.privVal
+}
+
 func TestIsValidatorNode(t *testing.T) {
-	t.Run("returns true when PrivValidatorKeyFile exists", func(t *testing.T) {
-		// Create a temporary directory
-		tmpDir := t.TempDir()
-		cfg := cmtcfg.DefaultConfig()
-		cfg.SetRoot(tmpDir)
+	t.Run("returns true when PrivValidator exists and has valid public key", func(t *testing.T) {
+		// Create a FilePV with a valid key
+		privKey := ed25519.GenPrivKey()
+		filePV := cmtprivval.NewFilePV(privKey, "", "")
 
-		// Create the priv_validator_key.json file
-		pvKeyFile := cfg.PrivValidatorKeyFile()
-		err := os.MkdirAll(filepath.Dir(pvKeyFile), 0755)
-		require.NoError(t, err)
-
-		err = os.WriteFile(pvKeyFile, []byte(`{"address":"test","pub_key":{"type":"tendermint/PubKeyEd25519","value":"test"},"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"test"}}`), 0644)
-		require.NoError(t, err)
+		mockNode := &mockNode{privVal: filePV}
 
 		// Test
-		result := isValidatorNode(cfg)
-		assert.True(t, result, "should return true when PrivValidatorKeyFile exists")
+		result := isValidatorNode(mockNode)
+		assert.True(t, result, "should return true when PrivValidator exists and has valid public key")
 	})
 
-	t.Run("returns false when PrivValidatorKeyFile does not exist", func(t *testing.T) {
-		// Create a temporary directory
-		tmpDir := t.TempDir()
-		cfg := cmtcfg.DefaultConfig()
-		cfg.SetRoot(tmpDir)
-
-		// Don't create the priv_validator_key.json file
+	t.Run("returns false when PrivValidator is nil", func(t *testing.T) {
+		mockNode := &mockNode{privVal: nil}
 
 		// Test
-		result := isValidatorNode(cfg)
-		assert.False(t, result, "should return false when PrivValidatorKeyFile does not exist")
+		result := isValidatorNode(mockNode)
+		assert.False(t, result, "should return false when PrivValidator is nil")
 	})
 
-	t.Run("returns false when PrivValidatorKeyFile path is invalid", func(t *testing.T) {
-		// Create a config with invalid root
-		cfg := cmtcfg.DefaultConfig()
-		cfg.SetRoot("/nonexistent/path/that/does/not/exist")
+	t.Run("returns false when PrivValidator cannot get public key", func(t *testing.T) {
+		// Create a mock PrivValidator that returns error on GetPubKey
+		mockPV := &mockPrivValidator{getPubKeyErr: assert.AnError}
+		mockNode := &mockNode{privVal: mockPV}
 
 		// Test
-		result := isValidatorNode(cfg)
-		assert.False(t, result, "should return false when PrivValidatorKeyFile path is invalid")
+		result := isValidatorNode(mockNode)
+		assert.False(t, result, "should return false when PrivValidator cannot get public key")
 	})
+}
+
+// mockPrivValidator is a minimal mock implementation of cmttypes.PrivValidator for testing
+type mockPrivValidator struct {
+	getPubKeyErr error
+}
+
+func (m *mockPrivValidator) GetPubKey() (crypto.PubKey, error) {
+	if m.getPubKeyErr != nil {
+		return nil, m.getPubKeyErr
+	}
+	return ed25519.GenPrivKey().PubKey(), nil
+}
+
+func (m *mockPrivValidator) SignVote(chainID string, vote *cmttypes.Vote) error {
+	panic("not implemented")
+}
+
+func (m *mockPrivValidator) SignProposal(chainID string, proposal *cmttypes.Proposal) error {
+	panic("not implemented")
 }

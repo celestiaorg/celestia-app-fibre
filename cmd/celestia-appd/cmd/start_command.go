@@ -104,22 +104,18 @@ func startCommandHandler(
 
 		// Register Fibre server BEFORE starting the gRPC server
 		// This ensures all services are registered before Server.Serve() is called
-		isValidator := isValidatorNode(svrCtx.Config)
+		// startFibreServer will check if the node is a validator internally
 		fibreServer, err = startFibreServer(
 			ctx,
 			svrCtx,
 			clientCtx,
 			cmtNode,
 			grpcServer,
-			isValidator,
 		)
 		if err != nil {
-			if isValidator {
-				// Validator nodes must have Fibre server working
-				return fmt.Errorf("failed to start Fibre server (validator node): %w", err)
-			}
-			// Non-validator nodes can continue without Fibre server
-			svrCtx.Logger.Error("failed to start Fibre server (non-validator)", "error", err)
+			// If startFibreServer returns an error, it means the node is a validator
+			// and Fibre server initialization failed, which should prevent node startup
+			return fmt.Errorf("failed to start Fibre server (validator node): %w", err)
 		}
 
 		// Now start the gRPC server (after all services are registered)

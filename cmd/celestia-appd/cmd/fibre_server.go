@@ -12,33 +12,48 @@ import (
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
+	cmttypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
 	"google.golang.org/grpc"
 )
 
-// isValidatorNode checks if the node has a PrivValidator configured.
-// Returns true if PrivValidatorKeyFile exists and is readable, false otherwise.
-func isValidatorNode(cfg *cmtcfg.Config) bool {
-	pvKeyFile := cfg.PrivValidatorKeyFile()
-	_, err := os.Stat(pvKeyFile)
-	return err == nil
+// nodeWithPrivValidator is an interface for types that have a PrivValidator method.
+// This allows testing with mocks while the real code uses *node.Node.
+type nodeWithPrivValidator interface {
+	PrivValidator() cmttypes.PrivValidator
+}
+
+// isValidatorNode checks if the node has a usable PrivValidator configured.
+// Returns true if PrivValidator exists on the node and has a valid public key, false otherwise.
+// This works for both FilePV and KMS-based validators, and correctly identifies non-validators
+// even if they have a FilePV file.
+func isValidatorNode(n nodeWithPrivValidator) bool {
+	privVal := n.PrivValidator()
+	if privVal == nil {
+		return false
+	}
+	// Check if PrivValidator has a valid public key
+	// This distinguishes actual validators from non-validators that might have a FilePV
+	pubKey, err := privVal.GetPubKey()
+	if err != nil || pubKey == nil {
+		return false
+	}
+	return true
 }
 
 // startFibreServer initializes and registers the Fibre server with the gRPC server for a validator node.
 // Returns the Fibre server instance and an error. The server should be stopped gracefully during shutdown.
-// If isValidator is false, this function does nothing and returns nil, nil.
-// If isValidator is true and initialization fails, returns an error (preventing node startup).
+// If the node is not a validator (no usable PrivValidator), this function does nothing and returns nil, nil.
+// If the node is a validator and initialization fails, returns an error (preventing node startup).
 func startFibreServer(
 	ctx context.Context,
 	svrCtx *server.Context,
 	clientCtx client.Context,
 	cmtNode *node.Node,
 	grpcServer *grpc.Server,
-	isValidator bool,
 ) (*fibre.Server, error) {
 	// Check if Fibre server is enabled via flag
 	fibreEnabled := svrCtx.Viper.GetBool(FibreEnableFlag)
@@ -47,7 +62,8 @@ func startFibreServer(
 		return nil, nil
 	}
 
-	if !isValidator {
+	// Check if node is a validator by checking if PrivValidator exists and is usable
+	if !isValidatorNode(cmtNode) {
 		svrCtx.Logger.Info("Node is not a validator, skipping Fibre server startup")
 		return nil, nil
 	}
