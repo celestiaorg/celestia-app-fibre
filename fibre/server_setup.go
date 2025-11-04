@@ -56,17 +56,17 @@ type ServerSetupConfig struct {
 // If the node is a validator and initialization fails, returns an error (preventing node startup).
 func SetupServer(config ServerSetupConfig) (*Server, error) {
 	if !config.Enabled {
-		config.Logger.Info("Fibre server is disabled via flag, skipping startup")
+		config.Logger.Info("Fibre server is disabled via flag, skipping Fibre server startup")
 		return nil, nil
 	}
-
-	config.Logger.Info("Initializing Fibre server")
 
 	// Get PrivValidator from CometBFT node
 	privVal := config.Node.PrivValidator()
 	if privVal == nil {
-		return nil, fmt.Errorf("failed to get PrivValidator from CometBFT node")
+		config.Logger.Info("Node is not a validator, skipping Fibre server startup")
+		return nil, nil
 	}
+	config.Logger.Info("Initializing Fibre server for validator")
 
 	// Create QueryClient from gRPC connection
 	if config.GRPCClient == nil {
