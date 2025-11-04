@@ -13,6 +13,13 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	// StoreTypeMemory represents an in-memory store (ephemeral, non-persistent)
+	StoreTypeMemory = "memory"
+	// StoreTypeBadger represents a BadgerDB store (persistent on disk)
+	StoreTypeBadger = "badger"
+)
+
 // Logger interface abstracts logging functionality
 type Logger interface {
 	Info(msg string, keyvals ...interface{})
@@ -33,9 +40,9 @@ type ServerSetupConfig struct {
 	RootDir string
 	// Enabled indicates whether the Fibre server should be started
 	Enabled bool
-	// StoreType is the store type: "memory" or "badger"
+	// StoreType is the store type: StoreTypeMemory or StoreTypeBadger
 	StoreType string
-	// StorePath is the path for the badger store (only used if StoreType is "badger")
+	// StorePath is the path for the badger store (only used if StoreType is StoreTypeBadger)
 	StorePath string
 	// ChainID is the chain ID (will fallback to genesis if empty)
 	ChainID string
@@ -83,7 +90,7 @@ func SetupServer(cfg ServerSetupConfig) (*Server, error) {
 	// Create Store based on config
 	storeType := cfg.StoreType
 	if storeType == "" {
-		storeType = "badger" // default
+		storeType = StoreTypeBadger // default
 	}
 
 	storeCfg := DefaultStoreConfig()
@@ -91,10 +98,10 @@ func SetupServer(cfg ServerSetupConfig) (*Server, error) {
 	var err error
 
 	switch storeType {
-	case "memory":
+	case StoreTypeMemory:
 		store = NewMemoryStore(storeCfg)
 		cfg.Logger.Info("Using in-memory store for Fibre server")
-	case "badger":
+	case StoreTypeBadger:
 		// Get store path from config or use default
 		storePath := cfg.StorePath
 		if storePath == "" {
@@ -110,7 +117,7 @@ func SetupServer(cfg ServerSetupConfig) (*Server, error) {
 		}
 		cfg.Logger.Info("Using Badger store for Fibre server", "path", storePath)
 	default:
-		return nil, fmt.Errorf("invalid store type: %s (must be 'memory' or 'badger')", storeType)
+		return nil, fmt.Errorf("invalid store type: %s (must be %q or %q)", storeType, StoreTypeMemory, StoreTypeBadger)
 	}
 
 	// Create ServerConfig
