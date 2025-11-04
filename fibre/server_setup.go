@@ -113,7 +113,11 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 
 	// Create ServerConfig
 	serverConfig := DefaultServerConfig()
-	serverConfig.ChainID = config.ChainID
+
+	// Get chain ID from config or use default
+	if config.ChainID != "" {
+		serverConfig.ChainID = config.ChainID
+	}
 
 	// Get block time from config or use default
 	if config.BlockTime > 0 {
