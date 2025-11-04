@@ -6,7 +6,6 @@ import (
 	"context"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
@@ -25,16 +24,15 @@ func startFibreServer(
 	grpcServer *grpc.Server,
 ) (*fibre.Server, error) {
 	return fibre.SetupServer(fibre.ServerSetupConfig{
-		Node:           cmtNode,
-		GRPCServer:     grpcServer,
-		GRPCClient:     clientCtx.GRPCClient,
-		Logger:         svrCtx.Logger,
-		RootDir:        svrCtx.Config.RootDir,
-		Enabled:        svrCtx.Viper.GetBool(FibreEnableFlag),
-		StoreType:      svrCtx.Viper.GetString(FibreStoreTypeFlag),
-		StorePath:      svrCtx.Viper.GetString(FibreStorePathFlag),
-		ChainID:        svrCtx.Viper.GetString("chain-id"),
-		DefaultChainID: appconsts.MainnetChainID,
-		BlockTime:      svrCtx.Viper.GetDuration(FibreBlockTimeFlag),
+		Node:       cmtNode,
+		GRPCServer: grpcServer,
+		GRPCClient: clientCtx.GRPCClient,
+		Logger:     svrCtx.Logger,
+		RootDir:    svrCtx.Config.RootDir,
+		Enabled:    svrCtx.Viper.GetBool(FibreEnableFlag),
+		StoreType:  svrCtx.Viper.GetString(FibreStoreTypeFlag),
+		StorePath:  svrCtx.Viper.GetString(FibreStorePathFlag),
+		ChainID:    svrCtx.Viper.GetString("chain-id"),
+		BlockTime:  svrCtx.Viper.GetDuration(FibreBlockTimeFlag),
 	})
 }

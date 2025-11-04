@@ -46,8 +46,6 @@ type ServerSetupConfig struct {
 	StorePath string
 	// ChainID is the chain ID (will fallback to genesis if empty)
 	ChainID string
-	// DefaultChainID is the fallback chain ID if not found in config or genesis
-	DefaultChainID string
 	// BlockTime is the expected block time (0 means use default)
 	BlockTime time.Duration
 }
@@ -122,20 +120,7 @@ func SetupServer(cfg ServerSetupConfig) (*Server, error) {
 
 	// Create ServerConfig
 	serverCfg := DefaultServerConfig()
-
-	// Get chain ID from config or genesis (should match the node's chain ID)
-	chainID := cfg.ChainID
-	if chainID == "" {
-		// Fallback: try to get chain ID from genesis
-		genDoc := cfg.Node.GenesisDoc()
-		if genDoc != nil {
-			chainID = genDoc.ChainID
-		} else {
-			// Use provided default fallback
-			chainID = cfg.DefaultChainID
-		}
-	}
-	serverCfg.ChainID = chainID
+	serverCfg.ChainID = cfg.ChainID
 
 	// Get block time from config or use default
 	if cfg.BlockTime > 0 {

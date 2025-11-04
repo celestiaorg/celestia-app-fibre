@@ -20,16 +20,15 @@ func (m *Multiplexer) startFibreServer(
 	grpcServer *grpc.Server,
 ) (*fibre.Server, error) {
 	return fibre.SetupServer(fibre.ServerSetupConfig{
-		Node:           cmtNode,
-		GRPCServer:     grpcServer,
-		GRPCClient:     m.clientContext.GRPCClient,
-		Logger:         m.logger,
-		RootDir:        m.svrCtx.Config.RootDir,
-		Enabled:        m.svrCtx.Viper.GetBool("fibre.enable"),
-		StoreType:      m.svrCtx.Viper.GetString("fibre.store-type"),
-		StorePath:      m.svrCtx.Viper.GetString("fibre.store-path"),
-		ChainID:        m.svrCtx.Viper.GetString("chain-id"),
-		DefaultChainID: m.chainID,
-		BlockTime:      m.svrCtx.Viper.GetDuration("fibre.block-time"),
+		Node:       cmtNode,
+		GRPCServer: grpcServer,
+		GRPCClient: m.clientContext.GRPCClient,
+		Logger:     m.logger,
+		RootDir:    m.svrCtx.Config.RootDir,
+		Enabled:    m.svrCtx.Viper.GetBool("fibre.enable"),
+		StoreType:  m.svrCtx.Viper.GetString("fibre.store-type"),
+		StorePath:  m.svrCtx.Viper.GetString("fibre.store-path"),
+		ChainID:    m.svrCtx.Viper.GetString("chain-id"),
+		BlockTime:  m.svrCtx.Viper.GetDuration("fibre.block-time"),
 	})
 }
