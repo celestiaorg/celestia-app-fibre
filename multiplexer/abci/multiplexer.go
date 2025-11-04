@@ -187,7 +187,7 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		// This ensures all services are registered before Server.Serve() is called
 		var fibreServer *fibre.Server
 		if m.cmNode != nil {
-			isValidator := isValidatorNode(m.svrCtx.Config)
+			isValidator := isValidatorNode(m.cmNode)
 			fibreServer, err = m.startFibreServer(m.ctx, m.cmNode, grpcServer, isValidator)
 			if err != nil {
 				if isValidator {

@@ -11,18 +11,17 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"google.golang.org/grpc"
 )
 
 // isValidatorNode checks if the node has a PrivValidator configured.
-// Returns true if PrivValidatorKeyFile exists and is readable, false otherwise.
-func isValidatorNode(cfg *cmtcfg.Config) bool {
-	pvKeyFile := cfg.PrivValidatorKeyFile()
-	_, err := os.Stat(pvKeyFile)
-	return err == nil
+// Returns true if the node has a PrivValidator (works for both file-based and KMS validators),
+// false otherwise. This correctly handles cases where non-validators may have a file,
+// or validators may be using KMS (which doesn't use a local file).
+func isValidatorNode(cmtNode *node.Node) bool {
+	return cmtNode.PrivValidator() != nil
 }
 
 // startFibreServer initializes and registers the Fibre server with the gRPC server for a validator node.
