@@ -44,9 +44,9 @@ type ServerSetupConfig struct {
 	StoreType string
 	// StorePath is the path for the badger store (only used if StoreType is StoreTypeBadger)
 	StorePath string
-	// ChainID is the chain ID (will fallback to genesis if empty)
+	// ChainID is the chain ID
 	ChainID string
-	// BlockTime is the expected block time (0 means use default)
+	// BlockTime is the expected block time
 	BlockTime time.Duration
 }
 
