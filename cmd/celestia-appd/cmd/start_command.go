@@ -104,7 +104,7 @@ func startCommandHandler(
 
 		// Register Fibre server BEFORE starting the gRPC server
 		// This ensures all services are registered before Server.Serve() is called
-		isValidator := isValidatorNode(cmtNode)
+		isValidator := isValidatorNode(svrCtx.Config)
 		fibreServer, err = startFibreServer(
 			ctx,
 			svrCtx,
