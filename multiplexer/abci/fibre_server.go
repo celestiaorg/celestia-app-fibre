@@ -10,6 +10,11 @@ import (
 	"google.golang.org/grpc"
 )
 
+const (
+	// ChainIDKey is the viper key for the chain ID
+	ChainIDKey = "chain-id"
+)
+
 // startFibreServer initializes and registers the Fibre server with the gRPC server for a validator node.
 // Returns the Fibre server instance and an error. The server should be stopped gracefully during shutdown.
 // If the node is not a validator (no usable PrivValidator), this function does nothing and returns nil, nil.
@@ -28,6 +33,6 @@ func (m *Multiplexer) startFibreServer(
 		Enabled:    m.svrCtx.Viper.GetBool("fibre.enable"),
 		StoreType:  m.svrCtx.Viper.GetString("fibre.store-type"),
 		StorePath:  m.svrCtx.Viper.GetString("fibre.store-path"),
-		ChainID:    m.svrCtx.Viper.GetString("chain-id"),
+		ChainID:    m.svrCtx.Viper.GetString(ChainIDKey),
 	})
 }

@@ -42,10 +42,15 @@ const (
 
 	// FibreEnableFlag enables or disables the Fibre server
 	FibreEnableFlag = "fibre.enable"
+
 	// FibreStoreTypeFlag specifies the store type: "memory" or "badger"
 	FibreStoreTypeFlag = "fibre.store-type"
+
 	// FibreStorePathFlag specifies the path for the badger store
 	FibreStorePathFlag = "fibre.store-path"
+
+	// ChainIDKey is the viper key for the chain ID
+	ChainIDKey = "chain-id"
 )
 
 // NewRootCmd creates a new root command for celestia-appd.
