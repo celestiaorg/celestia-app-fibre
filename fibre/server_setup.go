@@ -24,12 +24,10 @@ type ServerSetupConfig struct {
 	GRPCClient *grpc.ClientConn
 	// Logger is used for logging
 	Logger log.Logger
-	// RootDir is the root directory for default store paths
+	// RootDir is the application home directory (root directory for default store paths)
 	RootDir string
 	// Enabled indicates whether the Fibre server should be started
 	Enabled bool
-	// StorePath is the path for the BadgerDB store. If not specified, defaults to <home>/data/fibre-store
-	StorePath string
 	// ChainID is the chain ID
 	ChainID string
 }
@@ -62,13 +60,9 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 	blockAPIClient := coregrpc.NewBlockAPIClient(config.GRPCClient)
 	valGet := fibregrpc.NewSetGetter(blockAPIClient)
 
-	// Create BadgerDB store
+	// Create BadgerDB store in the application home directory
 	storeConfig := DefaultStoreConfig()
-	storePath := config.StorePath
-	if storePath == "" {
-		// Default to <home>/data/fibre-store
-		storePath = filepath.Join(config.RootDir, "data", "fibre-store")
-	}
+	storePath := filepath.Join(config.RootDir, "data", "fibre-store")
 	if err := os.MkdirAll(storePath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create Fibre store directory: %w", err)
 	}

@@ -30,7 +30,6 @@ func startFibreServer(
 		Logger:     svrCtx.Logger,
 		RootDir:    svrCtx.Config.RootDir,
 		Enabled:    svrCtx.Viper.GetBool(FibreEnableFlag),
-		StorePath:  svrCtx.Viper.GetString(FibreStorePathFlag),
 		ChainID:    svrCtx.Viper.GetString(ChainIDKey),
 	})
 }

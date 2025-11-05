@@ -31,7 +31,6 @@ func (m *Multiplexer) startFibreServer(
 		Logger:     m.logger,
 		RootDir:    m.svrCtx.Config.RootDir,
 		Enabled:    m.svrCtx.Viper.GetBool("fibre.enable"),
-		StorePath:  m.svrCtx.Viper.GetString("fibre.store-path"),
 		ChainID:    m.svrCtx.Viper.GetString(ChainIDKey),
 	})
 }

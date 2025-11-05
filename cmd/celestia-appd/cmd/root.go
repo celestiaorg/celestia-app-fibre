@@ -43,9 +43,6 @@ const (
 	// FibreEnableFlag enables or disables the Fibre server
 	FibreEnableFlag = "fibre.enable"
 
-	// FibreStorePathFlag specifies the path for the BadgerDB store
-	FibreStorePathFlag = "fibre.store-path"
-
 	// ChainIDKey is the viper key for the chain ID
 	ChainIDKey = "chain-id"
 )
@@ -167,7 +164,6 @@ func addStartFlags(startCmd *cobra.Command) {
 
 	// Fibre server flags
 	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable or disable the Fibre server.")
-	startCmd.Flags().String(FibreStorePathFlag, "", "Directory path for the BadgerDB store. If not specified, defaults to <home>/data/fibre-store")
 }
 
 // replaceLogger optionally replaces the logger with a file logger if the flag

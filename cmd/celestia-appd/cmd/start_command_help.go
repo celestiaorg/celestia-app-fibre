@@ -36,11 +36,11 @@ Fibre Server Configuration:
   even if Fibre server initialization fails (errors are logged but don't prevent startup).
 
   Examples:
-    # Start with default Fibre configuration (BadgerDB store)
+    # Start with default Fibre configuration (BadgerDB store in <home>/data/fibre-store)
     celestia-appd start
 
-    # Start with custom store path
-    celestia-appd start --fibre.store-path /custom/path/to/fibre-store
+    # Start with custom home directory (Fibre store will be at <home>/data/fibre-store)
+    celestia-appd start --home /custom/path/to/home
 
     # Disable Fibre server (even for validator nodes)
     celestia-appd start --fibre.enable false`
