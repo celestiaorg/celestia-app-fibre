@@ -91,8 +91,6 @@ func startCommandHandler(
 	}
 
 	// Start gRPC server if enabled
-	// IMPORTANT: Register Fibre service BEFORE starting the gRPC server
-	// to avoid "Server.RegisterService after Server.Serve" error
 	var grpcServer *grpc.Server
 	var fibreServer *fibre.Server
 	if svrCfg.GRPC.Enable {

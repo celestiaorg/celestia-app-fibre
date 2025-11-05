@@ -174,8 +174,6 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 	// startGRPCServer the grpc server in the case of a native app. If using an embedded app
 	// it will use that instead.
 	if m.svrCfg.GRPC.Enable {
-		// IMPORTANT: Register Fibre service BEFORE starting the gRPC server
-		// to avoid "Server.RegisterService after Server.Serve" error
 		// Create and configure gRPC server (but don't start serving yet)
 		grpcServer, clientContext, err := m.createGRPCServer()
 		if err != nil {

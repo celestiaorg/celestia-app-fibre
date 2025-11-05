@@ -24,14 +24,17 @@ const (
 	GasPerBlobByte       uint32 = 8
 	MaxTxSize            int    = 8_388_608 // 8 MiB in bytes
 
-	// If the target block time changes, update fibre.DefaultServerConfig().BlockTime... accordingly.
-	TimeoutPropose          = time.Millisecond * 8500
-	TimeoutProposeDelta     = time.Millisecond * 500
-	TimeoutPrevote          = time.Millisecond * 3000
-	TimeoutPrevoteDelta     = time.Millisecond * 500
-	TimeoutPrecommit        = time.Millisecond * 3000
-	TimeoutPrecommitDelta   = time.Millisecond * 500
-	TimeoutCommit           = time.Millisecond
+	TimeoutPropose        = time.Millisecond * 8500
+	TimeoutProposeDelta   = time.Millisecond * 500
+	TimeoutPrevote        = time.Millisecond * 3000
+	TimeoutPrevoteDelta   = time.Millisecond * 500
+	TimeoutPrecommit      = time.Millisecond * 3000
+	TimeoutPrecommitDelta = time.Millisecond * 500
+	TimeoutCommit         = time.Millisecond
+	// DelayedPrecommitTimeout is the timeout for the delayed precommit.
+	//
+	// If the target block time changes, update
+	// fibre.DefaultServerConfig().BlockTime accordingly.
 	DelayedPrecommitTimeout = time.Millisecond * 5850
 
 	// TestUpgradeHeightDelay is the number of blocks that chain-id "test" waits
