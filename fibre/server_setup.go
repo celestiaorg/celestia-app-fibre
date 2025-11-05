@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"cosmossdk.io/log"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cometbft/cometbft/node"
@@ -19,11 +20,6 @@ const (
 	StoreTypeBadger = "badger"
 )
 
-// Logger interface abstracts logging functionality
-type Logger interface {
-	Info(msg string, keyvals ...interface{})
-}
-
 // ServerSetupConfig contains all the dependencies needed to set up a Fibre server.
 // This allows sharing the setup logic between multiplexer and non-multiplexer builds.
 type ServerSetupConfig struct {
@@ -34,7 +30,7 @@ type ServerSetupConfig struct {
 	// GRPCClient is the gRPC client connection for creating query clients
 	GRPCClient *grpc.ClientConn
 	// Logger is used for logging
-	Logger Logger
+	Logger log.Logger
 	// RootDir is the root directory for default store paths
 	RootDir string
 	// Enabled indicates whether the Fibre server should be started
