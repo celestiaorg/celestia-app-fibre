@@ -39,17 +39,11 @@ Fibre Server Configuration:
     # Start with default Fibre configuration (BadgerDB store)
     celestia-appd start
 
-    # Start with in-memory store (for testing, data is lost on restart)
-    celestia-appd start --fibre.store-type memory
-
     # Start with custom store path
     celestia-appd start --fibre.store-path /custom/path/to/fibre-store
 
     # Disable Fibre server (even for validator nodes)
-    celestia-appd start --fibre.enable false
-
-    # Combine multiple flags
-    celestia-appd start --fibre.store-type badger --fibre.store-path /var/lib/celestia-app/fibre-store`
+    celestia-appd start --fibre.enable false`
 
 	// Append Fibre docs to existing Long description
 	startCmd.Long = strings.TrimSpace(existingLong) + fibreDocs

@@ -13,13 +13,6 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	// StoreTypeMemory represents an in-memory store (ephemeral, non-persistent)
-	StoreTypeMemory = "memory"
-	// StoreTypeBadger represents a BadgerDB store (persistent on disk)
-	StoreTypeBadger = "badger"
-)
-
 // ServerSetupConfig contains all the dependencies needed to set up a Fibre server.
 // This allows sharing the setup logic between multiplexer and non-multiplexer builds.
 type ServerSetupConfig struct {
@@ -35,9 +28,7 @@ type ServerSetupConfig struct {
 	RootDir string
 	// Enabled indicates whether the Fibre server should be started
 	Enabled bool
-	// StoreType is the store type: StoreTypeMemory or StoreTypeBadger
-	StoreType string
-	// StorePath is the path for the badger store (only used if StoreType is StoreTypeBadger)
+	// StorePath is the path for the BadgerDB store. If not specified, defaults to <home>/data/fibre-store
 	StorePath string
 	// ChainID is the chain ID
 	ChainID string
@@ -71,38 +62,21 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 	blockAPIClient := coregrpc.NewBlockAPIClient(config.GRPCClient)
 	valGet := fibregrpc.NewSetGetter(blockAPIClient)
 
-	// Create Store based on config
-	storeType := config.StoreType
-	if storeType == "" {
-		storeType = StoreTypeBadger // default
-	}
-
+	// Create BadgerDB store
 	storeConfig := DefaultStoreConfig()
-	var store *Store
-	var err error
-
-	switch storeType {
-	case StoreTypeMemory:
-		store = NewMemoryStore(storeConfig)
-		config.Logger.Info("Using in-memory store for Fibre server")
-	case StoreTypeBadger:
-		// Get store path from config or use default
-		storePath := config.StorePath
-		if storePath == "" {
-			// Default to <home>/data/fibre-store
-			storePath = filepath.Join(config.RootDir, "data", "fibre-store")
-		}
-		if err := os.MkdirAll(storePath, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create Fibre store directory: %w", err)
-		}
-		store, err = NewBadgerStore(storePath, storeConfig)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create Fibre store: %w", err)
-		}
-		config.Logger.Info("Using Badger store for Fibre server", "path", storePath)
-	default:
-		return nil, fmt.Errorf("invalid store type: %s (must be %q or %q)", storeType, StoreTypeMemory, StoreTypeBadger)
+	storePath := config.StorePath
+	if storePath == "" {
+		// Default to <home>/data/fibre-store
+		storePath = filepath.Join(config.RootDir, "data", "fibre-store")
 	}
+	if err := os.MkdirAll(storePath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create Fibre store directory: %w", err)
+	}
+	store, err := NewBadgerStore(storePath, storeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Fibre store: %w", err)
+	}
+	config.Logger.Info("Using Badger store for Fibre server", "path", storePath)
 
 	// Create ServerConfig
 	serverConfig := DefaultServerConfig()
@@ -120,6 +94,6 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 
 	// Register Fibre server with gRPC server
 	types.RegisterFibreServer(config.GRPCServer, fibreServer)
-	config.Logger.Info("Fibre server registered with gRPC server", "chain-id", serverConfig.ChainID, "block-time", serverConfig.BlockTime, "store-type", storeType)
+	config.Logger.Info("Fibre server registered with gRPC server", "chain-id", serverConfig.ChainID, "block-time", serverConfig.BlockTime)
 	return fibreServer, nil
 }
