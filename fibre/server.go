@@ -120,6 +120,11 @@ func (s *Server) Config() ServerConfig {
 	return s.cfg
 }
 
+// Store returns the server's store.
+func (s *Server) Store() *Store {
+	return s.store
+}
+
 // Stop stops the server.
 // NOTE: It is not a graceful shutdown as it doesn't await for pending requests to complete.
 func (s *Server) Stop() error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"path/filepath"
 	"testing"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
@@ -36,7 +37,9 @@ func (e *testEnv) Close() {
 		_ = client.Close()
 	}
 	for _, store := range e.stores {
-		_ = store.Close()
+		if store != nil {
+			_ = store.Close()
+		}
 	}
 }
 
@@ -122,16 +125,18 @@ func makeTestServers(
 	t.Helper()
 
 	grpcServers := make([]*grpc.Server, len(validators))
+	fibreServers := make([]*fibre.Server, len(validators))
 	stores := make([]*fibre.Store, len(validators))
 	addresses := make(map[string]string)
 
 	for i, val := range validators {
-		store := fibre.NewMemoryStore(fibre.DefaultStoreConfig())
-
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 
 		serverCfg := fibre.DefaultServerConfig()
+		// Set a temporary directory for the BadgerDB store
+		tmpDir := t.TempDir()
+		serverCfg.StoreConfig.Path = filepath.Join(tmpDir, "fibre-store")
 		// create logger with unique server identifier
 		serverCfg.Log = slog.Default().With(
 			"server_idx", i,
@@ -163,17 +168,15 @@ func makeTestServers(
 		coregrpc.RegisterBlockAPIServer(grpcServer, mockBlockAPIServer)
 
 		// Create client connection to the mock server (will be used after server starts)
-		// We need to start the server first, then connect
-		go func() { _ = grpcServer.Serve(listener) }()
-
-		// Wait a moment for server to start, then create connection
+		// Create connection before starting server
 		conn, err := grpc.NewClient(
 			listener.Addr().String(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 		require.NoError(t, err)
 
-		_, err = fibre.NewServer(
+		// Create Fibre server - this will register the Fibre service on grpcServer
+		fibreServer, err := fibre.NewServer(
 			newTestPrivValidator(privKeys[i]),
 			serverCfg,
 			grpcServer,
@@ -181,10 +184,13 @@ func makeTestServers(
 		)
 		require.NoError(t, err)
 
-		// Server is already registered by NewServer
+		// Now start the gRPC server after all services are registered
+		go func() { _ = grpcServer.Serve(listener) }()
 
 		grpcServers[i] = grpcServer
-		stores[i] = store
+		fibreServers[i] = fibreServer
+		// Extract store from server for test access
+		stores[i] = fibreServer.Store()
 		addresses[val.Address.String()] = listener.Addr().String()
 	}
 

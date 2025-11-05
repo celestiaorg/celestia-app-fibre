@@ -3,6 +3,7 @@ package fibre_test
 import (
 	"crypto/ed25519"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -153,6 +154,9 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	}
 
 	cfg := fibre.DefaultServerConfig()
+	// Set a temporary directory for the BadgerDB store
+	tmpDir := t.TempDir()
+	cfg.StoreConfig.Path = filepath.Join(tmpDir, "fibre-store")
 
 	// use first validator as the server's identity
 	privVal := newTestPrivValidator(privKeys[0])
@@ -189,23 +193,23 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	// Start gRPC server
-	go func() {
-		if err := grpcServer.Serve(listener); err != nil {
-			t.Logf("gRPC server error: %v", err)
-		}
-	}()
-
-	// Create client connection to the mock server
+	// Create client connection to the mock server (will connect after server starts)
 	conn, err := grpc.NewClient(
 		listener.Addr().String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	)
 	require.NoError(t, err)
 
-	// Create server with gRPC infrastructure
+	// Create server with gRPC infrastructure - this registers the Fibre service
 	server, err := fibre.NewServer(privVal, cfg, grpcServer, conn)
 	require.NoError(t, err)
+
+	// Start gRPC server after all services are registered
+	go func() {
+		if err := grpcServer.Serve(listener); err != nil {
+			t.Logf("gRPC server error: %v", err)
+		}
+	}()
 
 	return server, valSet, serverValidator
 }
