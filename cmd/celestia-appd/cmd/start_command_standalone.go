@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"cosmossdk.io/log"
-	"github.com/bytedance/gopkg/util/logger"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -110,7 +109,6 @@ func startCommandHandler(
 		if err != nil {
 			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
-		logger.Info("Fibre server registered with gRPC server")
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
