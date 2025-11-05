@@ -12,10 +12,12 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	cmted25519 "github.com/cometbft/cometbft/crypto/ed25519"
+	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // testEnv holds the test environment with servers, clients, and validator set
@@ -142,19 +144,44 @@ func makeTestServers(
 			modifyServerConfig(&serverCfg)
 		}
 
-		fibreServer, err := fibre.NewServer(
-			newTestPrivValidator(privKeys[i]),
-			&mockQueryClient{},
-			&mockValidatorSetGetter{set: valSet},
-			store,
-			serverCfg,
+		// Create gRPC server with mock services
+		grpcServer := grpc.NewServer()
+
+		// Register mock Query service
+		mockQueryServer := &mockQueryServer{}
+		types.RegisterQueryServer(grpcServer, mockQueryServer)
+
+		// Register mock BlockAPI service
+		valSetProto, err := valSet.ValidatorSet.ToProto()
+		require.NoError(t, err)
+		mockBlockAPIServer := &mockBlockAPIServer{
+			validatorSetResponse: &coregrpc.ValidatorSetResponse{
+				ValidatorSet: valSetProto,
+				Height:       int64(valSet.Height),
+			},
+		}
+		coregrpc.RegisterBlockAPIServer(grpcServer, mockBlockAPIServer)
+
+		// Create client connection to the mock server (will be used after server starts)
+		// We need to start the server first, then connect
+		go func() { _ = grpcServer.Serve(listener) }()
+
+		// Wait a moment for server to start, then create connection
+		conn, err := grpc.NewClient(
+			listener.Addr().String(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 		)
 		require.NoError(t, err)
 
-		grpcServer := grpc.NewServer()
-		types.RegisterFibreServer(grpcServer, fibreServer)
+		_, err = fibre.NewServer(
+			newTestPrivValidator(privKeys[i]),
+			serverCfg,
+			grpcServer,
+			conn,
+		)
+		require.NoError(t, err)
 
-		go func() { _ = grpcServer.Serve(listener) }()
+		// Server is already registered by NewServer
 
 		grpcServers[i] = grpcServer
 		stores[i] = store
@@ -175,4 +202,40 @@ func (r *testHostRegistry) GetHost(ctx context.Context, val *core.Validator) (va
 		return "", fmt.Errorf("no address for validator %s", val.Address.String())
 	}
 	return validator.Host(addr), nil
+}
+
+// mockQueryServer is a mock implementation of types.QueryServer for testing.
+type mockQueryServer struct {
+	types.UnimplementedQueryServer
+}
+
+func (m *mockQueryServer) Params(ctx context.Context, in *types.QueryParamsRequest) (*types.QueryParamsResponse, error) {
+	return &types.QueryParamsResponse{}, nil
+}
+
+func (m *mockQueryServer) EscrowAccount(ctx context.Context, in *types.QueryEscrowAccountRequest) (*types.QueryEscrowAccountResponse, error) {
+	return &types.QueryEscrowAccountResponse{}, nil
+}
+
+func (m *mockQueryServer) Withdrawals(ctx context.Context, in *types.QueryWithdrawalsRequest) (*types.QueryWithdrawalsResponse, error) {
+	return &types.QueryWithdrawalsResponse{}, nil
+}
+
+func (m *mockQueryServer) IsPaymentProcessed(ctx context.Context, in *types.QueryIsPaymentProcessedRequest) (*types.QueryIsPaymentProcessedResponse, error) {
+	return &types.QueryIsPaymentProcessedResponse{}, nil
+}
+
+func (m *mockQueryServer) ValidatePaymentPromise(ctx context.Context, in *types.QueryValidatePaymentPromiseRequest) (*types.QueryValidatePaymentPromiseResponse, error) {
+	// Always return valid for testing
+	return &types.QueryValidatePaymentPromiseResponse{IsValid: true}, nil
+}
+
+// mockBlockAPIServer is a mock implementation of coregrpc.BlockAPIServer for testing.
+type mockBlockAPIServer struct {
+	coregrpc.UnimplementedBlockAPIServer
+	validatorSetResponse *coregrpc.ValidatorSetResponse
+}
+
+func (m *mockBlockAPIServer) ValidatorSet(ctx context.Context, req *coregrpc.ValidatorSetRequest) (*coregrpc.ValidatorSetResponse, error) {
+	return m.validatorSetResponse, nil
 }

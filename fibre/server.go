@@ -5,12 +5,15 @@ import (
 	"log/slog"
 	"time"
 
+	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cometbft/cometbft/crypto"
+	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc"
 )
 
 // ServerConfig contains configuration options for the Fibre [Server].
@@ -59,15 +62,21 @@ type Server struct {
 	tracer trace.Tracer
 }
 
-// NewServer creates a new Fibre [Server] with the provided dependencies.
+// NewServer creates a new Fibre [Server] with the provided gRPC infrastructure.
 // Returns an error if the validator's public key cannot be retrieved.
 func NewServer(
 	privVal core.PrivValidator,
-	queryClient types.QueryClient,
-	valGet validator.SetGetter,
-	store *Store,
 	cfg ServerConfig,
+	grpcServer *grpc.Server,
+	grpcClient *grpc.ClientConn,
 ) (*Server, error) {
+	if grpcServer == nil {
+		return nil, fmt.Errorf("grpcServer is required")
+	}
+	if grpcClient == nil {
+		return nil, fmt.Errorf("grpcClient is required")
+	}
+
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-server")
 	}
@@ -81,7 +90,16 @@ func NewServer(
 		return nil, fmt.Errorf("getting validator public key: %w", err)
 	}
 
-	return &Server{
+	queryClient := types.NewQueryClient(grpcClient)
+	blockAPIClient := coregrpc.NewBlockAPIClient(grpcClient)
+	valGet := fibregrpc.NewSetGetter(blockAPIClient)
+
+	store, err := NewBadgerStore(cfg.StoreConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Fibre store: %w", err)
+	}
+
+	server := &Server{
 		cfg:         cfg,
 		privVal:     privVal,
 		pubKey:      pubKey,
@@ -90,7 +108,12 @@ func NewServer(
 		store:       store,
 		log:         cfg.Log,
 		tracer:      cfg.Tracer,
-	}, nil
+	}
+
+	// Register Fibre server with gRPC server
+	types.RegisterFibreServer(grpcServer, server)
+
+	return server, nil
 }
 
 func (s *Server) Config() ServerConfig {

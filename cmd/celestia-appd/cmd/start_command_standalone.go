@@ -108,7 +108,7 @@ func startCommandHandler(
 		serverConfig.ChainID = svrCtx.Viper.GetString(ChainIDKey)
 		serverConfig.StoreConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
 		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
-		fibreServer, err = fibre.SetupServer(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, serverConfig)
+		fibreServer, err = fibre.NewServer(cmtNode.PrivValidator(), serverConfig, grpcServer, clientCtx.GRPCClient)
 		if err != nil {
 			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
