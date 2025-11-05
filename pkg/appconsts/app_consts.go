@@ -19,18 +19,20 @@ const (
 	// SubtreeRootThreshold.
 	//
 	// The rationale for this value is described in more detail in ADR-013.
-	SubtreeRootThreshold    int    = 64
-	TxSizeCostPerByte       uint64 = 10
-	GasPerBlobByte          uint32 = 8
-	MaxTxSize               int    = 8_388_608 // 8 MiB in bytes
-	TimeoutPropose                 = time.Millisecond * 8500
-	TimeoutProposeDelta            = time.Millisecond * 500
-	TimeoutPrevote                 = time.Millisecond * 3000
-	TimeoutPrevoteDelta            = time.Millisecond * 500
-	TimeoutPrecommit               = time.Millisecond * 3000
-	TimeoutPrecommitDelta          = time.Millisecond * 500
-	TimeoutCommit                  = time.Millisecond
-	DelayedPrecommitTimeout        = time.Millisecond * 5850
+	SubtreeRootThreshold int    = 64
+	TxSizeCostPerByte    uint64 = 10
+	GasPerBlobByte       uint32 = 8
+	MaxTxSize            int    = 8_388_608 // 8 MiB in bytes
+
+	// If the target block time changes, update fibre.DefaultServerConfig().BlockTime... accordingly.
+	TimeoutPropose          = time.Millisecond * 8500
+	TimeoutProposeDelta     = time.Millisecond * 500
+	TimeoutPrevote          = time.Millisecond * 3000
+	TimeoutPrevoteDelta     = time.Millisecond * 500
+	TimeoutPrecommit        = time.Millisecond * 3000
+	TimeoutPrecommitDelta   = time.Millisecond * 500
+	TimeoutCommit           = time.Millisecond
+	DelayedPrecommitTimeout = time.Millisecond * 5850
 
 	// TestUpgradeHeightDelay is the number of blocks that chain-id "test" waits
 	// after a MsgTryUpgrade to activate the next version.
