@@ -13,49 +13,39 @@ import (
 	"google.golang.org/grpc"
 )
 
-// ServerSetupConfig contains all the dependencies needed to set up a Fibre server.
-// This allows sharing the setup logic between multiplexer and non-multiplexer builds.
-type ServerSetupConfig struct {
-	// Node is the CometBFT node instance
-	Node *node.Node
-	// GRPCServer is the gRPC server to register the Fibre service on
-	GRPCServer *grpc.Server
-	// GRPCClient is the gRPC client connection for creating query clients
-	GRPCClient *grpc.ClientConn
-	// Logger is used for logging
-	Logger log.Logger
-	// RootDir is the application home directory (root directory for default store paths)
-	RootDir string
-	// ChainID is the chain ID
-	ChainID string
-}
-
 // SetupServer initializes and registers the Fibre server with the gRPC server for a validator node.
 // Returns the Fibre server instance and an error. The server should be stopped gracefully during shutdown.
 // If the node is not a validator (no usable PrivValidator), this function does nothing and returns nil, nil.
 // If the node is a validator and initialization fails, returns an error (preventing node startup).
-func SetupServer(config ServerSetupConfig) (*Server, error) {
+func SetupServer(
+	cmtNode *node.Node,
+	grpcServer *grpc.Server,
+	grpcClient *grpc.ClientConn,
+	logger log.Logger,
+	rootDir string,
+	chainID string,
+) (*Server, error) {
 	// Get PrivValidator from CometBFT node
-	privVal := config.Node.PrivValidator()
+	privVal := cmtNode.PrivValidator()
 	if privVal == nil {
-		config.Logger.Info("Node is not a validator, skipping Fibre server startup")
+		logger.Info("Node is not a validator, skipping Fibre server startup")
 		return nil, nil
 	}
-	config.Logger.Info("Initializing Fibre server for validator")
+	logger.Info("Initializing Fibre server for validator")
 
 	// Create QueryClient from gRPC connection
-	if config.GRPCClient == nil {
+	if grpcClient == nil {
 		return nil, fmt.Errorf("gRPC client is not initialized")
 	}
-	queryClient := types.NewQueryClient(config.GRPCClient)
+	queryClient := types.NewQueryClient(grpcClient)
 
 	// Create SetGetter using BlockAPI gRPC client
-	blockAPIClient := coregrpc.NewBlockAPIClient(config.GRPCClient)
+	blockAPIClient := coregrpc.NewBlockAPIClient(grpcClient)
 	valGet := fibregrpc.NewSetGetter(blockAPIClient)
 
 	// Create BadgerDB store in the application home directory
 	storeConfig := DefaultStoreConfig()
-	storePath := filepath.Join(config.RootDir, "data", "fibre-store")
+	storePath := filepath.Join(rootDir, "data", "fibre-store")
 	if err := os.MkdirAll(storePath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create Fibre store directory: %w", err)
 	}
@@ -63,14 +53,14 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Fibre store: %w", err)
 	}
-	config.Logger.Info("Using Badger store for Fibre server", "path", storePath)
+	logger.Info("Using Badger store for Fibre server", "path", storePath)
 
 	// Create ServerConfig
 	serverConfig := DefaultServerConfig()
 
 	// Get chain ID from config or use default
-	if config.ChainID != "" {
-		serverConfig.ChainID = config.ChainID
+	if chainID != "" {
+		serverConfig.ChainID = chainID
 	}
 
 	// Create Fibre Server
@@ -80,7 +70,7 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 	}
 
 	// Register Fibre server with gRPC server
-	types.RegisterFibreServer(config.GRPCServer, fibreServer)
-	config.Logger.Info("Fibre server registered with gRPC server", "chain-id", serverConfig.ChainID, "block-time", serverConfig.BlockTime)
+	types.RegisterFibreServer(grpcServer, fibreServer)
+	logger.Info("Fibre server registered with gRPC server", "chain-id", serverConfig.ChainID, "block-time", serverConfig.BlockTime)
 	return fibreServer, nil
 }

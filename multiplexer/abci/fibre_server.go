@@ -24,12 +24,12 @@ func (m *Multiplexer) startFibreServer(
 	cmtNode *node.Node,
 	grpcServer *grpc.Server,
 ) (*fibre.Server, error) {
-	return fibre.SetupServer(fibre.ServerSetupConfig{
-		Node:       cmtNode,
-		GRPCServer: grpcServer,
-		GRPCClient: m.clientContext.GRPCClient,
-		Logger:     m.logger,
-		RootDir:    m.svrCtx.Config.RootDir,
-		ChainID:    m.svrCtx.Viper.GetString(ChainIDKey),
-	})
+	return fibre.SetupServer(
+		cmtNode,
+		grpcServer,
+		m.clientContext.GRPCClient,
+		m.logger,
+		m.svrCtx.Config.RootDir,
+		m.svrCtx.Viper.GetString(ChainIDKey),
+	)
 }
