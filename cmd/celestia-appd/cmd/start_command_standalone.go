@@ -109,13 +109,11 @@ func startCommandHandler(
 			ctx,
 			svrCtx,
 			clientCtx,
-			cmtNode,
+			cmtNode.PrivValidator(),
 			grpcServer,
 		)
 		if err != nil {
-			// If startFibreServer returns an error, it means the node is a validator
-			// and Fibre server initialization failed, which should prevent node startup
-			return fmt.Errorf("failed to start Fibre server (validator node): %w", err)
+			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
 
 		// Now start the gRPC server (after all services are registered)

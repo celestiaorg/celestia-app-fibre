@@ -8,8 +8,8 @@ import (
 	"cosmossdk.io/log"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	"github.com/cometbft/cometbft/node"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
+	core "github.com/cometbft/cometbft/types"
 	"google.golang.org/grpc"
 )
 
@@ -18,21 +18,13 @@ import (
 // If the node is not a validator (no usable PrivValidator), this function does nothing and returns nil, nil.
 // If the node is a validator and initialization fails, returns an error (preventing node startup).
 func SetupServer(
-	cmtNode *node.Node,
+	privVal core.PrivValidator,
 	grpcServer *grpc.Server,
 	grpcClient *grpc.ClientConn,
 	logger log.Logger,
 	rootDir string,
 	chainID string,
 ) (*Server, error) {
-	// Get PrivValidator from CometBFT node
-	privVal := cmtNode.PrivValidator()
-	if privVal == nil {
-		logger.Info("Node is not a validator, skipping Fibre server startup")
-		return nil, nil
-	}
-	logger.Info("Initializing Fibre server for validator")
-
 	// Create QueryClient from gRPC connection
 	if grpcClient == nil {
 		return nil, fmt.Errorf("gRPC client is not initialized")

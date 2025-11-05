@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
-	"github.com/cometbft/cometbft/node"
+	core "github.com/cometbft/cometbft/types"
 	"google.golang.org/grpc"
 )
 
@@ -21,11 +21,11 @@ const (
 // If the node is a validator and initialization fails, returns an error (preventing node startup).
 func (m *Multiplexer) startFibreServer(
 	_ context.Context,
-	cmtNode *node.Node,
+	privVal core.PrivValidator,
 	grpcServer *grpc.Server,
 ) (*fibre.Server, error) {
 	return fibre.SetupServer(
-		cmtNode,
+		privVal,
 		grpcServer,
 		m.clientContext.GRPCClient,
 		m.logger,

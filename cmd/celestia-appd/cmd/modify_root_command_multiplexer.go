@@ -3,8 +3,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/celestiaorg/celestia-app/v6/app"
 	embedding "github.com/celestiaorg/celestia-app/v6/internal/embedding"
 	"github.com/celestiaorg/celestia-app/v6/multiplexer/abci"
@@ -99,9 +97,4 @@ func modifyRootCommand(rootCommand *cobra.Command) {
 			StartCommandHandler: multiplexer.New(versions),
 		},
 	)
-
-	// Enhance start command documentation with Fibre server information
-	if err := enhanceStartCommandHelp(rootCommand); err != nil {
-		panic(fmt.Errorf("failed to enhance start command help: %w", err))
-	}
 }

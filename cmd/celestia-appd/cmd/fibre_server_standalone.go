@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
-	"github.com/cometbft/cometbft/node"
+	core "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
 	"google.golang.org/grpc"
@@ -20,11 +20,11 @@ func startFibreServer(
 	ctx context.Context,
 	svrCtx *server.Context,
 	clientCtx client.Context,
-	cmtNode *node.Node,
+	privVal core.PrivValidator,
 	grpcServer *grpc.Server,
 ) (*fibre.Server, error) {
 	return fibre.SetupServer(
-		cmtNode,
+		privVal,
 		grpcServer,
 		clientCtx.GRPCClient,
 		svrCtx.Logger,

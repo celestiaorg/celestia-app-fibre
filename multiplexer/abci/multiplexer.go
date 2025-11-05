@@ -187,12 +187,9 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		// This ensures all services are registered before Server.Serve() is called
 		var fibreServer *fibre.Server
 		if m.cmNode != nil {
-			// startFibreServer will check if the node is a validator internally
-			fibreServer, err = m.startFibreServer(m.ctx, m.cmNode, grpcServer)
+			fibreServer, err = m.startFibreServer(m.ctx, m.cmNode.PrivValidator(), grpcServer)
 			if err != nil {
-				// If startFibreServer returns an error, it means the node is a validator
-				// and Fibre server initialization failed, which should prevent node startup
-				return fmt.Errorf("failed to start Fibre server (validator node): %w", err)
+				return fmt.Errorf("failed to start Fibre server: %w", err)
 			}
 
 			// Add graceful shutdown for Fibre server
