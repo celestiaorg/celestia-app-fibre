@@ -29,7 +29,6 @@ func startFibreServer(
 		GRPCClient: clientCtx.GRPCClient,
 		Logger:     svrCtx.Logger,
 		RootDir:    svrCtx.Config.RootDir,
-		Enabled:    svrCtx.Viper.GetBool(FibreEnableFlag),
 		ChainID:    svrCtx.Viper.GetString(ChainIDKey),
 	})
 }

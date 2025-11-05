@@ -40,9 +40,6 @@ const (
 	// DelayedPrecommitTimeoutFlag is a flag that can be used to override the DelayedPrecommitTimeout.
 	DelayedPrecommitTimeoutFlag = "delayed-precommit-timeout"
 
-	// FibreEnableFlag enables or disables the Fibre server
-	FibreEnableFlag = "fibre.enable"
-
 	// ChainIDKey is the viper key for the chain ID
 	ChainIDKey = "chain-id"
 )
@@ -161,9 +158,6 @@ func addStartFlags(startCmd *cobra.Command) {
 
 	startCmd.Flags().Duration(DelayedPrecommitTimeoutFlag, 0, "Override the DelayedPrecommitTimeout to control block time. Note: only for testing purposes.")
 	startCmd.Flags().Bool(FlagForceNoBBR, false, "bypass the requirement to use bbr locally")
-
-	// Fibre server flags
-	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable or disable the Fibre server.")
 }
 
 // replaceLogger optionally replaces the logger with a file logger if the flag

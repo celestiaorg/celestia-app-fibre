@@ -29,7 +29,6 @@ Fibre Server Configuration:
   requests. The server only starts if:
   - The node is configured as a validator (has priv_validator_key.json)
   - The gRPC server is enabled
-  - The --fibre.enable flag is true (default)
 
   For validator nodes, if Fibre server initialization fails, the node will fail to start
   to ensure validators are properly configured. Non-validator nodes can start successfully
@@ -40,10 +39,7 @@ Fibre Server Configuration:
     celestia-appd start
 
     # Start with custom home directory (Fibre store will be at <home>/data/fibre-store)
-    celestia-appd start --home /custom/path/to/home
-
-    # Disable Fibre server (even for validator nodes)
-    celestia-appd start --fibre.enable false`
+    celestia-appd start --home /custom/path/to/home`
 
 	// Append Fibre docs to existing Long description
 	startCmd.Long = strings.TrimSpace(existingLong) + fibreDocs

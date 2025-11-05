@@ -26,8 +26,6 @@ type ServerSetupConfig struct {
 	Logger log.Logger
 	// RootDir is the application home directory (root directory for default store paths)
 	RootDir string
-	// Enabled indicates whether the Fibre server should be started
-	Enabled bool
 	// ChainID is the chain ID
 	ChainID string
 }
@@ -37,11 +35,6 @@ type ServerSetupConfig struct {
 // If the node is not a validator (no usable PrivValidator), this function does nothing and returns nil, nil.
 // If the node is a validator and initialization fails, returns an error (preventing node startup).
 func SetupServer(config ServerSetupConfig) (*Server, error) {
-	if !config.Enabled {
-		config.Logger.Info("Fibre server is disabled via flag, skipping Fibre server startup")
-		return nil, nil
-	}
-
 	// Get PrivValidator from CometBFT node
 	privVal := config.Node.PrivValidator()
 	if privVal == nil {

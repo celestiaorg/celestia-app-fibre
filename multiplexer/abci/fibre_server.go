@@ -30,7 +30,6 @@ func (m *Multiplexer) startFibreServer(
 		GRPCClient: m.clientContext.GRPCClient,
 		Logger:     m.logger,
 		RootDir:    m.svrCtx.Config.RootDir,
-		Enabled:    m.svrCtx.Viper.GetBool("fibre.enable"),
 		ChainID:    m.svrCtx.Viper.GetString(ChainIDKey),
 	})
 }
