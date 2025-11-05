@@ -45,14 +45,11 @@ Fibre Server Configuration:
     # Start with custom store path
     celestia-appd start --fibre.store-path /custom/path/to/fibre-store
 
-    # Start with custom block time
-    celestia-appd start --fibre.block-time 3s
-
     # Disable Fibre server (even for validator nodes)
     celestia-appd start --fibre.enable false
 
     # Combine multiple flags
-    celestia-appd start --fibre.store-type badger --fibre.store-path /var/lib/celestia-app/fibre-store --fibre.block-time 6s`
+    celestia-appd start --fibre.store-type badger --fibre.store-path /var/lib/celestia-app/fibre-store`
 
 	// Append Fibre docs to existing Long description
 	startCmd.Long = strings.TrimSpace(existingLong) + fibreDocs

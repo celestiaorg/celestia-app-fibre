@@ -29,6 +29,5 @@ func (m *Multiplexer) startFibreServer(
 		StoreType:  m.svrCtx.Viper.GetString("fibre.store-type"),
 		StorePath:  m.svrCtx.Viper.GetString("fibre.store-path"),
 		ChainID:    m.svrCtx.Viper.GetString("chain-id"),
-		BlockTime:  m.svrCtx.Viper.GetDuration("fibre.block-time"),
 	})
 }

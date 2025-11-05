@@ -33,6 +33,5 @@ func startFibreServer(
 		StoreType:  svrCtx.Viper.GetString(FibreStoreTypeFlag),
 		StorePath:  svrCtx.Viper.GetString(FibreStorePathFlag),
 		ChainID:    svrCtx.Viper.GetString("chain-id"),
-		BlockTime:  svrCtx.Viper.GetDuration(FibreBlockTimeFlag),
 	})
 }

@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"cosmossdk.io/log"
 	confixcmd "cosmossdk.io/tools/confix/cmd"
@@ -47,8 +46,6 @@ const (
 	FibreStoreTypeFlag = "fibre.store-type"
 	// FibreStorePathFlag specifies the path for the badger store
 	FibreStorePathFlag = "fibre.store-path"
-	// FibreBlockTimeFlag specifies the expected block time
-	FibreBlockTimeFlag = "fibre.block-time"
 )
 
 // NewRootCmd creates a new root command for celestia-appd.
@@ -170,7 +167,6 @@ func addStartFlags(startCmd *cobra.Command) {
 	startCmd.Flags().Bool(FibreEnableFlag, true, "Enable or disable the Fibre server.")
 	startCmd.Flags().String(FibreStoreTypeFlag, "badger", "Storage backend type for Fibre server data. Valid options are \"memory\" (ephemeral) or \"badger\" (persistent on disk).")
 	startCmd.Flags().String(FibreStorePathFlag, "", "Directory path for the BadgerDB store. Only used when --fibre.store-type=badger. If not specified, defaults to <home>/data/fibre-store")
-	startCmd.Flags().Duration(FibreBlockTimeFlag, 6*time.Second, "Expected block time for calculating height-based timeouts in the Fibre server. Accepts duration strings like \"6s\".")
 }
 
 // replaceLogger optionally replaces the logger with a file logger if the flag

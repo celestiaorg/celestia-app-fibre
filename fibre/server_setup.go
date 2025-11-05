@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -46,8 +45,6 @@ type ServerSetupConfig struct {
 	StorePath string
 	// ChainID is the chain ID
 	ChainID string
-	// BlockTime is the expected block time
-	BlockTime time.Duration
 }
 
 // SetupServer initializes and registers the Fibre server with the gRPC server for a validator node.
@@ -117,11 +114,6 @@ func SetupServer(config ServerSetupConfig) (*Server, error) {
 	// Get chain ID from config or use default
 	if config.ChainID != "" {
 		serverConfig.ChainID = config.ChainID
-	}
-
-	// Get block time from config or use default
-	if config.BlockTime > 0 {
-		serverConfig.BlockTime = config.BlockTime
 	}
 
 	// Create Fibre Server
