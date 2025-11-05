@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"cosmossdk.io/log"
+	"github.com/bytedance/gopkg/util/logger"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -103,10 +104,14 @@ func startCommandHandler(
 		}
 
 		// Register Fibre server BEFORE starting the gRPC server
-		fibreServer, err = fibre.SetupServer(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, svrCtx.Logger, svrCtx.Config.RootDir, svrCtx.Viper.GetString(ChainIDKey))
+		serverConfig := fibre.DefaultServerConfig()
+		serverConfig.ChainID = svrCtx.Viper.GetString(ChainIDKey)
+		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
+		fibreServer, err = fibre.SetupServer(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, svrCtx.Config.RootDir, serverConfig)
 		if err != nil {
 			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
+		logger.Info("Fibre server registered with gRPC server")
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {

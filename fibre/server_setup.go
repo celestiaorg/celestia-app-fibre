@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"cosmossdk.io/log"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
@@ -21,9 +20,8 @@ func SetupServer(
 	privVal core.PrivValidator,
 	grpcServer *grpc.Server,
 	grpcClient *grpc.ClientConn,
-	logger log.Logger,
 	rootDir string,
-	chainID string,
+	serverConfig ServerConfig,
 ) (*Server, error) {
 	// Create QueryClient from gRPC connection
 	if grpcClient == nil {
@@ -45,15 +43,6 @@ func SetupServer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Fibre store: %w", err)
 	}
-	logger.Info("Using Badger store for Fibre server", "path", storePath)
-
-	// Create ServerConfig
-	serverConfig := DefaultServerConfig()
-
-	// Get chain ID from config or use default
-	if chainID != "" {
-		serverConfig.ChainID = chainID
-	}
 
 	// Create Fibre Server
 	fibreServer, err := NewServer(privVal, queryClient, valGet, store, serverConfig)
@@ -63,6 +52,5 @@ func SetupServer(
 
 	// Register Fibre server with gRPC server
 	types.RegisterFibreServer(grpcServer, fibreServer)
-	logger.Info("Fibre server registered with gRPC server", "chain-id", serverConfig.ChainID, "block-time", serverConfig.BlockTime)
 	return fibreServer, nil
 }

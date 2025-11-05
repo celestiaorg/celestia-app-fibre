@@ -187,7 +187,11 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		// This ensures all services are registered before Server.Serve() is called
 		var fibreServer *fibre.Server
 		if m.cmNode != nil {
-			fibreServer, err = fibre.SetupServer(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, m.logger, m.svrCtx.Config.RootDir, m.chainID)
+			serverConfig := fibre.DefaultServerConfig()
+			serverConfig.ChainID = m.chainID
+			// TODO: convert the m.Logger into a *slog.Logger and then propgate
+			// it to the fibre.SetupServer function
+			fibreServer, err = fibre.SetupServer(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, m.svrCtx.Config.RootDir, serverConfig)
 			if err != nil {
 				return fmt.Errorf("failed to start Fibre server: %w", err)
 			}
