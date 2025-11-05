@@ -5,7 +5,7 @@ import (
 
 	errorsmod "cosmossdk.io/errors"
 	"cosmossdk.io/math"
-	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"

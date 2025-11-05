@@ -10,7 +10,7 @@ import (
 	"cosmossdk.io/store"
 	"cosmossdk.io/store/metrics"
 	storetypes "cosmossdk.io/store/types"
-	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
@@ -292,7 +292,8 @@ func (suite *KeeperTestSuite) TestProcessedPayment() {
 	suite.T().Run("isPaymentProcessed should return true for existing payment promise", func(t *testing.T) {
 		paymentPromise := suite.createPaymentPromise()
 		pp := fibre.PaymentPromise{}
-		pp.FromProto(&paymentPromise)
+		err := pp.FromProto(&paymentPromise)
+		suite.NoError(err)
 		paymentPromiseHash, err := pp.Hash()
 		suite.NoError(err)
 

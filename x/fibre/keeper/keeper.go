@@ -7,7 +7,7 @@ import (
 	"cosmossdk.io/log"
 	"cosmossdk.io/math"
 	storetypes "cosmossdk.io/store/types"
-	fibre "github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -233,7 +233,9 @@ func (k Keeper) DeleteProcessedPayment(ctx sdk.Context, payment types.ProcessedP
 func (k Keeper) IsPaymentPromiseProcessed(ctx sdk.Context, promise *types.PaymentPromise) bool {
 	store := ctx.KVStore(k.storeKey)
 	pp := fibre.PaymentPromise{}
-	pp.FromProto(promise)
+	if err := pp.FromProto(promise); err != nil {
+		return false
+	}
 	hash, err := pp.Hash()
 	if err != nil {
 		return false
