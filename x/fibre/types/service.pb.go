@@ -27,24 +27,25 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-type Row struct {
+// BlobRow represents a row of data in a Fibre blob.
+type BlobRow struct {
 	Index uint32   `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
 	Data  []byte   `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	Proof [][]byte `protobuf:"bytes,3,rep,name=proof,proto3" json:"proof,omitempty"`
 }
 
-func (m *Row) Reset()         { *m = Row{} }
-func (m *Row) String() string { return proto.CompactTextString(m) }
-func (*Row) ProtoMessage()    {}
-func (*Row) Descriptor() ([]byte, []int) {
+func (m *BlobRow) Reset()         { *m = BlobRow{} }
+func (m *BlobRow) String() string { return proto.CompactTextString(m) }
+func (*BlobRow) ProtoMessage()    {}
+func (*BlobRow) Descriptor() ([]byte, []int) {
 	return fileDescriptor_15ef7a812f3b6799, []int{0}
 }
-func (m *Row) XXX_Unmarshal(b []byte) error {
+func (m *BlobRow) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Row) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *BlobRow) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Row.Marshal(b, m, deterministic)
+		return xxx_messageInfo_BlobRow.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -54,59 +55,63 @@ func (m *Row) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Row) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Row.Merge(m, src)
+func (m *BlobRow) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BlobRow.Merge(m, src)
 }
-func (m *Row) XXX_Size() int {
+func (m *BlobRow) XXX_Size() int {
 	return m.Size()
 }
-func (m *Row) XXX_DiscardUnknown() {
-	xxx_messageInfo_Row.DiscardUnknown(m)
+func (m *BlobRow) XXX_DiscardUnknown() {
+	xxx_messageInfo_BlobRow.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Row proto.InternalMessageInfo
+var xxx_messageInfo_BlobRow proto.InternalMessageInfo
 
-func (m *Row) GetIndex() uint32 {
+func (m *BlobRow) GetIndex() uint32 {
 	if m != nil {
 		return m.Index
 	}
 	return 0
 }
 
-func (m *Row) GetData() []byte {
+func (m *BlobRow) GetData() []byte {
 	if m != nil {
 		return m.Data
 	}
 	return nil
 }
 
-func (m *Row) GetProof() [][]byte {
+func (m *BlobRow) GetProof() [][]byte {
 	if m != nil {
 		return m.Proof
 	}
 	return nil
 }
 
-type Rows struct {
-	Rows []*Row `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
+// BlobShard represents a subset of rows of a Fibre blob.
+// With two ways of proving data correctness:
+// 1. Using RLC coefficients when there is not enough rows to reconstruct the data blob. (Upload case)
+// 2. Using a Merkle root of RLC tree, when there is sufficient rows to reconstruct the data blob. (Download case)
+type BlobShard struct {
+	Rows []*BlobRow `protobuf:"bytes,1,rep,name=rows,proto3" json:"rows,omitempty"`
 	// Types that are valid to be assigned to Rlc:
-	//	*Rows_Coefficients
-	//	*Rows_Root
-	Rlc isRows_Rlc `protobuf_oneof:"rlc"`
+	//	*BlobShard_Coefficients
+	//	*BlobShard_Root
+	Rlc isBlobShard_Rlc `protobuf_oneof:"rlc"`
 }
 
-func (m *Rows) Reset()         { *m = Rows{} }
-func (m *Rows) String() string { return proto.CompactTextString(m) }
-func (*Rows) ProtoMessage()    {}
-func (*Rows) Descriptor() ([]byte, []int) {
+func (m *BlobShard) Reset()         { *m = BlobShard{} }
+func (m *BlobShard) String() string { return proto.CompactTextString(m) }
+func (*BlobShard) ProtoMessage()    {}
+func (*BlobShard) Descriptor() ([]byte, []int) {
 	return fileDescriptor_15ef7a812f3b6799, []int{1}
 }
-func (m *Rows) XXX_Unmarshal(b []byte) error {
+func (m *BlobShard) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Rows) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *BlobShard) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Rows.Marshal(b, m, deterministic)
+		return xxx_messageInfo_BlobShard.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -116,87 +121,88 @@ func (m *Rows) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Rows) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Rows.Merge(m, src)
+func (m *BlobShard) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_BlobShard.Merge(m, src)
 }
-func (m *Rows) XXX_Size() int {
+func (m *BlobShard) XXX_Size() int {
 	return m.Size()
 }
-func (m *Rows) XXX_DiscardUnknown() {
-	xxx_messageInfo_Rows.DiscardUnknown(m)
+func (m *BlobShard) XXX_DiscardUnknown() {
+	xxx_messageInfo_BlobShard.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Rows proto.InternalMessageInfo
+var xxx_messageInfo_BlobShard proto.InternalMessageInfo
 
-type isRows_Rlc interface {
-	isRows_Rlc()
+type isBlobShard_Rlc interface {
+	isBlobShard_Rlc()
 	MarshalTo([]byte) (int, error)
 	Size() int
 }
 
-type Rows_Coefficients struct {
+type BlobShard_Coefficients struct {
 	Coefficients []byte `protobuf:"bytes,2,opt,name=coefficients,proto3,oneof" json:"coefficients,omitempty"`
 }
-type Rows_Root struct {
+type BlobShard_Root struct {
 	Root []byte `protobuf:"bytes,3,opt,name=root,proto3,oneof" json:"root,omitempty"`
 }
 
-func (*Rows_Coefficients) isRows_Rlc() {}
-func (*Rows_Root) isRows_Rlc()         {}
+func (*BlobShard_Coefficients) isBlobShard_Rlc() {}
+func (*BlobShard_Root) isBlobShard_Rlc()         {}
 
-func (m *Rows) GetRlc() isRows_Rlc {
+func (m *BlobShard) GetRlc() isBlobShard_Rlc {
 	if m != nil {
 		return m.Rlc
 	}
 	return nil
 }
 
-func (m *Rows) GetRows() []*Row {
+func (m *BlobShard) GetRows() []*BlobRow {
 	if m != nil {
 		return m.Rows
 	}
 	return nil
 }
 
-func (m *Rows) GetCoefficients() []byte {
-	if x, ok := m.GetRlc().(*Rows_Coefficients); ok {
+func (m *BlobShard) GetCoefficients() []byte {
+	if x, ok := m.GetRlc().(*BlobShard_Coefficients); ok {
 		return x.Coefficients
 	}
 	return nil
 }
 
-func (m *Rows) GetRoot() []byte {
-	if x, ok := m.GetRlc().(*Rows_Root); ok {
+func (m *BlobShard) GetRoot() []byte {
+	if x, ok := m.GetRlc().(*BlobShard_Root); ok {
 		return x.Root
 	}
 	return nil
 }
 
 // XXX_OneofWrappers is for the internal use of the proto package.
-func (*Rows) XXX_OneofWrappers() []interface{} {
+func (*BlobShard) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
-		(*Rows_Coefficients)(nil),
-		(*Rows_Root)(nil),
+		(*BlobShard_Coefficients)(nil),
+		(*BlobShard_Root)(nil),
 	}
 }
 
-type UploadRowsRequest struct {
+// UploadShardRequest is the request message for the UploadShard RPC method.
+type UploadShardRequest struct {
 	Promise *PaymentPromise `protobuf:"bytes,1,opt,name=promise,proto3" json:"promise,omitempty"`
-	Rows    *Rows           `protobuf:"bytes,2,opt,name=rows,proto3" json:"rows,omitempty"`
+	Shard   *BlobShard      `protobuf:"bytes,2,opt,name=shard,proto3" json:"shard,omitempty"`
 }
 
-func (m *UploadRowsRequest) Reset()         { *m = UploadRowsRequest{} }
-func (m *UploadRowsRequest) String() string { return proto.CompactTextString(m) }
-func (*UploadRowsRequest) ProtoMessage()    {}
-func (*UploadRowsRequest) Descriptor() ([]byte, []int) {
+func (m *UploadShardRequest) Reset()         { *m = UploadShardRequest{} }
+func (m *UploadShardRequest) String() string { return proto.CompactTextString(m) }
+func (*UploadShardRequest) ProtoMessage()    {}
+func (*UploadShardRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_15ef7a812f3b6799, []int{2}
 }
-func (m *UploadRowsRequest) XXX_Unmarshal(b []byte) error {
+func (m *UploadShardRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *UploadRowsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *UploadShardRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_UploadRowsRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_UploadShardRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -206,48 +212,49 @@ func (m *UploadRowsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, e
 		return b[:n], nil
 	}
 }
-func (m *UploadRowsRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UploadRowsRequest.Merge(m, src)
+func (m *UploadShardRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UploadShardRequest.Merge(m, src)
 }
-func (m *UploadRowsRequest) XXX_Size() int {
+func (m *UploadShardRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *UploadRowsRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_UploadRowsRequest.DiscardUnknown(m)
+func (m *UploadShardRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_UploadShardRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UploadRowsRequest proto.InternalMessageInfo
+var xxx_messageInfo_UploadShardRequest proto.InternalMessageInfo
 
-func (m *UploadRowsRequest) GetPromise() *PaymentPromise {
+func (m *UploadShardRequest) GetPromise() *PaymentPromise {
 	if m != nil {
 		return m.Promise
 	}
 	return nil
 }
 
-func (m *UploadRowsRequest) GetRows() *Rows {
+func (m *UploadShardRequest) GetShard() *BlobShard {
 	if m != nil {
-		return m.Rows
+		return m.Shard
 	}
 	return nil
 }
 
-type UploadRowsResponse struct {
+// UploadShardResponse is the response message for the UploadShard RPC method.
+type UploadShardResponse struct {
 	ValidatorSignature []byte `protobuf:"bytes,1,opt,name=validator_signature,json=validatorSignature,proto3" json:"validator_signature,omitempty"`
 }
 
-func (m *UploadRowsResponse) Reset()         { *m = UploadRowsResponse{} }
-func (m *UploadRowsResponse) String() string { return proto.CompactTextString(m) }
-func (*UploadRowsResponse) ProtoMessage()    {}
-func (*UploadRowsResponse) Descriptor() ([]byte, []int) {
+func (m *UploadShardResponse) Reset()         { *m = UploadShardResponse{} }
+func (m *UploadShardResponse) String() string { return proto.CompactTextString(m) }
+func (*UploadShardResponse) ProtoMessage()    {}
+func (*UploadShardResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_15ef7a812f3b6799, []int{3}
 }
-func (m *UploadRowsResponse) XXX_Unmarshal(b []byte) error {
+func (m *UploadShardResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *UploadRowsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *UploadShardResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_UploadRowsResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_UploadShardResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -257,41 +264,42 @@ func (m *UploadRowsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, 
 		return b[:n], nil
 	}
 }
-func (m *UploadRowsResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UploadRowsResponse.Merge(m, src)
+func (m *UploadShardResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UploadShardResponse.Merge(m, src)
 }
-func (m *UploadRowsResponse) XXX_Size() int {
+func (m *UploadShardResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *UploadRowsResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_UploadRowsResponse.DiscardUnknown(m)
+func (m *UploadShardResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_UploadShardResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UploadRowsResponse proto.InternalMessageInfo
+var xxx_messageInfo_UploadShardResponse proto.InternalMessageInfo
 
-func (m *UploadRowsResponse) GetValidatorSignature() []byte {
+func (m *UploadShardResponse) GetValidatorSignature() []byte {
 	if m != nil {
 		return m.ValidatorSignature
 	}
 	return nil
 }
 
-type DownloadRowsRequest struct {
+// DownloadShardRequest is the request message for the DownloadShard RPC method.
+type DownloadShardRequest struct {
 	Commitment []byte `protobuf:"bytes,1,opt,name=commitment,proto3" json:"commitment,omitempty"`
 }
 
-func (m *DownloadRowsRequest) Reset()         { *m = DownloadRowsRequest{} }
-func (m *DownloadRowsRequest) String() string { return proto.CompactTextString(m) }
-func (*DownloadRowsRequest) ProtoMessage()    {}
-func (*DownloadRowsRequest) Descriptor() ([]byte, []int) {
+func (m *DownloadShardRequest) Reset()         { *m = DownloadShardRequest{} }
+func (m *DownloadShardRequest) String() string { return proto.CompactTextString(m) }
+func (*DownloadShardRequest) ProtoMessage()    {}
+func (*DownloadShardRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_15ef7a812f3b6799, []int{4}
 }
-func (m *DownloadRowsRequest) XXX_Unmarshal(b []byte) error {
+func (m *DownloadShardRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *DownloadRowsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *DownloadShardRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_DownloadRowsRequest.Marshal(b, m, deterministic)
+		return xxx_messageInfo_DownloadShardRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -301,41 +309,42 @@ func (m *DownloadRowsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte,
 		return b[:n], nil
 	}
 }
-func (m *DownloadRowsRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DownloadRowsRequest.Merge(m, src)
+func (m *DownloadShardRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DownloadShardRequest.Merge(m, src)
 }
-func (m *DownloadRowsRequest) XXX_Size() int {
+func (m *DownloadShardRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *DownloadRowsRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_DownloadRowsRequest.DiscardUnknown(m)
+func (m *DownloadShardRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DownloadShardRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DownloadRowsRequest proto.InternalMessageInfo
+var xxx_messageInfo_DownloadShardRequest proto.InternalMessageInfo
 
-func (m *DownloadRowsRequest) GetCommitment() []byte {
+func (m *DownloadShardRequest) GetCommitment() []byte {
 	if m != nil {
 		return m.Commitment
 	}
 	return nil
 }
 
-type DownloadRowsResponse struct {
-	Rows *Rows `protobuf:"bytes,1,opt,name=rows,proto3" json:"rows,omitempty"`
+// DownloadShardResponse is the response message for the DownloadShard RPC method.
+type DownloadShardResponse struct {
+	Shard *BlobShard `protobuf:"bytes,1,opt,name=shard,proto3" json:"shard,omitempty"`
 }
 
-func (m *DownloadRowsResponse) Reset()         { *m = DownloadRowsResponse{} }
-func (m *DownloadRowsResponse) String() string { return proto.CompactTextString(m) }
-func (*DownloadRowsResponse) ProtoMessage()    {}
-func (*DownloadRowsResponse) Descriptor() ([]byte, []int) {
+func (m *DownloadShardResponse) Reset()         { *m = DownloadShardResponse{} }
+func (m *DownloadShardResponse) String() string { return proto.CompactTextString(m) }
+func (*DownloadShardResponse) ProtoMessage()    {}
+func (*DownloadShardResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_15ef7a812f3b6799, []int{5}
 }
-func (m *DownloadRowsResponse) XXX_Unmarshal(b []byte) error {
+func (m *DownloadShardResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *DownloadRowsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *DownloadShardResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_DownloadRowsResponse.Marshal(b, m, deterministic)
+		return xxx_messageInfo_DownloadShardResponse.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -345,66 +354,67 @@ func (m *DownloadRowsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte
 		return b[:n], nil
 	}
 }
-func (m *DownloadRowsResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DownloadRowsResponse.Merge(m, src)
+func (m *DownloadShardResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DownloadShardResponse.Merge(m, src)
 }
-func (m *DownloadRowsResponse) XXX_Size() int {
+func (m *DownloadShardResponse) XXX_Size() int {
 	return m.Size()
 }
-func (m *DownloadRowsResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_DownloadRowsResponse.DiscardUnknown(m)
+func (m *DownloadShardResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DownloadShardResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DownloadRowsResponse proto.InternalMessageInfo
+var xxx_messageInfo_DownloadShardResponse proto.InternalMessageInfo
 
-func (m *DownloadRowsResponse) GetRows() *Rows {
+func (m *DownloadShardResponse) GetShard() *BlobShard {
 	if m != nil {
-		return m.Rows
+		return m.Shard
 	}
 	return nil
 }
 
 func init() {
-	proto.RegisterType((*Row)(nil), "celestia.fibre.v1.Row")
-	proto.RegisterType((*Rows)(nil), "celestia.fibre.v1.Rows")
-	proto.RegisterType((*UploadRowsRequest)(nil), "celestia.fibre.v1.UploadRowsRequest")
-	proto.RegisterType((*UploadRowsResponse)(nil), "celestia.fibre.v1.UploadRowsResponse")
-	proto.RegisterType((*DownloadRowsRequest)(nil), "celestia.fibre.v1.DownloadRowsRequest")
-	proto.RegisterType((*DownloadRowsResponse)(nil), "celestia.fibre.v1.DownloadRowsResponse")
+	proto.RegisterType((*BlobRow)(nil), "celestia.fibre.v1.BlobRow")
+	proto.RegisterType((*BlobShard)(nil), "celestia.fibre.v1.BlobShard")
+	proto.RegisterType((*UploadShardRequest)(nil), "celestia.fibre.v1.UploadShardRequest")
+	proto.RegisterType((*UploadShardResponse)(nil), "celestia.fibre.v1.UploadShardResponse")
+	proto.RegisterType((*DownloadShardRequest)(nil), "celestia.fibre.v1.DownloadShardRequest")
+	proto.RegisterType((*DownloadShardResponse)(nil), "celestia.fibre.v1.DownloadShardResponse")
 }
 
 func init() { proto.RegisterFile("celestia/fibre/v1/service.proto", fileDescriptor_15ef7a812f3b6799) }
 
 var fileDescriptor_15ef7a812f3b6799 = []byte{
-	// 448 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x53, 0x41, 0x6f, 0xd3, 0x30,
-	0x14, 0x6e, 0x96, 0x16, 0xa4, 0xb7, 0x70, 0x98, 0x57, 0x41, 0x54, 0x89, 0x50, 0xa2, 0x01, 0x15,
-	0x13, 0x89, 0x5a, 0xc4, 0x89, 0xdb, 0x60, 0x08, 0x89, 0xcb, 0x64, 0xc4, 0x01, 0x2e, 0x93, 0x9b,
-	0xba, 0xc5, 0x52, 0x93, 0x17, 0x6c, 0xb7, 0xd9, 0x0e, 0xfc, 0x07, 0xfe, 0x13, 0x17, 0x8e, 0x3b,
-	0x72, 0x44, 0xed, 0x1f, 0x41, 0xb1, 0x93, 0xd2, 0xd1, 0x48, 0xbd, 0xf9, 0xbd, 0xf7, 0x7d, 0xfe,
-	0xbe, 0xcf, 0xd6, 0x83, 0x47, 0x09, 0x9f, 0x73, 0xa5, 0x05, 0x8b, 0xa7, 0x62, 0x2c, 0x79, 0xbc,
-	0x1c, 0xc6, 0x8a, 0xcb, 0xa5, 0x48, 0x78, 0x94, 0x4b, 0xd4, 0x48, 0x8e, 0x6a, 0x40, 0x64, 0x00,
-	0xd1, 0x72, 0xd8, 0x7b, 0xb8, 0xcb, 0xb1, 0x33, 0xc3, 0x08, 0xcf, 0xc1, 0xa5, 0x58, 0x90, 0x2e,
-	0x74, 0x44, 0x36, 0xe1, 0x57, 0xbe, 0xd3, 0x77, 0x06, 0xf7, 0xa8, 0x2d, 0x08, 0x81, 0xf6, 0x84,
-	0x69, 0xe6, 0x1f, 0xf4, 0x9d, 0x81, 0x47, 0xcd, 0xb9, 0x44, 0xe6, 0x12, 0x71, 0xea, 0xbb, 0x7d,
-	0x77, 0xe0, 0x51, 0x5b, 0x84, 0x0b, 0x68, 0x53, 0x2c, 0x14, 0x79, 0x0e, 0x6d, 0x89, 0x85, 0xf2,
-	0x9d, 0xbe, 0x3b, 0x38, 0x1c, 0xdd, 0x8f, 0x76, 0xfc, 0x44, 0x14, 0x0b, 0x6a, 0x30, 0xe4, 0x04,
-	0xbc, 0x04, 0xf9, 0x74, 0x2a, 0x12, 0xc1, 0x33, 0xad, 0xac, 0xca, 0xfb, 0x16, 0xbd, 0xd5, 0x25,
-	0xdd, 0xf2, 0x46, 0xd4, 0xbe, 0x5b, 0x4d, 0x4d, 0x75, 0xd6, 0x01, 0x57, 0xce, 0x93, 0xf0, 0x3b,
-	0x1c, 0x7d, 0xca, 0xe7, 0xc8, 0x26, 0xa5, 0x38, 0xe5, 0xdf, 0x16, 0x5c, 0x69, 0xf2, 0x1a, 0xee,
-	0xe6, 0x12, 0x53, 0xa1, 0xb8, 0x49, 0x73, 0x38, 0x7a, 0xdc, 0x60, 0xe3, 0x82, 0x5d, 0xa7, 0x3c,
-	0xd3, 0x17, 0x16, 0x48, 0x6b, 0x06, 0x39, 0xad, 0x02, 0x1c, 0x18, 0xe6, 0x83, 0xe6, 0x00, 0xca,
-	0x26, 0x08, 0xcf, 0x81, 0x6c, 0xcb, 0xab, 0x1c, 0x33, 0xc5, 0x49, 0x0c, 0xc7, 0x4b, 0x36, 0x17,
-	0x13, 0xa6, 0x51, 0x5e, 0x2a, 0x31, 0xcb, 0x98, 0x5e, 0x48, 0xeb, 0xc5, 0xa3, 0x64, 0x33, 0xfa,
-	0x58, 0x4f, 0xc2, 0x57, 0x70, 0xfc, 0x16, 0x8b, 0xec, 0xff, 0x1c, 0x01, 0x40, 0x82, 0x69, 0x2a,
-	0x74, 0x69, 0xb4, 0xa2, 0x6f, 0x75, 0xc2, 0x37, 0xd0, 0xbd, 0x4d, 0xab, 0xf4, 0x4f, 0x37, 0x7f,
-	0xb0, 0x3f, 0xc2, 0xe8, 0xa7, 0x03, 0x9d, 0x77, 0x65, 0x9f, 0x7c, 0x06, 0xf8, 0x17, 0x86, 0x9c,
-	0x34, 0xd0, 0x76, 0x9e, 0xba, 0xf7, 0x64, 0x0f, 0xaa, 0x72, 0x74, 0x09, 0xde, 0xb6, 0x53, 0xf2,
-	0xb4, 0x81, 0xd6, 0xf0, 0x02, 0xbd, 0x67, 0x7b, 0x71, 0x56, 0xe0, 0xec, 0xc3, 0xaf, 0x55, 0xe0,
-	0xdc, 0xac, 0x02, 0xe7, 0xcf, 0x2a, 0x70, 0x7e, 0xac, 0x83, 0xd6, 0xcd, 0x3a, 0x68, 0xfd, 0x5e,
-	0x07, 0xad, 0x2f, 0xc3, 0x99, 0xd0, 0x5f, 0x17, 0xe3, 0x28, 0xc1, 0x34, 0xae, 0x2f, 0x43, 0x39,
-	0xdb, 0x9c, 0x5f, 0xb0, 0x3c, 0x8f, 0xaf, 0xaa, 0xdd, 0xd0, 0xd7, 0x39, 0x57, 0xe3, 0x3b, 0x66,
-	0x33, 0x5e, 0xfe, 0x0d, 0x00, 0x00, 0xff, 0xff, 0x43, 0x7d, 0x6c, 0x7f, 0x6e, 0x03, 0x00, 0x00,
+	// 460 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x93, 0xcf, 0x6f, 0xd3, 0x30,
+	0x14, 0xc7, 0x6b, 0xb2, 0x32, 0xf1, 0xda, 0x1d, 0xf0, 0x8a, 0x14, 0x55, 0x10, 0x4a, 0xc4, 0x8f,
+	0x5c, 0x48, 0xd4, 0x20, 0x71, 0xe1, 0x56, 0xa1, 0x09, 0xb4, 0xcb, 0xe4, 0x89, 0x0b, 0x42, 0x42,
+	0x4e, 0xe2, 0x76, 0x96, 0x92, 0x38, 0xd8, 0x6e, 0xbb, 0x5d, 0xb8, 0x71, 0xe7, 0xcf, 0x82, 0xdb,
+	0x8e, 0x1c, 0x51, 0xfb, 0x8f, 0xa0, 0xd8, 0x69, 0xb5, 0xd2, 0xa0, 0x71, 0xf3, 0xf3, 0xfb, 0x7e,
+	0xdf, 0xfb, 0x7c, 0x2d, 0x19, 0x1e, 0xa7, 0x2c, 0x67, 0x4a, 0x73, 0x1a, 0x4d, 0x79, 0x22, 0x59,
+	0xb4, 0x18, 0x47, 0x8a, 0xc9, 0x05, 0x4f, 0x59, 0x58, 0x49, 0xa1, 0x05, 0xbe, 0xbf, 0x11, 0x84,
+	0x46, 0x10, 0x2e, 0xc6, 0xc3, 0x47, 0xfb, 0x1e, 0xdb, 0x33, 0x0e, 0xff, 0x3d, 0x1c, 0x4e, 0x72,
+	0x91, 0x10, 0xb1, 0xc4, 0x03, 0xe8, 0xf2, 0x32, 0x63, 0x97, 0x2e, 0x1a, 0xa1, 0xe0, 0x88, 0xd8,
+	0x02, 0x63, 0x38, 0xc8, 0xa8, 0xa6, 0xee, 0x9d, 0x11, 0x0a, 0xfa, 0xc4, 0x9c, 0x6b, 0x65, 0x25,
+	0x85, 0x98, 0xba, 0xce, 0xc8, 0x09, 0xfa, 0xc4, 0x16, 0xfe, 0x57, 0xb8, 0x57, 0x8f, 0x3a, 0xbf,
+	0xa0, 0x32, 0xc3, 0x21, 0x1c, 0x48, 0xb1, 0x54, 0x2e, 0x1a, 0x39, 0x41, 0x2f, 0x1e, 0x86, 0x7b,
+	0x60, 0x61, 0xb3, 0x96, 0x18, 0x1d, 0x7e, 0x0a, 0xfd, 0x54, 0xb0, 0xe9, 0x94, 0xa7, 0x9c, 0x95,
+	0x5a, 0xd9, 0x75, 0xef, 0x3a, 0x64, 0xe7, 0x16, 0x0f, 0xea, 0xa9, 0x42, 0xbb, 0x4e, 0xd3, 0x35,
+	0xd5, 0xa4, 0x0b, 0x8e, 0xcc, 0x53, 0xff, 0x1b, 0x02, 0xfc, 0xa1, 0xca, 0x05, 0xcd, 0x0c, 0x02,
+	0x61, 0x5f, 0xe6, 0x4c, 0x69, 0xfc, 0x06, 0x0e, 0x2b, 0x29, 0x0a, 0xae, 0x98, 0x09, 0xd6, 0x8b,
+	0x9f, 0xb4, 0xc0, 0x9c, 0xd1, 0xab, 0x82, 0x95, 0xfa, 0xcc, 0x0a, 0xc9, 0xc6, 0x81, 0x63, 0xe8,
+	0xaa, 0x7a, 0x98, 0xe1, 0xe9, 0xc5, 0x0f, 0xff, 0x91, 0xc3, 0x2e, 0xb4, 0x52, 0xff, 0x04, 0x8e,
+	0x77, 0x30, 0x54, 0x25, 0x4a, 0xc5, 0x70, 0x04, 0xc7, 0x0b, 0x9a, 0xf3, 0x8c, 0x6a, 0x21, 0x3f,
+	0x2b, 0x3e, 0x2b, 0xa9, 0x9e, 0x4b, 0xcb, 0xd4, 0x27, 0x78, 0xdb, 0x3a, 0xdf, 0x74, 0xfc, 0xd7,
+	0x30, 0x78, 0x2b, 0x96, 0xe5, 0x5e, 0x20, 0x0f, 0x20, 0x15, 0x45, 0xc1, 0x75, 0x4d, 0xdc, 0xf8,
+	0x6f, 0xdc, 0xf8, 0xa7, 0xf0, 0xe0, 0x2f, 0x5f, 0x43, 0xb0, 0x0d, 0x83, 0xfe, 0x3b, 0x4c, 0xfc,
+	0x13, 0x41, 0xf7, 0xa4, 0xee, 0xe2, 0x4f, 0xd0, 0xbb, 0x11, 0x0b, 0x3f, 0x6b, 0x71, 0xef, 0xbf,
+	0xfe, 0xf0, 0xf9, 0x6d, 0xb2, 0x86, 0x2d, 0x81, 0xa3, 0x1d, 0x68, 0xfc, 0xa2, 0xc5, 0xd8, 0xf6,
+	0x1c, 0xc3, 0xe0, 0x76, 0xa1, 0xdd, 0x31, 0x39, 0xfd, 0xb1, 0xf2, 0xd0, 0xf5, 0xca, 0x43, 0xbf,
+	0x57, 0x1e, 0xfa, 0xbe, 0xf6, 0x3a, 0xd7, 0x6b, 0xaf, 0xf3, 0x6b, 0xed, 0x75, 0x3e, 0x8e, 0x67,
+	0x5c, 0x5f, 0xcc, 0x93, 0x30, 0x15, 0x45, 0xb4, 0x99, 0x26, 0xe4, 0x6c, 0x7b, 0x7e, 0x49, 0xab,
+	0x2a, 0xba, 0x6c, 0x7e, 0x90, 0xbe, 0xaa, 0x98, 0x4a, 0xee, 0x9a, 0xff, 0xf3, 0xea, 0x4f, 0x00,
+	0x00, 0x00, 0xff, 0xff, 0x8b, 0x83, 0x78, 0xe6, 0x94, 0x03, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -419,8 +429,8 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type FibreClient interface {
-	UploadRows(ctx context.Context, in *UploadRowsRequest, opts ...grpc.CallOption) (*UploadRowsResponse, error)
-	DownloadRows(ctx context.Context, in *DownloadRowsRequest, opts ...grpc.CallOption) (*DownloadRowsResponse, error)
+	UploadShard(ctx context.Context, in *UploadShardRequest, opts ...grpc.CallOption) (*UploadShardResponse, error)
+	DownloadShard(ctx context.Context, in *DownloadShardRequest, opts ...grpc.CallOption) (*DownloadShardResponse, error)
 }
 
 type fibreClient struct {
@@ -431,18 +441,18 @@ func NewFibreClient(cc grpc1.ClientConn) FibreClient {
 	return &fibreClient{cc}
 }
 
-func (c *fibreClient) UploadRows(ctx context.Context, in *UploadRowsRequest, opts ...grpc.CallOption) (*UploadRowsResponse, error) {
-	out := new(UploadRowsResponse)
-	err := c.cc.Invoke(ctx, "/celestia.fibre.v1.Fibre/UploadRows", in, out, opts...)
+func (c *fibreClient) UploadShard(ctx context.Context, in *UploadShardRequest, opts ...grpc.CallOption) (*UploadShardResponse, error) {
+	out := new(UploadShardResponse)
+	err := c.cc.Invoke(ctx, "/celestia.fibre.v1.Fibre/UploadShard", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *fibreClient) DownloadRows(ctx context.Context, in *DownloadRowsRequest, opts ...grpc.CallOption) (*DownloadRowsResponse, error) {
-	out := new(DownloadRowsResponse)
-	err := c.cc.Invoke(ctx, "/celestia.fibre.v1.Fibre/DownloadRows", in, out, opts...)
+func (c *fibreClient) DownloadShard(ctx context.Context, in *DownloadShardRequest, opts ...grpc.CallOption) (*DownloadShardResponse, error) {
+	out := new(DownloadShardResponse)
+	err := c.cc.Invoke(ctx, "/celestia.fibre.v1.Fibre/DownloadShard", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -451,57 +461,57 @@ func (c *fibreClient) DownloadRows(ctx context.Context, in *DownloadRowsRequest,
 
 // FibreServer is the server API for Fibre service.
 type FibreServer interface {
-	UploadRows(context.Context, *UploadRowsRequest) (*UploadRowsResponse, error)
-	DownloadRows(context.Context, *DownloadRowsRequest) (*DownloadRowsResponse, error)
+	UploadShard(context.Context, *UploadShardRequest) (*UploadShardResponse, error)
+	DownloadShard(context.Context, *DownloadShardRequest) (*DownloadShardResponse, error)
 }
 
 // UnimplementedFibreServer can be embedded to have forward compatible implementations.
 type UnimplementedFibreServer struct {
 }
 
-func (*UnimplementedFibreServer) UploadRows(ctx context.Context, req *UploadRowsRequest) (*UploadRowsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UploadRows not implemented")
+func (*UnimplementedFibreServer) UploadShard(ctx context.Context, req *UploadShardRequest) (*UploadShardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UploadShard not implemented")
 }
-func (*UnimplementedFibreServer) DownloadRows(ctx context.Context, req *DownloadRowsRequest) (*DownloadRowsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DownloadRows not implemented")
+func (*UnimplementedFibreServer) DownloadShard(ctx context.Context, req *DownloadShardRequest) (*DownloadShardResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DownloadShard not implemented")
 }
 
 func RegisterFibreServer(s grpc1.Server, srv FibreServer) {
 	s.RegisterService(&_Fibre_serviceDesc, srv)
 }
 
-func _Fibre_UploadRows_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UploadRowsRequest)
+func _Fibre_UploadShard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UploadShardRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(FibreServer).UploadRows(ctx, in)
+		return srv.(FibreServer).UploadShard(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/celestia.fibre.v1.Fibre/UploadRows",
+		FullMethod: "/celestia.fibre.v1.Fibre/UploadShard",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FibreServer).UploadRows(ctx, req.(*UploadRowsRequest))
+		return srv.(FibreServer).UploadShard(ctx, req.(*UploadShardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Fibre_DownloadRows_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DownloadRowsRequest)
+func _Fibre_DownloadShard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DownloadShardRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(FibreServer).DownloadRows(ctx, in)
+		return srv.(FibreServer).DownloadShard(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/celestia.fibre.v1.Fibre/DownloadRows",
+		FullMethod: "/celestia.fibre.v1.Fibre/DownloadShard",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FibreServer).DownloadRows(ctx, req.(*DownloadRowsRequest))
+		return srv.(FibreServer).DownloadShard(ctx, req.(*DownloadShardRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -512,19 +522,19 @@ var _Fibre_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*FibreServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "UploadRows",
-			Handler:    _Fibre_UploadRows_Handler,
+			MethodName: "UploadShard",
+			Handler:    _Fibre_UploadShard_Handler,
 		},
 		{
-			MethodName: "DownloadRows",
-			Handler:    _Fibre_DownloadRows_Handler,
+			MethodName: "DownloadShard",
+			Handler:    _Fibre_DownloadShard_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "celestia/fibre/v1/service.proto",
 }
 
-func (m *Row) Marshal() (dAtA []byte, err error) {
+func (m *BlobRow) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -534,12 +544,12 @@ func (m *Row) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Row) MarshalTo(dAtA []byte) (int, error) {
+func (m *BlobRow) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Row) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *BlobRow) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -568,7 +578,7 @@ func (m *Row) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Rows) Marshal() (dAtA []byte, err error) {
+func (m *BlobShard) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -578,12 +588,12 @@ func (m *Rows) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Rows) MarshalTo(dAtA []byte) (int, error) {
+func (m *BlobShard) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Rows) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *BlobShard) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -614,12 +624,12 @@ func (m *Rows) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Rows_Coefficients) MarshalTo(dAtA []byte) (int, error) {
+func (m *BlobShard_Coefficients) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Rows_Coefficients) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *BlobShard_Coefficients) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	if m.Coefficients != nil {
 		i -= len(m.Coefficients)
@@ -630,12 +640,12 @@ func (m *Rows_Coefficients) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
-func (m *Rows_Root) MarshalTo(dAtA []byte) (int, error) {
+func (m *BlobShard_Root) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Rows_Root) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *BlobShard_Root) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	if m.Root != nil {
 		i -= len(m.Root)
@@ -646,7 +656,7 @@ func (m *Rows_Root) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	}
 	return len(dAtA) - i, nil
 }
-func (m *UploadRowsRequest) Marshal() (dAtA []byte, err error) {
+func (m *UploadShardRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -656,19 +666,19 @@ func (m *UploadRowsRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *UploadRowsRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *UploadShardRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *UploadRowsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *UploadShardRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Rows != nil {
+	if m.Shard != nil {
 		{
-			size, err := m.Rows.MarshalToSizedBuffer(dAtA[:i])
+			size, err := m.Shard.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -693,7 +703,7 @@ func (m *UploadRowsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *UploadRowsResponse) Marshal() (dAtA []byte, err error) {
+func (m *UploadShardResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -703,12 +713,12 @@ func (m *UploadRowsResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *UploadRowsResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *UploadShardResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *UploadRowsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *UploadShardResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -723,7 +733,7 @@ func (m *UploadRowsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *DownloadRowsRequest) Marshal() (dAtA []byte, err error) {
+func (m *DownloadShardRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -733,12 +743,12 @@ func (m *DownloadRowsRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *DownloadRowsRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *DownloadShardRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *DownloadRowsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *DownloadShardRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
@@ -753,7 +763,7 @@ func (m *DownloadRowsRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *DownloadRowsResponse) Marshal() (dAtA []byte, err error) {
+func (m *DownloadShardResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -763,19 +773,19 @@ func (m *DownloadRowsResponse) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *DownloadRowsResponse) MarshalTo(dAtA []byte) (int, error) {
+func (m *DownloadShardResponse) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *DownloadRowsResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *DownloadShardResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if m.Rows != nil {
+	if m.Shard != nil {
 		{
-			size, err := m.Rows.MarshalToSizedBuffer(dAtA[:i])
+			size, err := m.Shard.MarshalToSizedBuffer(dAtA[:i])
 			if err != nil {
 				return 0, err
 			}
@@ -799,7 +809,7 @@ func encodeVarintService(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
-func (m *Row) Size() (n int) {
+func (m *BlobRow) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -821,7 +831,7 @@ func (m *Row) Size() (n int) {
 	return n
 }
 
-func (m *Rows) Size() (n int) {
+func (m *BlobShard) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -839,7 +849,7 @@ func (m *Rows) Size() (n int) {
 	return n
 }
 
-func (m *Rows_Coefficients) Size() (n int) {
+func (m *BlobShard_Coefficients) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -851,7 +861,7 @@ func (m *Rows_Coefficients) Size() (n int) {
 	}
 	return n
 }
-func (m *Rows_Root) Size() (n int) {
+func (m *BlobShard_Root) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -863,7 +873,7 @@ func (m *Rows_Root) Size() (n int) {
 	}
 	return n
 }
-func (m *UploadRowsRequest) Size() (n int) {
+func (m *UploadShardRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -873,14 +883,14 @@ func (m *UploadRowsRequest) Size() (n int) {
 		l = m.Promise.Size()
 		n += 1 + l + sovService(uint64(l))
 	}
-	if m.Rows != nil {
-		l = m.Rows.Size()
+	if m.Shard != nil {
+		l = m.Shard.Size()
 		n += 1 + l + sovService(uint64(l))
 	}
 	return n
 }
 
-func (m *UploadRowsResponse) Size() (n int) {
+func (m *UploadShardResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -893,7 +903,7 @@ func (m *UploadRowsResponse) Size() (n int) {
 	return n
 }
 
-func (m *DownloadRowsRequest) Size() (n int) {
+func (m *DownloadShardRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -906,14 +916,14 @@ func (m *DownloadRowsRequest) Size() (n int) {
 	return n
 }
 
-func (m *DownloadRowsResponse) Size() (n int) {
+func (m *DownloadShardResponse) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.Rows != nil {
-		l = m.Rows.Size()
+	if m.Shard != nil {
+		l = m.Shard.Size()
 		n += 1 + l + sovService(uint64(l))
 	}
 	return n
@@ -925,7 +935,7 @@ func sovService(x uint64) (n int) {
 func sozService(x uint64) (n int) {
 	return sovService(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *Row) Unmarshal(dAtA []byte) error {
+func (m *BlobRow) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -948,10 +958,10 @@ func (m *Row) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Row: wiretype end group for non-group")
+			return fmt.Errorf("proto: BlobRow: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Row: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: BlobRow: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1060,7 +1070,7 @@ func (m *Row) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Rows) Unmarshal(dAtA []byte) error {
+func (m *BlobShard) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1083,10 +1093,10 @@ func (m *Rows) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Rows: wiretype end group for non-group")
+			return fmt.Errorf("proto: BlobShard: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Rows: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: BlobShard: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1118,7 +1128,7 @@ func (m *Rows) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Rows = append(m.Rows, &Row{})
+			m.Rows = append(m.Rows, &BlobRow{})
 			if err := m.Rows[len(m.Rows)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -1154,7 +1164,7 @@ func (m *Rows) Unmarshal(dAtA []byte) error {
 			}
 			v := make([]byte, postIndex-iNdEx)
 			copy(v, dAtA[iNdEx:postIndex])
-			m.Rlc = &Rows_Coefficients{v}
+			m.Rlc = &BlobShard_Coefficients{v}
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
@@ -1187,7 +1197,7 @@ func (m *Rows) Unmarshal(dAtA []byte) error {
 			}
 			v := make([]byte, postIndex-iNdEx)
 			copy(v, dAtA[iNdEx:postIndex])
-			m.Rlc = &Rows_Root{v}
+			m.Rlc = &BlobShard_Root{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -1210,7 +1220,7 @@ func (m *Rows) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *UploadRowsRequest) Unmarshal(dAtA []byte) error {
+func (m *UploadShardRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1233,10 +1243,10 @@ func (m *UploadRowsRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: UploadRowsRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: UploadShardRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UploadRowsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: UploadShardRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1277,7 +1287,7 @@ func (m *UploadRowsRequest) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Rows", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Shard", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1304,10 +1314,10 @@ func (m *UploadRowsRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Rows == nil {
-				m.Rows = &Rows{}
+			if m.Shard == nil {
+				m.Shard = &BlobShard{}
 			}
-			if err := m.Rows.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.Shard.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1332,7 +1342,7 @@ func (m *UploadRowsRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *UploadRowsResponse) Unmarshal(dAtA []byte) error {
+func (m *UploadShardResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1355,10 +1365,10 @@ func (m *UploadRowsResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: UploadRowsResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: UploadShardResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: UploadRowsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: UploadShardResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1416,7 +1426,7 @@ func (m *UploadRowsResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DownloadRowsRequest) Unmarshal(dAtA []byte) error {
+func (m *DownloadShardRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1439,10 +1449,10 @@ func (m *DownloadRowsRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: DownloadRowsRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: DownloadShardRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DownloadRowsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: DownloadShardRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -1500,7 +1510,7 @@ func (m *DownloadRowsRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *DownloadRowsResponse) Unmarshal(dAtA []byte) error {
+func (m *DownloadShardResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1523,15 +1533,15 @@ func (m *DownloadRowsResponse) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: DownloadRowsResponse: wiretype end group for non-group")
+			return fmt.Errorf("proto: DownloadShardResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DownloadRowsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: DownloadShardResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Rows", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Shard", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1558,10 +1568,10 @@ func (m *DownloadRowsResponse) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Rows == nil {
-				m.Rows = &Rows{}
+			if m.Shard == nil {
+				m.Shard = &BlobShard{}
 			}
-			if err := m.Rows.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.Shard.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
