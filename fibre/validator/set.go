@@ -48,7 +48,7 @@ func (s Set) Assign(commitment rsema1d.Commitment, totalRows int) ShardMap {
 
 	// shuffle row indices with Fisher-Yates algorithm
 	rowsIndicies := make([]int, totalRows)
-	for i := 0; i < totalRows; i++ {
+	for i := range totalRows {
 		rowsIndicies[i] = i
 	}
 	rng.Shuffle(totalRows, func(i, j int) {
