@@ -798,8 +798,8 @@ github.com/celestiaorg/rsema1d v0.0.0-20251031140154-a36e18b9e940 h1:YeC/5Lx3A06
 github.com/celestiaorg/rsema1d v0.0.0-20251031140154-a36e18b9e940/go.mod h1:pDqRBQaFbwdX3AUoPLAhucV+MUSm701fOMGxZZwvML0=
 github.com/celestiaorg/rsmt2d v0.15.1 h1:NF4D0LX501oDjw00RoJrTUrMHrO+Kv0LewL0FKQU7hg=
 github.com/celestiaorg/rsmt2d v0.15.1/go.mod h1:WKkpXoD1foHn4qgFx6GNoz36Wm0fbCh29ze4rA7ZwCs=
-github.com/celestiaorg/tastora v0.5.1 h1:lFaJ6q8jUyK7iUL0hBwbS93DMp5jM1kDEp2EiAPlm4w=
-github.com/celestiaorg/tastora v0.5.1/go.mod h1:Xw44XeRN2T/kSdopVCJjNhwFwRSO58wTW8GrVP7OWFI=
+github.com/celestiaorg/tastora v0.7.5 h1:LT1MPpRB7Jd2LcBBoVwtimBh1NIxueG7c5DQwfTpZ0g=
+github.com/celestiaorg/tastora v0.7.5/go.mod h1:Xw44XeRN2T/kSdopVCJjNhwFwRSO58wTW8GrVP7OWFI=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
 github.com/cenkalti/backoff v2.2.1+incompatible/go.mod h1:90ReRw6GdpyfrHakVjL/QHaoyV4aDUVVkXQJJJ3NXXM=
 github.com/cenkalti/backoff/v4 v4.1.1/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=

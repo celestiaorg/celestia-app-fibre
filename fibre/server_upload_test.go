@@ -156,7 +156,7 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	cfg := fibre.DefaultServerConfig()
 	// Set a temporary directory for the BadgerDB store
 	tmpDir := t.TempDir()
-	cfg.StoreConfig.Path = filepath.Join(tmpDir, "fibre-store")
+	cfg.Path = filepath.Join(tmpDir, "fibre-store")
 
 	// use first validator as the server's identity
 	privVal := newTestPrivValidator(privKeys[0])
@@ -179,7 +179,7 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	types.RegisterQueryServer(grpcServer, mockQueryServer)
 
 	// Register mock BlockAPI service
-	valSetProto, err := valSet.ValidatorSet.ToProto()
+	valSetProto, err := valSet.ToProto()
 	require.NoError(t, err)
 	mockBlockAPIServer := &mockBlockAPIServer{
 		validatorSetResponse: &coregrpc.ValidatorSetResponse{

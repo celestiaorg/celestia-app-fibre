@@ -15,7 +15,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
-	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	grpcregistry "github.com/celestiaorg/celestia-app/v6/fibre/validator/grpc"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	valaddrtypes "github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
@@ -53,7 +53,7 @@ func main() {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
-			os.Exit(1)
+			return
 		}
 		*keyringDir = filepath.Join(homeDir, defaultKeyringDir)
 	}
@@ -73,7 +73,7 @@ func main() {
 
 	if err := runLoad(ctx, *endpoint, *keyringDir, *interval, *payloadSize, *namespaceStr); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return
 	}
 }
 
@@ -132,7 +132,7 @@ func runLoad(
 	}
 
 	hostRegistry := grpcregistry.NewHostRegistry(valaddrtypes.NewQueryClient(grpcConn))
-	valGet := validator.NewGrpcGetter(coregrpc.NewBlockAPIClient(grpcConn))
+	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
 
 	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostRegistry, fibre.DefaultClientConfig())
 	if err != nil {
@@ -185,7 +185,7 @@ func runLoad(
 // Returns the keyring, key name, and address.
 func setupKeyring(ctx context.Context, keyringDir string, encCfg encoding.Config, grpcConn *grpc.ClientConn) (keyring.Keyring, string, string, error) {
 	// Ensure keyring directory exists
-	if err := os.MkdirAll(keyringDir, 0700); err != nil {
+	if err := os.MkdirAll(keyringDir, 0o700); err != nil {
 		return nil, "", "", fmt.Errorf("failed to create keyring directory: %w", err)
 	}
 
