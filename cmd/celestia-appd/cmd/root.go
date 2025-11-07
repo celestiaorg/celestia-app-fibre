@@ -39,6 +39,9 @@ const (
 
 	// DelayedPrecommitTimeoutFlag is a flag that can be used to override the DelayedPrecommitTimeout.
 	DelayedPrecommitTimeoutFlag = "delayed-precommit-timeout"
+
+	// ChainIDKey is the viper key for the chain ID
+	ChainIDKey = "chain-id"
 )
 
 // NewRootCmd creates a new root command for celestia-appd.
