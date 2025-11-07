@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -78,6 +79,11 @@ func NewBadgerStore(path string, cfg StoreConfig) (*Store, error) {
 //
 // Puts for the same commitments but different promises are allowed and are stored independently without deduplication.
 func (s *Store) Put(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
+	// If FIBREMAXXXING env var is set, skip all storage operations
+	if os.Getenv("FIBREMAXXXING") != "" {
+		return nil
+	}
+
 	batch, err := s.ds.Batch(ctx)
 	if err != nil {
 		return fmt.Errorf("creating batch: %w", err)
