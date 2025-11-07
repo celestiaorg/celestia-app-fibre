@@ -37,7 +37,7 @@ BUILD_FLAGS_MULTIPLEXER := -tags=$(BUILD_TAGS_MULTIPLEXER) -ldflags '$(LDFLAGS_M
 # dockerchain/config.go
 CELESTIA_V3_VERSION := v3.10.6
 CELESTIA_V4_VERSION := v4.1.0
-CELESTIA_V5_VERSION := v5.0.10
+CELESTIA_V5_VERSION := v5.0.11
 
 ## help: Get more info on make commands.
 help: Makefile
@@ -222,7 +222,7 @@ build-docker-multiplexer-local:
 ## build-ghcr-docker: Build the celestia-appd Docker image tagged with the current commit hash for GitHub Container Registry.
 build-ghcr-docker:
 	@echo "--> Building Docker image"
-	$(DOCKER) build -t ghcr.io/celestiaorg/celestia-app-standalone:$(COMMIT) -f docker/Dockerfile .
+	$(DOCKER) build -t ghcr.io/celestiaorg/celestia-app-standalone:$(COMMIT) -f docker/standalone.Dockerfile .
 .PHONY: build-ghcr-docker
 
 ## docker-build-ghcr: Build the celestia-appd docker image from the last commit. Requires docker.
@@ -313,13 +313,13 @@ test-docker-e2e:
 	cd test/docker-e2e && go test -v -run ^$$ENTRYPOINT/$(test)$$ ./... -timeout 30m
 .PHONY: test-docker-e2e
 
-## test-docker-e2e-upgrade: Build image from current branch and run the upgrade test.
-test-docker-e2e-upgrade:
+## test-docker-e2e-upgrade-all: Build image from current branch and run the upgrade test for all app versions starting from v2.
+test-docker-e2e-upgrade-all:
 	@echo "--> Building celestia-appd docker image (tag $(CELESTIA_TAG))"
 	@DOCKER_BUILDKIT=0 docker build --build-arg BUILDPLATFORM=linux/amd64 --build-arg TARGETOS=linux --build-arg TARGETARCH=amd64 -t "ghcr.io/celestiaorg/celestia-app:$(CELESTIA_TAG)" . -f docker/multiplexer.Dockerfile
-	@echo "--> Running upgrade test"
-	cd test/docker-e2e && go test -v -run ^TestCelestiaTestSuite/TestCelestiaAppUpgrade$$ -count=1 ./... -timeout 15m
-.PHONY: test-docker-e2e-upgrade
+	@echo "--> Running upgrade test for all app versions starting from v2"
+	cd test/docker-e2e && go test -v -run ^TestCelestiaTestSuite/TestAllUpgrades$$ -count=1 ./... -timeout 15m
+.PHONY: test-docker-e2e-upgrade-all
 
 ## test-multiplexer: Run unit tests for the multiplexer package.
 test-multiplexer: download-v3-binaries download-v4-binaries download-v5-binaries

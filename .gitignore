@@ -33,4 +33,5 @@ memory-bank/*
 .clinerules
 tools/talis/talis
 .gocache
+.cache
 .gomodcache
