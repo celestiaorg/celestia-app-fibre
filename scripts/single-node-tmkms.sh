@@ -220,41 +220,15 @@ createGenesis() {
     # Override the default RPC server listening address
     sed -i.bak 's#"tcp://127.0.0.1:26657"#"tcp://0.0.0.0:26657"#g' "${APP_HOME}"/config/config.toml
 
-    # Configure validator to use remote signer (tmkms)
-    echo "Configuring validator to use tmkms remote signer..."
+    echo "Commenting out priv_validator_key_file..."
+    sed -i.bak 's/^priv_validator_key_file/# priv_validator_key_file/' "${APP_HOME}/config/config.toml"
+    echo "✓ Commented out priv_validator_key_file"
 
-    # Comment out priv_validator_key_file and priv_validator_state_file
-    # This prevents the validator from using the file-based validator and forces it to use the remote signer
-    # See: https://docs.osmosis.zone/osmosis-core/keys/tmkms/
-    if grep -q "^priv_validator_key_file" "${APP_HOME}/config/config.toml"; then
-        sed -i.bak 's/^priv_validator_key_file/# priv_validator_key_file/' "${APP_HOME}/config/config.toml"
-        echo "✓ Commented out priv_validator_key_file"
-    fi
-    if grep -q "^priv_validator_state_file" "${APP_HOME}/config/config.toml"; then
-        sed -i.bak 's/^priv_validator_state_file/# priv_validator_state_file/' "${APP_HOME}/config/config.toml"
-        echo "✓ Commented out priv_validator_state_file"
-    fi
+    echo "Commenting out priv_validator_state_file..."
+    sed -i.bak 's/^priv_validator_state_file/# priv_validator_state_file/' "${APP_HOME}/config/config.toml"
 
-    # Remove any existing priv_validator_laddr line first
-    grep -v "^priv_validator_laddr" "${APP_HOME}/config/config.toml" > "${APP_HOME}/config/config.toml.tmp" || true
-    mv "${APP_HOME}/config/config.toml.tmp" "${APP_HOME}/config/config.toml"
-    # Add the new priv_validator_laddr setting (find a good place to insert it - after [base] or [priv_validator])
-    if grep -q "^\[priv_validator\]" "${APP_HOME}/config/config.toml"; then
-        # Insert after [priv_validator] section
-        awk -v addr="${PRIV_VALIDATOR_LADDR}" '/^\[priv_validator\]/ {print; print "priv_validator_laddr = \"" addr "\""; next}1' "${APP_HOME}/config/config.toml" > "${APP_HOME}/config/config.toml.tmp"
-        mv "${APP_HOME}/config/config.toml.tmp" "${APP_HOME}/config/config.toml"
-    else
-        # Fallback: append to end of file
-        echo "priv_validator_laddr = \"${PRIV_VALIDATOR_LADDR}\"" >> "${APP_HOME}/config/config.toml"
-    fi
-
-    # Verify it was set correctly
-    if grep -q "priv_validator_laddr = \"${PRIV_VALIDATOR_LADDR}\"" "${APP_HOME}/config/config.toml"; then
-        echo "✓ priv_validator_laddr configured successfully"
-    else
-        echo "✗ ERROR: Failed to configure priv_validator_laddr"
-        exit 1
-    fi
+    echo "Configuring priv_validator_laddr to use tmkms at ${PRIV_VALIDATOR_LADDR}..."
+    sed -i.bak "s|^priv_validator_laddr.*|priv_validator_laddr = \"${PRIV_VALIDATOR_LADDR}\"|" "${APP_HOME}/config/config.toml"
 
     # Enable transaction indexing
     sed -i.bak 's#"null"#"kv"#g' "${APP_HOME}"/config/config.toml
@@ -262,8 +236,8 @@ createGenesis() {
     # Persist ABCI responses
     sed -i.bak 's#discard_abci_responses = true#discard_abci_responses = false#g' "${APP_HOME}"/config/config.toml
 
-    # Override the log level to reduce noisy logs
-    sed -i.bak 's#log_level = "info"#log_level = "*:error,p2p:info,state:info"#g' "${APP_HOME}"/config/config.toml
+    echo "Setting log level to debug..."
+    sed -i.bak 's#log_level = "info"#log_level = "debug"#g' "${APP_HOME}"/config/config.toml
 
     # Override the VotingPeriod from 1 week to 30 seconds
     sed -i.bak 's#"604800s"#"30s"#g' "${APP_HOME}"/config/genesis.json
