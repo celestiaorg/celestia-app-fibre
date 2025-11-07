@@ -94,7 +94,7 @@ path = "${KMS_HOME}/secrets/consensus.key"
 chain_id = "${CHAIN_ID}"
 addr = "${PRIV_VALIDATOR_LADDR}"
 secret_key = "${KMS_IDENTITY_KEY}"
-protocol_version = "v0.34"
+protocol_version = "v0.38"
 reconnect = true
 EOF
 
@@ -272,9 +272,11 @@ startCelestiaApp() {
       --delayed-precommit-timeout 1s &
     VALIDATOR_PID=$!
     echo "Validator started with PID: ${VALIDATOR_PID}"
+    echo "Waiting for validator to initialize remote signer listener..."
 
-    # Start tmkms after a short delay
-    sleep 2
+    # Wait longer for the validator to fully initialize and start listening on priv_validator_laddr
+    # The remote signer listener may take a few seconds to start
+    sleep 5
     startTmkms
 
     # Wait for the validator process (this will block until it exits)
