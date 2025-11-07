@@ -568,10 +568,53 @@ func (m *Multiplexer) embeddedVersionRunning() bool {
 // startCmtNode initializes and starts a CometBFT node, sets up cleanup tasks, and assigns it to the Multiplexer instance.
 func (m *Multiplexer) startCmtNode() error {
 	cfg := m.svrCtx.Config
+
+	// Reload config from file if PrivValidatorListenAddr is empty
+	// This handles the case where the config file was modified after it was initially loaded
+	if cfg.PrivValidatorListenAddr == "" {
+		configPath := filepath.Join(cfg.RootDir, cmtcfg.DefaultConfigDir, cmtcfg.DefaultConfigFileName)
+		if _, err := os.Stat(configPath); err == nil {
+			m.logger.Info("Reloading config from file to read priv_validator_laddr", "config_file", configPath)
+			// Read config file directly and parse priv_validator_laddr
+			data, err := os.ReadFile(configPath)
+			if err == nil {
+				// Simple regex to find priv_validator_laddr = "value"
+				lines := strings.Split(string(data), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if strings.HasPrefix(line, "priv_validator_laddr") {
+						// Extract the value from priv_validator_laddr = "tcp://127.0.0.1:26658"
+						parts := strings.SplitN(line, "=", 2)
+						if len(parts) == 2 {
+							value := strings.TrimSpace(parts[1])
+							// Remove quotes
+							value = strings.Trim(value, "\"'")
+							if value != "" {
+								cfg.PrivValidatorListenAddr = value
+								m.logger.Info("Successfully reloaded priv_validator_laddr from config", "priv_validator_laddr", cfg.PrivValidatorListenAddr)
+								break
+							}
+						}
+					}
+				}
+			} else {
+				m.logger.Error("Failed to read config file for reload", "error", err)
+			}
+		}
+	}
+
 	nodeKey, err := p2p.LoadOrGenNodeKey(cfg.NodeKeyFile())
 	if err != nil {
 		return err
 	}
+
+	// Log priv validator configuration for debugging
+	// Use Error level to ensure it shows up even with restrictive log levels
+	m.logger.Error("DEBUG: Starting CometBFT node - priv validator config",
+		"priv_validator_key_file", cfg.PrivValidatorKeyFile(),
+		"priv_validator_state_file", cfg.PrivValidatorStateFile(),
+		"priv_validator_laddr", cfg.PrivValidatorListenAddr,
+	)
 
 	cmNode, err := node.NewNodeWithContext(
 		m.ctx,
