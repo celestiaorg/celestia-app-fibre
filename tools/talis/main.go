@@ -27,6 +27,7 @@ func main() {
 		deployCmd(),
 		addCmd(),
 		startTxsimCmd(),
+		startFibreLoadCmd(),
 		uploadDataCmd(),
 		killTmuxSessionCmd(),
 		resetCmd(),
