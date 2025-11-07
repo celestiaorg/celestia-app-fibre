@@ -372,12 +372,19 @@ txsim-build-docker:
 	docker build -t ghcr.io/celestiaorg/txsim -f docker/txsim/Dockerfile  .
 .PHONY: txsim-build-docker
 
-## build-talis-bins: Build celestia-appd and txsim binaries for talis VMs (ubuntu 22.04 LTS)
+## build-talis-bins: Build celestia-appd and txsim binaries for talis VMs (ubuntu 22.04 LTS). Requires GH_PRIVATE_REPO env var for private repo access.
 build-talis-bins:
+	@if [ -z "$$GH_PRIVATE_REPO" ]; then \
+		echo "ERROR: GH_PRIVATE_REPO environment variable is not set"; \
+		echo "Please run: export GH_PRIVATE_REPO=<your_github_token>"; \
+		exit 1; \
+	fi
+	@export DOCKER_BUILDKIT=0 && \
 	docker build \
 	  --file tools/talis/docker/Dockerfile \
 	  --target builder \
 	  --platform linux/amd64 \
+	  --build-arg GITHUB_TOKEN="$$GH_PRIVATE_REPO" \
 	  --build-arg LDFLAGS="$(LDFLAGS_STANDALONE)" \
 	  --build-arg GOOS=linux \
 	  --build-arg GOARCH=amd64 \
