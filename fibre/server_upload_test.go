@@ -201,7 +201,7 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	require.NoError(t, err)
 
 	// Create server with gRPC infrastructure - this registers the Fibre service
-	server, err := fibre.NewServer(privVal, cfg, grpcServer, conn)
+	server, err := fibre.NewServerFromGRPC(privVal, grpcServer, conn, cfg)
 	require.NoError(t, err)
 
 	// Start gRPC server after all services are registered

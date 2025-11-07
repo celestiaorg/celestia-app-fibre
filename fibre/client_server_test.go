@@ -176,11 +176,11 @@ func makeTestServers(
 		require.NoError(t, err)
 
 		// Create Fibre server - this will register the Fibre service on grpcServer
-		fibreServer, err := fibre.NewServer(
+		fibreServer, err := fibre.NewServerFromGRPC(
 			newTestPrivValidator(privKeys[i]),
-			serverCfg,
 			grpcServer,
 			conn,
+			serverCfg,
 		)
 		require.NoError(t, err)
 

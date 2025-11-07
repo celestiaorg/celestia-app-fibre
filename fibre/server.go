@@ -11,9 +11,9 @@ import (
 	"github.com/cometbft/cometbft/crypto"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
+	"github.com/cosmos/gogoproto/grpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
 )
 
 // ServerConfig contains configuration options for the Fibre [Server].
@@ -62,21 +62,14 @@ type Server struct {
 	tracer trace.Tracer
 }
 
-// NewServer creates a new Fibre [Server] with the provided gRPC infrastructure.
+// NewServer creates a new Fibre [Server] with the provided dependencies.
 // Returns an error if the validator's public key cannot be retrieved.
 func NewServer(
 	privVal core.PrivValidator,
+	queryClient types.QueryClient,
+	valGet validator.SetGetter,
 	cfg ServerConfig,
-	grpcServer *grpc.Server,
-	grpcClient *grpc.ClientConn,
 ) (*Server, error) {
-	if grpcServer == nil {
-		return nil, fmt.Errorf("grpcServer is required")
-	}
-	if grpcClient == nil {
-		return nil, fmt.Errorf("grpcClient is required")
-	}
-
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-server")
 	}
@@ -89,10 +82,6 @@ func NewServer(
 	if err != nil {
 		return nil, fmt.Errorf("getting validator public key: %w", err)
 	}
-
-	queryClient := types.NewQueryClient(grpcClient)
-	blockAPIClient := coregrpc.NewBlockAPIClient(grpcClient)
-	valGet := fibregrpc.NewSetGetter(blockAPIClient)
 
 	store, err := NewBadgerStore(cfg.StoreConfig)
 	if err != nil {
@@ -110,9 +99,25 @@ func NewServer(
 		tracer:      cfg.Tracer,
 	}
 
-	// Register Fibre server with gRPC server
-	types.RegisterFibreServer(grpcServer, server)
+	return server, nil
+}
 
+// NewServerFromGRPC creates a new Fibre [Server] from a gRPC server and client.
+// It registers the server with the gRPC server and returns the Fibre [Server].
+func NewServerFromGRPC(
+	privVal core.PrivValidator,
+	grpcServer grpc.Server,
+	grpcClient grpc.ClientConn,
+	cfg ServerConfig,
+) (*Server, error) {
+	queryClient := types.NewQueryClient(grpcClient)
+	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcClient))
+
+	server, err := NewServer(privVal, queryClient, valGet, cfg)
+	if err != nil {
+		return nil, err
+	}
+	types.RegisterFibreServer(grpcServer, server)
 	return server, nil
 }
 
