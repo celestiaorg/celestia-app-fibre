@@ -96,8 +96,16 @@ func OutOfOrderExport(b *square.Builder) (square.Square, error) {
 		}
 	}
 
+	// write all the pay-for-fibre transactions into compact shares
+	payForFibreWriter := share.NewCompactShareSplitter(share.PayForFibreNamespace, share.ShareVersionZero)
+	for _, tx := range b.PayForFibreTxs {
+		if err := payForFibreWriter.WriteTx(tx); err != nil {
+			return nil, fmt.Errorf("writing pay-for-fibre tx into compact shares: %w", err)
+		}
+	}
+
 	// begin to iteratively add blobs to the sparse share splitter calculating the actual padding
-	nonReservedStart := b.TxCounter.Size() + b.PfbCounter.Size()
+	nonReservedStart := b.TxCounter.Size() + b.PayForFibreCounter.Size() + b.PfbCounter.Size()
 	cursor := nonReservedStart
 	endOfLastBlob := nonReservedStart
 	blobWriter := share.NewSparseShareSplitter()
@@ -152,7 +160,7 @@ func OutOfOrderExport(b *square.Builder) (square.Square, error) {
 	}
 
 	// Write out the square
-	square, err := square.WriteSquare(txWriter, pfbWriter, blobWriter, nonReservedStart, ss)
+	square, err := square.WriteSquare(txWriter, pfbWriter, payForFibreWriter, blobWriter, nonReservedStart, ss)
 	if err != nil {
 		return nil, fmt.Errorf("writing square: %w", err)
 	}
