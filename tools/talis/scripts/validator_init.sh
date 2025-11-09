@@ -116,7 +116,7 @@ source payload/txsim.sh
 # Get the hostname of the machine
 HOSTNAME=$(hostname)
 
-# Base command
+# Base command with chain-id
 COMMAND="celestia-appd start"
 
 # Define log file path

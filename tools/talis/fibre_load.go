@@ -41,7 +41,7 @@ func startFibreLoadCmd() *cobra.Command {
 			resolvedSSHKeyPath := resolveValue(SSHKeyPath, EnvVarSSHKeyPath, strings.ReplaceAll(cfg.SSHPubKeyPath, ".pub", ""))
 
 			fibreLoadScript := fmt.Sprintf(
-				"fibre-load --grpc-endpoint localhost:9090 --keyring-dir $HOME/.celestia-app --interval %.2f --payload-size %d --namespace %s > fibre-load.log 2>&1",
+				"fibre-load --grpc-endpoint localhost:9090 --keyring-dir $HOME/.celestia-app --validator-hosts $HOME/payload/validator_hosts.json --interval %.2f --payload-size %d --namespace %s > fibre-load.log 2>&1",
 				interval,
 				payloadSize,
 				namespace,
