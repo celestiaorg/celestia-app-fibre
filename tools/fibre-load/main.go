@@ -37,6 +37,7 @@ const (
 	defaultPayloadSize  = 1024 * 1024 // 1MB
 	defaultNamespaceStr = "fibre"     // default namespace for blobs
 	defaultKeyName      = "fibre-load-key"
+	defaultChainID      = "celestia"  // default chain ID
 )
 
 var (
@@ -46,6 +47,7 @@ var (
 	payloadSize       int
 	namespaceStr      string
 	validatorHostFile string
+	chainID           string
 )
 
 var rootCmd = &cobra.Command{
@@ -77,7 +79,7 @@ and submits transactions at a configurable rate.`,
 			cancel()
 		}()
 
-		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile)
+		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID)
 	},
 }
 
@@ -88,7 +90,13 @@ func init() {
 	rootCmd.Flags().IntVarP(&payloadSize, "payload-size", "s", defaultPayloadSize, "size of payload data in bytes")
 	rootCmd.Flags().StringVarP(&namespaceStr, "namespace", "n", defaultNamespaceStr, "namespace for blob submission")
 	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
+	rootCmd.Flags().StringVarP(&chainID, "chain-id", "c", defaultChainID, "chain ID for the network (can also be set via CHAIN_ID env var)")
 	rootCmd.MarkFlagRequired("validator-hosts")
+
+	// Support CHAIN_ID environment variable - check after flags are parsed
+	if envChainID := os.Getenv("CHAIN_ID"); envChainID != "" && chainID == "" {
+		chainID = envChainID
+	}
 }
 
 func main() {
@@ -105,11 +113,13 @@ func runLoad(
 	payloadSize int,
 	namespaceStr string,
 	validatorHostFile string,
+	chainID string,
 ) error {
 	fmt.Printf("Fibre Load Generator\n")
 	fmt.Printf("====================\n")
 	fmt.Printf("gRPC Endpoint: %s\n", endpoint)
 	fmt.Printf("Keyring Directory: %s\n", keyringDir)
+	fmt.Printf("Chain ID: %s\n", chainID)
 	fmt.Printf("Interval: %.2f seconds\n", interval)
 	fmt.Printf("Payload Size: %d bytes\n", payloadSize)
 	fmt.Printf("Namespace: %s\n\n", namespaceStr)
@@ -161,9 +171,10 @@ func runLoad(
 	hostRegistry := newStaticHostRegistry(validatorHosts)
 	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
 
-	// Configure fibre client with the selected key
+	// Configure fibre client with the selected key and chain ID
 	fibreCfg := fibre.DefaultClientConfig()
 	fibreCfg.DefaultKeyName = keyName
+	fibreCfg.ChainID = chainID
 
 	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostRegistry, fibreCfg)
 	if err != nil {
