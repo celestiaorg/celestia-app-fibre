@@ -102,7 +102,8 @@ func startCommandHandler(
 
 		// Register Fibre server BEFORE starting the gRPC server
 		serverConfig := fibre.DefaultServerConfig()
-		serverConfig.ChainID = svrCtx.Viper.GetString(ChainIDKey)
+		// Get chain ID from genesis (the source of truth) instead of CLI flag
+		serverConfig.ChainID = cmtNode.GenesisDoc().ChainID
 		serverConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
 		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
 		fibreServer, err = fibre.NewServerFromGRPC(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, serverConfig)
