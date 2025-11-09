@@ -172,6 +172,13 @@ func createPayload(ips []Instance, chainID, ppath string, squareSize int, useMai
 		return err
 	}
 
+	// Generate validator host mapping for fibre-load
+	validatorHostFile := filepath.Join(ppath, "validator_hosts.json")
+	err = n.SaveValidatorHostMapping(validatorHostFile)
+	if err != nil {
+		return fmt.Errorf("failed to save validator host mapping: %w", err)
+	}
+
 	return nil
 }
 

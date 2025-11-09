@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"flag"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -16,15 +16,16 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
-	grpcregistry "github.com/celestiaorg/celestia-app/v6/fibre/validator/grpc"
+	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
-	valaddrtypes "github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
 	"github.com/celestiaorg/go-square/v3/share"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
+	core "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -38,42 +39,61 @@ const (
 	defaultKeyName      = "fibre-load-key"
 )
 
-func main() {
-	var (
-		endpoint     = flag.String("grpc-endpoint", defaultEndpoint, "gRPC endpoint of the consensus node")
-		keyringDir   = flag.String("keyring-dir", "", "Directory containing the keyring (defaults to ~/.celestia-app)")
-		interval     = flag.Float64("interval", defaultInterval, "Interval between transactions in seconds")
-		payloadSize  = flag.Int("payload-size", defaultPayloadSize, "Size of payload data in bytes")
-		namespaceStr = flag.String("namespace", defaultNamespaceStr, "Namespace for blob submission")
-	)
-	flag.Parse()
+var (
+	endpoint          string
+	keyringDir        string
+	interval          float64
+	payloadSize       int
+	namespaceStr      string
+	validatorHostFile string
+)
 
-	// Set default keyring directory if not specified
-	if *keyringDir == "" {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
-			return
+var rootCmd = &cobra.Command{
+	Use:   "fibre-load",
+	Short: "A load testing tool for Celestia Fibre",
+	Long: `fibre-load is a load testing tool that generates continuous blob transactions
+for Celestia Fibre network. It automatically manages keys and balances,
+and submits transactions at a configurable rate.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Set default keyring directory if not specified
+		if keyringDir == "" {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get home directory: %w", err)
+			}
+			keyringDir = filepath.Join(homeDir, defaultKeyringDir)
 		}
-		*keyringDir = filepath.Join(homeDir, defaultKeyringDir)
-	}
 
-	// Create cancellable context
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+		// Create cancellable context
+		ctx, cancel := context.WithCancel(cmd.Context())
+		defer cancel()
 
-	// Handle interrupt signal
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
-	go func() {
-		<-sigChan
-		fmt.Println("\nShutting down...")
-		cancel()
-	}()
+		// Handle interrupt signal
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, os.Interrupt)
+		go func() {
+			<-sigChan
+			fmt.Println("\nShutting down...")
+			cancel()
+		}()
 
-	if err := runLoad(ctx, *endpoint, *keyringDir, *interval, *payloadSize, *namespaceStr); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return
+		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile)
+	},
+}
+
+func init() {
+	rootCmd.Flags().StringVarP(&endpoint, "grpc-endpoint", "e", defaultEndpoint, "gRPC endpoint of the consensus node")
+	rootCmd.Flags().StringVarP(&keyringDir, "keyring-dir", "k", "", "directory containing the keyring (defaults to ~/.celestia-app)")
+	rootCmd.Flags().Float64VarP(&interval, "interval", "i", defaultInterval, "interval between transactions in seconds")
+	rootCmd.Flags().IntVarP(&payloadSize, "payload-size", "s", defaultPayloadSize, "size of payload data in bytes")
+	rootCmd.Flags().StringVarP(&namespaceStr, "namespace", "n", defaultNamespaceStr, "namespace for blob submission")
+	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
+	rootCmd.MarkFlagRequired("validator-hosts")
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
 	}
 }
 
@@ -84,6 +104,7 @@ func runLoad(
 	interval float64,
 	payloadSize int,
 	namespaceStr string,
+	validatorHostFile string,
 ) error {
 	fmt.Printf("Fibre Load Generator\n")
 	fmt.Printf("====================\n")
@@ -131,10 +152,20 @@ func runLoad(
 		return fmt.Errorf("failed to create tx client: %w", err)
 	}
 
-	hostRegistry := grpcregistry.NewHostRegistry(valaddrtypes.NewQueryClient(grpcConn))
+	// Load validator host mapping from file
+	validatorHosts, err := loadValidatorHosts(validatorHostFile)
+	if err != nil {
+		return fmt.Errorf("failed to load validator hosts: %w", err)
+	}
+
+	hostRegistry := newStaticHostRegistry(validatorHosts)
 	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
 
-	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostRegistry, fibre.DefaultClientConfig())
+	// Configure fibre client with the selected key
+	fibreCfg := fibre.DefaultClientConfig()
+	fibreCfg.DefaultKeyName = keyName
+
+	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostRegistry, fibreCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create fibre client: %w", err)
 	}
@@ -286,4 +317,48 @@ func setupKeyring(ctx context.Context, keyringDir string, encCfg encoding.Config
 	}
 
 	return kr, selectedKeyName, address.String(), nil
+}
+
+// loadValidatorHosts loads the validator address to host mapping from a JSON file.
+// The JSON file should contain a map of validator consensus addresses (hex) to host addresses.
+// Example format: {"39DC747611536ABCC734D861C3135DA54D490AAA": "localhost:50051"}
+func loadValidatorHosts(filePath string) (map[string]string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var hosts map[string]string
+	if err := json.Unmarshal(data, &hosts); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("validator hosts file is empty")
+	}
+
+	return hosts, nil
+}
+
+// staticHostRegistry is a simple implementation of validator.HostRegistry
+// that uses a hardcoded map of validator addresses to hosts.
+type staticHostRegistry struct {
+	hosts map[string]string
+}
+
+// newStaticHostRegistry creates a new static host registry with the given address-to-host mapping.
+func newStaticHostRegistry(hosts map[string]string) *staticHostRegistry {
+	return &staticHostRegistry{
+		hosts: hosts,
+	}
+}
+
+// GetHost returns the host for a given validator from the static map.
+func (r *staticHostRegistry) GetHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
+	addr := val.Address.String()
+	host, ok := r.hosts[addr]
+	if !ok {
+		return "", fmt.Errorf("no host configured for validator %s", addr)
+	}
+	return validator.Host(host), nil
 }

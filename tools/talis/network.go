@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	sdkmath "cosmossdk.io/math"
 	"github.com/celestiaorg/celestia-app/v6/app"
@@ -272,5 +274,47 @@ func WriteAddressBook(peers []string, file string) error {
 		}
 	}
 	book.Save()
+	return nil
+}
+
+// SaveValidatorHostMapping generates and saves a JSON file mapping validator consensus
+// addresses to their fibre service hosts. This file is used by fibre-load to know where
+// to send fibre requests.
+// The format is: {"<consensus_address_hex>": "<ip>:9091", ...}
+// The port 9091 is the default app gRPC port where the Fibre service is registered.
+func (n *Network) SaveValidatorHostMapping(filename string) error {
+	vals := n.genesis.Validators()
+
+	hostMapping := make(map[string]string, len(vals))
+	for _, v := range vals {
+		// Get the validator's consensus address (hex encoded)
+		consensusAddr := v.ConsensusKey.PubKey().Address()
+		consensusAddrHex := strings.ToUpper(hex.EncodeToString(consensusAddr))
+
+		// Get the validator's IP from the NodeInfo
+		nodeInfo, exists := n.validators[v.Name]
+		if !exists {
+			return fmt.Errorf("no IP found for validator %s", v.Name)
+		}
+
+		// Use port 9091 as the default app gRPC port where Fibre is served
+		host := fmt.Sprintf("%s:9091", nodeInfo.IP)
+		hostMapping[consensusAddrHex] = host
+	}
+
+	// Write to file
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(hostMapping); err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
+	fmt.Printf("Saved validator host mapping to %s (%d validators)\n", filename, len(hostMapping))
 	return nil
 }
