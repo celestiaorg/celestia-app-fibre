@@ -2,6 +2,7 @@ package fibre
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -31,6 +32,10 @@ type PutResult struct {
 // It encodes the data into a [Blob], calls [Client.Upload] to upload it,
 // and submits a MsgPayForFibre transaction.
 func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (result PutResult, err error) {
+	if c.txClient == nil {
+		return result, errors.New("tx client is not configured; Put cannot be executed")
+	}
+
 	ctx, span := c.tracer.Start(ctx, "fibre.Client.Put",
 		trace.WithAttributes(
 			attribute.String("namespace", ns.String()),
@@ -52,6 +57,12 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 		attribute.String("blob_commitment", commitment.String()),
 		attribute.Int("row_size", blob.RowSize()),
 	))
+
+	if err := c.ensureEscrowFunds(ctx, blob.UploadSize()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to fund escrow")
+		return result, err
+	}
 
 	signedPromise, err := c.Upload(ctx, ns, blob)
 	if err != nil {

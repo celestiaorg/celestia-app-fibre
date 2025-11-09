@@ -1001,6 +1001,15 @@ func (client *TxClient) DefaultAddress() sdktypes.AccAddress {
 
 func (client *TxClient) DefaultAccountName() string { return client.defaultAccount }
 
+// GRPCConn returns the primary gRPC connection used by the client.
+// It allows higher-level components to instantiate query clients that share the same connection.
+func (client *TxClient) GRPCConn() grpc.ClientConnInterface {
+	if len(client.conns) == 0 {
+		return nil
+	}
+	return client.conns[0]
+}
+
 func (client *TxClient) checkAccountLoaded(ctx context.Context, account string) error {
 	if _, exists := client.signer.accounts[account]; exists {
 		return nil
