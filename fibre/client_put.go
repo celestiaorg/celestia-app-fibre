@@ -58,12 +58,6 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 		attribute.Int("row_size", blob.RowSize()),
 	))
 
-	if err := c.ensureEscrowFunds(ctx, blob.UploadSize()); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to fund escrow")
-		return result, err
-	}
-
 	signedPromise, err := c.Upload(ctx, ns, blob)
 	if err != nil {
 		span.RecordError(err)

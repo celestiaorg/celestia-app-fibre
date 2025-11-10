@@ -181,6 +181,12 @@ func runLoad(
 		return fmt.Errorf("failed to create fibre client: %w", err)
 	}
 
+	// Fund escrow account upfront with enough for many transactions
+	// Estimate: 100 transactions worth of escrow funding
+	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 100); err != nil {
+		return fmt.Errorf("failed to fund escrow: %w", err)
+	}
+
 	fmt.Println("Starting load generation...")
 	fmt.Println("Press Ctrl+C to stop")
 	fmt.Println()
@@ -372,4 +378,44 @@ func (r *staticHostRegistry) GetHost(ctx context.Context, val *core.Validator) (
 		return "", fmt.Errorf("no host configured for validator %s", addr)
 	}
 	return validator.Host(host), nil
+}
+
+// fundEscrowUpfront deposits funds to the escrow account upfront for multiple transactions.
+// This prevents the need to check and fund escrow on every Put operation.
+func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize int, numTxs int) error {
+	// Query fibre params to get gas per byte
+	grpcConn := txClient.GRPCConn()
+	queryClient := fibre.NewQueryClient(grpcConn)
+
+	paramsResp, err := queryClient.Params(ctx, &fibre.QueryParamsRequest{})
+	if err != nil {
+		return fmt.Errorf("querying fibre params: %w", err)
+	}
+
+	// Calculate required amount for numTxs transactions
+	gasPerByte := paramsResp.Params.GasPerBlobByte
+	totalGas := uint64(payloadSize) * uint64(gasPerByte) * uint64(numTxs)
+
+	denom := "utia"
+	amount := sdk.NewCoin(denom, sdkmath.NewIntFromUint64(totalGas))
+
+	fmt.Printf("Funding escrow account with %s (enough for ~%d transactions)...\n", amount.String(), numTxs)
+
+	signer := txClient.DefaultAddress().String()
+	msg := &fibre.MsgDepositToEscrow{
+		Signer: signer,
+		Amount: amount,
+	}
+
+	txResp, err := txClient.BroadcastTx(ctx, []sdk.Msg{msg})
+	if err != nil {
+		return fmt.Errorf("broadcasting deposit transaction: %w", err)
+	}
+
+	if _, err := txClient.ConfirmTx(ctx, txResp.TxHash); err != nil {
+		return fmt.Errorf("confirming deposit transaction: %w", err)
+	}
+
+	fmt.Printf("Escrow account funded successfully (tx: %s)\n\n", txResp.TxHash)
+	return nil
 }
