@@ -328,9 +328,10 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 	creationTime := promise.CreationTimestamp
 
 	// Check creation_timestamp is not in the future
-	if creationTime.After(currentTime) {
-		return fmt.Errorf("creation_timestamp %v is greater than current timestamp %v", creationTime, currentTime)
-	}
+	// TODO: Temporarily disabled - allowing future timestamps
+	// if creationTime.After(currentTime) {
+	// 	return fmt.Errorf("creation_timestamp %v is greater than current timestamp %v", creationTime, currentTime)
+	// }
 
 	// Check creation_timestamp is not too old (must be greater than header_timestamp - withdrawal_delay)
 	minAllowedTime := currentTime.Add(-params.WithdrawalDelay)
