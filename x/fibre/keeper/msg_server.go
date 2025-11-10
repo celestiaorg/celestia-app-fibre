@@ -340,19 +340,31 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byt
 	twoThirds := cmtmath.Fraction{Numerator: 2, Denominator: 3}
 	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, signBytes)
 
-	// Add all provided signatures to the signature set
+	// Track validators we've already matched to prevent counting duplicates
+	seenValidators := make(map[string]struct{}, len(cmtValidators))
+
+	// Add all provided signatures to the signature set without assuming order
 	for i, signature := range signatures {
 		if len(signature) == 0 {
 			continue // Skip empty signatures
 		}
 
-		if i >= len(cmtValidators) {
-			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "signature index %d exceeds validator count %d", i, len(cmtValidators))
+		matched := false
+		for _, val := range cmtValidators {
+			addr := val.Address.String()
+			if _, seen := seenValidators[addr]; seen {
+				continue
+			}
+
+			if err := sigSet.Add(val, signature); err == nil {
+				seenValidators[addr] = struct{}{}
+				matched = true
+				break
+			}
 		}
 
-		// Add signature to set (this validates the signature internally)
-		if err := sigSet.Add(cmtValidators[i], signature); err != nil {
-			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid signature at index %d: %s", i, err)
+		if !matched {
+			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "signature %d does not match any validator", i)
 		}
 	}
 

@@ -26,7 +26,9 @@ func TestClientServerUpload(t *testing.T) {
 		cfg.UploadTargetSignaturesCount.Numerator = 1
 		cfg.UploadTargetSignaturesCount.Denominator = 1
 	}, nil)
-	defer env.Close()
+	// Use t.Cleanup instead of defer to ensure cleanup happens after test completion,
+	// not immediately on first error (which could leave concurrent uploads in flight)
+	t.Cleanup(env.Close)
 
 	totalBlobs := numClients * blobsPerClient
 	allCommitments := make([]fibre.Commitment, totalBlobs)

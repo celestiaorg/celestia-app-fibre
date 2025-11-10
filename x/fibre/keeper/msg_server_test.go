@@ -386,6 +386,54 @@ func (suite *MsgServerTestSuite) TestPayForFibre() {
 		suite.Nil(resp)
 		suite.Contains(err.Error(), "insufficient balance")
 	})
+
+	suite.T().Run("validator signatures can be unordered", func(t *testing.T) {
+		suite.setupValidatorSetN(3)
+
+		newPrivKey := secp256k1.GenPrivKey()
+		newPubKey := newPrivKey.PubKey()
+		newSignerPubKey := *newPubKey.(*secp256k1.PubKey)
+		newSigner := sdk.AccAddress(newPubKey.Address()).String()
+		newPaymentPromise := suite.createPaymentPromise(newSignerPubKey, newPrivKey)
+
+		gasRequired := uint64(newPaymentPromise.BlobSize) * uint64(params.GasPerBlobByte)
+		funds := sdk.NewInt64Coin(appconsts.BondDenom, int64(gasRequired)+1000)
+		suite.keeper.SetEscrowAccount(suite.ctx, types.EscrowAccount{
+			Signer:           newSigner,
+			Balance:          funds,
+			AvailableBalance: funds,
+		})
+
+		pp := fibre.PaymentPromise{}
+		suite.NoError(pp.FromProto(&newPaymentPromise))
+		signBytes, err := pp.SignBytes()
+		suite.NoError(err)
+		validatorSignBytes, err := fibre.ValidatorSignatureSignBytes(pp.ChainID, signBytes)
+		suite.NoError(err)
+
+		privKeys, ok := suite.stakingKeeper.validatorKeys[int64(newPaymentPromise.Height)]
+		suite.True(ok)
+		suite.GreaterOrEqual(len(privKeys), 3)
+
+		allSignatures := make([][]byte, len(privKeys))
+		for i, privKey := range privKeys {
+			sig, signErr := privKey.Sign(validatorSignBytes)
+			suite.NoError(signErr)
+			allSignatures[i] = sig
+		}
+
+		validatorSignatures := [][]byte{allSignatures[2], allSignatures[0]}
+
+		msg := &types.MsgPayForFibre{
+			Signer:              newSigner,
+			PaymentPromise:      newPaymentPromise,
+			ValidatorSignatures: validatorSignatures,
+		}
+
+		resp, err := suite.msgServer.PayForFibre(suite.ctx, msg)
+		suite.NoError(err)
+		suite.NotNil(resp)
+	})
 }
 
 // TestPaymentPromiseTimeout tests the PaymentPromiseTimeout message handler
@@ -632,45 +680,53 @@ func (suite *MsgServerTestSuite) createPaymentPromiseWithTime(signerPubKey secp2
 }
 
 func (suite *MsgServerTestSuite) setupValidatorSet() {
-	// Create a validator with ed25519 key
-	valPrivKey := ed25519.GenPrivKey()
-	valPubKey := valPrivKey.PubKey()
+	suite.setupValidatorSetN(1)
+}
 
-	// Create a validator
-	val := stakingtypes.Validator{
-		OperatorAddress: sdk.ValAddress(valPubKey.Address()).String(),
-		ConsensusPubkey: nil, // Will be set below
-		Tokens:          math.NewInt(1000000),
+func (suite *MsgServerTestSuite) setupValidatorSetN(count int) {
+	suite.Require().Greater(count, 0)
+
+	validators := make([]stakingtypes.Validator, count)
+	privKeys := make([]ed25519.PrivKey, count)
+
+	for i := 0; i < count; i++ {
+		privKey := ed25519.GenPrivKey()
+		pubKey := privKey.PubKey()
+
+		val := stakingtypes.Validator{
+			OperatorAddress: sdk.ValAddress(pubKey.Address()).String(),
+			ConsensusPubkey: nil, // Will be set below
+			Tokens:          math.NewInt(1000000),
+		}
+
+		// Convert CometBFT pubkey to SDK pubkey
+		pk, err := cryptocodec.FromCmtPubKeyInterface(pubKey)
+		suite.NoError(err)
+
+		anyPubKey, err := codectypes.NewAnyWithValue(pk)
+		suite.NoError(err)
+		val.ConsensusPubkey = anyPubKey
+
+		validators[i] = val
+		privKeys[i] = privKey
 	}
 
-	// Convert CometBFT pubkey to SDK pubkey
-	pk, err := cryptocodec.FromCmtPubKeyInterface(valPubKey)
-	suite.NoError(err)
-
-	// Set consensus pubkey
-	anyPubKey, err := codectypes.NewAnyWithValue(pk)
-	suite.NoError(err)
-	val.ConsensusPubkey = anyPubKey
-
-	// Create historical info
 	historicalInfo := stakingtypes.HistoricalInfo{
 		Header: cmtproto.Header{
 			Height: suite.ctx.BlockHeight(),
 			Time:   suite.ctx.BlockTime(),
 		},
-		Valset: []stakingtypes.Validator{val},
+		Valset: validators,
 	}
 
-	// Store validator private key for signature generation
-	suite.stakingKeeper.validatorKeys = map[int64]ed25519.PrivKey{
-		suite.ctx.BlockHeight(): valPrivKey,
+	suite.stakingKeeper.validatorKeys = map[int64][]ed25519.PrivKey{
+		suite.ctx.BlockHeight(): privKeys,
 	}
-
-	// Update mock to return this validator set
 	suite.stakingKeeper.historicalInfo = map[int64]stakingtypes.HistoricalInfo{
 		suite.ctx.BlockHeight(): historicalInfo,
 	}
 }
+
 
 func (suite *MsgServerTestSuite) generateValidatorSignatures(paymentPromise *types.PaymentPromise) [][]byte {
 	pp := fibre.PaymentPromise{}
@@ -683,14 +739,18 @@ func (suite *MsgServerTestSuite) generateValidatorSignatures(paymentPromise *typ
 	validatorSignBytes, err := fibre.ValidatorSignatureSignBytes(pp.ChainID, signBytes)
 	suite.NoError(err)
 
-	// Get validator key
-	valPrivKey, ok := suite.stakingKeeper.validatorKeys[paymentPromise.Height]
+	// Get validator keys
+	privKeys, ok := suite.stakingKeeper.validatorKeys[paymentPromise.Height]
 	if !ok {
 		return [][]byte{}
 	}
 
-	signature, err := valPrivKey.Sign(validatorSignBytes)
-	suite.NoError(err)
+	signatures := make([][]byte, len(privKeys))
+	for i, privKey := range privKeys {
+		signature, signErr := privKey.Sign(validatorSignBytes)
+		suite.NoError(signErr)
+		signatures[i] = signature
+	}
 
-	return [][]byte{signature}
+	return signatures
 }

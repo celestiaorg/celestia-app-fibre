@@ -27,7 +27,7 @@ func (m *MockBankKeeper) SendCoinsFromModuleToAccount(ctx context.Context, sende
 // MockStakingKeeper implements the expected StakingKeeper interface for testing
 type MockStakingKeeper struct {
 	historicalInfo map[int64]stakingtypes.HistoricalInfo
-	validatorKeys  map[int64]ed25519.PrivKey
+	validatorKeys  map[int64][]ed25519.PrivKey
 }
 
 func (m *MockStakingKeeper) GetHistoricalInfo(ctx context.Context, height int64) (stakingtypes.HistoricalInfo, error) {
