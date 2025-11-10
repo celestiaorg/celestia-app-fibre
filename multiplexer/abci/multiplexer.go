@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"cosmossdk.io/log"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/multiplexer/internal"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -173,11 +174,46 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 	// startGRPCServer the grpc server in the case of a native app. If using an embedded app
 	// it will use that instead.
 	if m.svrCfg.GRPC.Enable {
-		grpcServer, clientContext, err := m.startGRPCServer()
+		// Create and configure gRPC server (but don't start serving yet)
+		grpcServer, clientContext, err := m.createGRPCServer()
 		if err != nil {
 			return err
 		}
 		m.clientContext = clientContext // update client context with grpc
+
+		// Register Fibre server BEFORE starting the gRPC server
+		// This ensures all services are registered before Server.Serve() is called
+		var fibreServer *fibre.Server
+		if m.cmNode != nil {
+			serverConfig := fibre.DefaultServerConfig()
+			serverConfig.ChainID = m.chainID
+			serverConfig.StoreConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+			// TODO: convert the m.Logger into a *slog.Logger and then propgate
+			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, serverConfig)
+			if err != nil {
+				return fmt.Errorf("failed to start Fibre server: %w", err)
+			}
+
+			// Add graceful shutdown for Fibre server
+			if fibreServer != nil {
+				m.g.Go(func() error {
+					<-m.ctx.Done()
+					m.logger.Info("Stopping Fibre server")
+					if err := fibreServer.Stop(); err != nil {
+						m.logger.Error("Error stopping Fibre server", "error", err)
+						return err
+					}
+					return nil
+				})
+			}
+		} else {
+			m.logger.Info("CometBFT node is not running, skipping Fibre server startup")
+		}
+
+		// Now start the gRPC server (after all services are registered)
+		if err := m.startGRPCServer(grpcServer); err != nil {
+			return err
+		}
 
 		// startAPIServer starts the api server for a native app. If using an embedded app
 		// it will use that instead.
@@ -191,6 +227,8 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 				return err
 			}
 		}
+	} else {
+		m.logger.Info("gRPC server is disabled, skipping Fibre server startup")
 	}
 	return nil
 }
@@ -288,8 +326,9 @@ func (m *Multiplexer) initRemoteGrpcConn() error {
 	return nil
 }
 
-// startGRPCServer initializes and starts a gRPC server if enabled in the configuration, returning the server and updated context.
-func (m *Multiplexer) startGRPCServer() (*grpc.Server, client.Context, error) {
+// createGRPCServer creates and configures the gRPC server but does not start serving.
+// This allows services (like Fibre) to be registered before the server starts.
+func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	_, _, err := net.SplitHostPort(m.svrCfg.GRPC.Address)
 	if err != nil {
 		return nil, m.clientContext, err
@@ -334,6 +373,21 @@ func (m *Multiplexer) startGRPCServer() (*grpc.Server, client.Context, error) {
 	blockAPI := coregrpc.NewBlockAPI(coreEnv)
 	coregrpc.RegisterBlockAPIServer(grpcSrv, blockAPI)
 
+	m.conn = grpcClient
+	m.logger.Info("gRPC server created and configured", "address", m.svrCfg.GRPC.Address)
+	return grpcSrv, m.clientContext, nil
+}
+
+// startGRPCServer starts the gRPC server and BlockAPI event listener.
+// The server must have all services registered before this is called.
+func (m *Multiplexer) startGRPCServer(grpcSrv *grpc.Server) error {
+	coreEnv, err := m.cmNode.ConfigureRPC()
+	if err != nil {
+		return err
+	}
+
+	blockAPI := coregrpc.NewBlockAPI(coreEnv)
+
 	m.g.Go(func() error {
 		return blockAPI.StartNewBlockEventListener(m.ctx)
 	})
@@ -344,8 +398,8 @@ func (m *Multiplexer) startGRPCServer() (*grpc.Server, client.Context, error) {
 		return servergrpc.StartGRPCServer(m.ctx, m.logger.With(log.ModuleKey, "grpc-server"), m.svrCfg.GRPC, grpcSrv)
 	})
 
-	m.conn = grpcClient
-	return grpcSrv, m.clientContext, nil
+	m.logger.Info("gRPC server started", "address", m.svrCfg.GRPC.Address)
+	return nil
 }
 
 // startAPIServer initializes and starts the API server, setting up routes, telemetry, and running it within an error group.
