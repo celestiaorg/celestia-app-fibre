@@ -115,6 +115,9 @@ func startCommandHandler(
 		if err != nil {
 			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
+		maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
+		svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
+		svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {

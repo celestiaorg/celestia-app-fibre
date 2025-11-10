@@ -2,8 +2,6 @@ package fibre_test
 
 import (
 	"crypto/ed25519"
-	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,13 +13,10 @@ import (
 	"github.com/celestiaorg/rsema1d/field"
 	"github.com/cometbft/cometbft/crypto"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	txsigning "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // TestServerUploadRows unit tests the [Server.UploadRows].
@@ -153,15 +148,10 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 		Height:       100,
 	}
 
-	cfg := fibre.DefaultServerConfig()
-	// Set a temporary directory for the BadgerDB store
-	tmpDir := t.TempDir()
-	cfg.Path = filepath.Join(tmpDir, "fibre-store")
-
 	// use first validator as the server's identity
 	privVal := newTestPrivValidator(privKeys[0])
 
-	// Find the server validator in the ValidatorSet by matching the address
+	// find the server validator in the ValidatorSet by matching the address
 	// Note: core.NewValidatorSet may reorder validators, so we can't assume validators[0] == privKeys[0]
 	serverPubKey, err := privVal.GetPubKey()
 	require.NoError(t, err)
@@ -171,32 +161,12 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	require.True(t, found, "server validator not found in validator set")
 	require.NotNil(t, serverValidator, "server validator is nil")
 
-	// Create gRPC server with mock services
-	grpcServer := grpc.NewServer()
-
-	// Register mock Query service
-	mockQueryServer := &mockQueryServer{}
-	types.RegisterQueryServer(grpcServer, mockQueryServer)
-
-	// Register mock BlockAPI service
-	valSetProto, err := valSet.ToProto()
-	require.NoError(t, err)
-	mockBlockAPIServer := &mockBlockAPIServer{
-		validatorSetResponse: &coregrpc.ValidatorSetResponse{
-			ValidatorSet: valSetProto,
-			Height:       int64(valSet.Height),
-		},
-	}
-	coregrpc.RegisterBlockAPIServer(grpcServer, mockBlockAPIServer)
-
-	// Create in-memory listener
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	// Create client connection to the mock server (will connect after server starts)
-	conn, err := grpc.NewClient(
-		listener.Addr().String(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	// create server
+	server, err := fibre.NewInMemoryServer(
+		privVal,
+		&mockQueryClient{},
+		&mockValidatorSetGetter{set: valSet},
+		fibre.DefaultServerConfig(),
 	)
 	require.NoError(t, err)
 

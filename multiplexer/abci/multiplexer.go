@@ -197,6 +197,9 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 			if err != nil {
 				return fmt.Errorf("failed to start Fibre server: %w", err)
 			}
+			maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
+			m.svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
+			m.svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
 
 			// Add graceful shutdown for Fibre server
 			if fibreServer != nil {
