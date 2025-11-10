@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	sdkmath "cosmossdk.io/math"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
@@ -15,6 +16,7 @@ import (
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -91,7 +93,21 @@ func (s *FibreE2ETestSuite) SetupSuite() {
 		}
 	})
 
+	// Fund the escrow account for testing
+	// This ensures the client has sufficient balance for uploads
+	fundAmount := sdk.NewCoin("utia", sdkmath.NewInt(10_000_000)) // 10 TIA
+	signer := txClient.DefaultAddress().String()
+	fundMsg := &types.MsgDepositToEscrow{
+		Signer: signer,
+		Amount: fundAmount,
+	}
+	txResp, err := txClient.BroadcastTx(s.cctx.GoContext(), []sdk.Msg{fundMsg})
+	require.NoError(t, err, "failed to fund escrow account")
+	_, err = txClient.ConfirmTx(s.cctx.GoContext(), txResp.TxHash)
+	require.NoError(t, err, "failed to confirm escrow funding transaction")
+
 	t.Logf("Fibre e2e test setup complete. Chain ID: %s, gRPC: %s", s.chainID, grpcAddr)
+	t.Logf("Funded escrow account %s with %s", signer, fundAmount)
 	t.Log("NOTE: Fibre server is initialized via testnode.WithFibreServer()")
 }
 
