@@ -170,8 +170,8 @@ func (p *PaymentPromise) Validate() error {
 }
 
 const (
-	// MaxPaymentPromiseSize is the theoretical minimum size of all PaymentPromise fields
-	// before protobuf encoding overhead
+	// MaxPaymentPromiseSize is the theoretical maximum size of all PaymentPromise fields
+	// (excluding encoding overhead, like protobuf)
 	MaxPaymentPromiseSize = signBytesFixedSize + signatureSize + maxChainIDSize
 
 	// signBytesPrefix is prepended to the sign bytes to ensure the resulting signed message
@@ -206,8 +206,6 @@ func (p *PaymentPromise) SignBytes() ([]byte, error) {
 			p.signBytesErr = fmt.Errorf("marshalling timestamp: %w", err)
 			return
 		}
-		// trim the last zone byte which is always UTC
-		timestampBytes = timestampBytes[:len(timestampBytes)-1]
 
 		// calculate total size including the prefix
 		totalSize := len(signBytesPrefix) + len(p.ChainID) + signBytesFixedSize
