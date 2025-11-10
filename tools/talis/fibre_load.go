@@ -40,7 +40,7 @@ func startFibreLoadCmd() *cobra.Command {
 
 			resolvedSSHKeyPath := resolveValue(SSHKeyPath, EnvVarSSHKeyPath, strings.ReplaceAll(cfg.SSHPubKeyPath, ".pub", ""))
 
-			fibreLoadScript := fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %f -s %d -n %s", cfg.ChainID, interval, payloadSize, namespace)
+			fibreLoadScript := fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %f -s %d -n %s -t /root/.celestia-app/data/traces", cfg.ChainID, interval, payloadSize, namespace)
 
 			// only spin up fibre-load on the number of instances that were specified.
 			insts := []Instance{}
@@ -63,7 +63,7 @@ func startFibreLoadCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&SSHKeyPath, "ssh-key-path", "k", "", "path to the user's SSH key (overrides environment variable and default)")
 	cmd.Flags().IntVarP(&instances, "instances", "i", 1, "the number of instances of fibre-load, each ran on its own validator")
 	cmd.Flags().Float64VarP(&interval, "interval", "t", 1.0, "interval between transactions in seconds")
-	cmd.Flags().IntVarP(&payloadSize, "payload-size", "p", 1048576, "size of payload data in bytes (default 1MB)")
+	cmd.Flags().IntVarP(&payloadSize, "payload-size", "p", 128*1024*1024, "size of payload data in bytes (default 128MB)")
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "fibre", "namespace for blob submission")
 	_ = cmd.MarkFlagRequired("instances")
 	return cmd

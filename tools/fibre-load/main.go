@@ -537,9 +537,8 @@ func newMetricsWriter(tracesDir string) (*metricsWriter, error) {
 		return nil, fmt.Errorf("failed to create traces directory: %w", err)
 	}
 
-	// Create timestamped filename
-	timestamp := time.Now().Format("20060102-150405")
-	filename := filepath.Join(tracesDir, fmt.Sprintf("fibre-load-metrics-%s.jsonl", timestamp))
+	// Create filename
+	filename := filepath.Join(tracesDir, "fibre-load-metrics.jsonl")
 
 	// Open file for writing
 	file, err := os.Create(filename)
