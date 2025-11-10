@@ -39,7 +39,7 @@ const (
 	defaultPayloadSize  = 1024 * 1024 // 1MB
 	defaultNamespaceStr = "fibre"     // default namespace for blobs
 	defaultKeyName      = "fibre-load-key"
-	defaultChainID      = "celestia"  // default chain ID
+	defaultChainID      = "celestia" // default chain ID
 )
 
 var (
@@ -185,7 +185,7 @@ func runLoad(
 
 	// Fund escrow account upfront with enough for many transactions
 	// Estimate: 100 transactions worth of escrow funding
-	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 100); err != nil {
+	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 1000000); err != nil {
 		return fmt.Errorf("failed to fund escrow: %w", err)
 	}
 
