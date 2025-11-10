@@ -12,12 +12,14 @@ import (
 	"path/filepath"
 	"time"
 
+	sdkmath "cosmossdk.io/math"
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
+	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
@@ -385,9 +387,9 @@ func (r *staticHostRegistry) GetHost(ctx context.Context, val *core.Validator) (
 func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize int, numTxs int) error {
 	// Query fibre params to get gas per byte
 	grpcConn := txClient.GRPCConn()
-	queryClient := fibre.NewQueryClient(grpcConn)
+	queryClient := types.NewQueryClient(grpcConn)
 
-	paramsResp, err := queryClient.Params(ctx, &fibre.QueryParamsRequest{})
+	paramsResp, err := queryClient.Params(ctx, &types.QueryParamsRequest{})
 	if err != nil {
 		return fmt.Errorf("querying fibre params: %w", err)
 	}
@@ -402,7 +404,7 @@ func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize
 	fmt.Printf("Funding escrow account with %s (enough for ~%d transactions)...\n", amount.String(), numTxs)
 
 	signer := txClient.DefaultAddress().String()
-	msg := &fibre.MsgDepositToEscrow{
+	msg := &types.MsgDepositToEscrow{
 		Signer: signer,
 		Amount: amount,
 	}
