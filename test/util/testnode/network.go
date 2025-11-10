@@ -90,13 +90,9 @@ func tryStartNetwork(t testing.TB, config *Config) (cctx Context, rpcAddr, grpcA
 
 	cleanup = func() {
 		t.Log("tearing down testnode")
-		err := stopNode()
-		if err != nil {
-			// the test has already completed so log the error instead of
-			// failing the test.
-			t.Logf("error stopping node %v", err)
-		}
-		err = cleanupGRPC()
+		// Stop GRPC server first (including fibre server) to ensure BadgerDB
+		// background goroutines are stopped before removing the data directory
+		err := cleanupGRPC()
 		if err != nil {
 			// the test has already completed so just log the error instead of
 			// failing the test.
@@ -107,6 +103,12 @@ func tryStartNetwork(t testing.TB, config *Config) (cctx Context, rpcAddr, grpcA
 			// the test has already completed so just log the error instead of
 			// failing the test.
 			t.Logf("error when closing API server %v", err)
+		}
+		err = stopNode()
+		if err != nil {
+			// the test has already completed so log the error instead of
+			// failing the test.
+			t.Logf("error stopping node %v", err)
 		}
 	}
 

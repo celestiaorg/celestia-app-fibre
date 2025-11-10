@@ -12,6 +12,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
+	cmtmath "github.com/cometbft/cometbft/libs/math"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
 	"github.com/stretchr/testify/require"
@@ -72,6 +73,8 @@ func (s *FibreE2ETestSuite) SetupSuite() {
 	clientConfig := fibre.DefaultClientConfig()
 	clientConfig.ChainID = s.chainID
 	clientConfig.DefaultKeyName = testnode.DefaultValidatorAccountName
+	clientConfig.UploadTargetVotingPower = cmtmath.Fraction{Numerator: 1, Denominator: 1}
+	clientConfig.UploadTargetSignaturesCount = cmtmath.Fraction{Numerator: 1, Denominator: 1}
 
 	s.fibreClient, err = fibre.NewClient(
 		txClient,
@@ -120,7 +123,7 @@ func (s *FibreE2ETestSuite) TestPutAndGet() {
 	require.NoError(t, err, "fibre Put failed")
 	require.NotNil(t, putResp, "Put response should not be nil")
 	require.NotEmpty(t, putResp.TxHash, "TxHash should not be empty")
-	require.Greater(t, putResp.Height, int64(0), "Height should be positive")
+	require.Greater(t, putResp.Height, uint64(0), "Height should be positive")
 
 	t.Logf("Upload successful! TxHash: %s, Height: %d", putResp.TxHash, putResp.Height)
 

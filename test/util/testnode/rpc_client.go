@@ -101,36 +101,36 @@ func StartGRPCServer(
 
 	cctx.Context = cctx.WithGRPCClient(conn)
 
-	var fibreServer *fibre.Server
-	if cfg != nil && cfg.EnableFibreServer {
-		if !appCfg.GRPC.Enable {
-			return nil, Context{}, emptycleanup, fmt.Errorf("gRPC server must be enabled to start Fibre server")
-		}
-		serverCfg := fibre.DefaultServerConfig()
-		if cfg.Genesis != nil && cfg.Genesis.ChainID != "" {
-			serverCfg.ChainID = cfg.Genesis.ChainID
-		} else if cctx.ChainID != "" {
-			serverCfg.ChainID = cctx.ChainID
-		}
-		storeRoot := filepath.Join(cctx.HomeDir, "data", "fibre-store")
-		if cfg.TmConfig != nil && cfg.TmConfig.RootDir != "" {
-			storeRoot = filepath.Join(cfg.TmConfig.RootDir, "data", "fibre-store")
-		}
-		if err := os.MkdirAll(storeRoot, 0o755); err != nil {
-			return nil, Context{}, emptycleanup, fmt.Errorf("creating fibre store dir: %w", err)
-		}
-		serverCfg.Path = storeRoot
-		if cfg.TmConfig != nil {
-			if blockTime := cfg.TmConfig.Consensus.TimeoutCommit; blockTime > 0 {
-				serverCfg.BlockTime = blockTime
+		var fibreServer *fibre.Server
+		if cfg != nil && cfg.EnableFibreServer {
+			if !appCfg.GRPC.Enable {
+				return nil, Context{}, emptycleanup, fmt.Errorf("gRPC server must be enabled to start Fibre server")
+			}
+			serverCfg := fibre.DefaultServerConfig()
+			if cfg.Genesis != nil && cfg.Genesis.ChainID != "" {
+				serverCfg.ChainID = cfg.Genesis.ChainID
+			} else if cctx.ChainID != "" {
+				serverCfg.ChainID = cctx.ChainID
+			}
+			storeRoot := filepath.Join(cctx.HomeDir, "data", "fibre-store")
+			if cfg.TmConfig != nil && cfg.TmConfig.RootDir != "" {
+				storeRoot = filepath.Join(cfg.TmConfig.RootDir, "data", "fibre-store")
+			}
+			if err := os.MkdirAll(storeRoot, 0o755); err != nil {
+				return nil, Context{}, emptycleanup, fmt.Errorf("creating fibre store dir: %w", err)
+			}
+			serverCfg.Path = storeRoot
+			if cfg.TmConfig != nil {
+				if blockTime := cfg.TmConfig.Consensus.TimeoutCommit; blockTime > 0 {
+					serverCfg.BlockTime = blockTime
+				}
+			}
+
+			fibreServer, err = fibre.NewServerFromGRPC(tmNode.PrivValidator(), grpcSrv, cctx.GRPCClient, serverCfg)
+			if err != nil {
+				return nil, Context{}, emptycleanup, err
 			}
 		}
-
-		fibreServer, err = fibre.NewServerFromGRPC(tmNode.PrivValidator(), grpcSrv, cctx.GRPCClient, serverCfg)
-		if err != nil {
-			return nil, Context{}, emptycleanup, err
-		}
-	}
 
 	go blockAPI.StartNewBlockEventListener(cctx.goContext) //nolint:errcheck
 
