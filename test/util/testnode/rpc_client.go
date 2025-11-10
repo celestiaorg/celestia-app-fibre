@@ -116,6 +116,9 @@ func StartGRPCServer(
 		if cfg.TmConfig != nil && cfg.TmConfig.RootDir != "" {
 			storeRoot = filepath.Join(cfg.TmConfig.RootDir, "data", "fibre-store")
 		}
+		if err := os.MkdirAll(storeRoot, 0o755); err != nil {
+			return nil, Context{}, emptycleanup, fmt.Errorf("creating fibre store dir: %w", err)
+		}
 		serverCfg.Path = storeRoot
 		if cfg.TmConfig != nil {
 			if blockTime := cfg.TmConfig.Consensus.TimeoutCommit; blockTime > 0 {
