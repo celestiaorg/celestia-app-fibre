@@ -78,12 +78,7 @@ func tryStartNetwork(t testing.TB, config *Config) (cctx Context, rpcAddr, grpcA
 		return Context{}, "", "", cleanup, err
 	}
 
-	coreEnv, err := tmNode.ConfigureRPC()
-	if err != nil {
-		return Context{}, "", "", cleanup, err
-	}
-
-	grpcServer, cctx, cleanupGRPC, err := StartGRPCServer(log.NewTestLogger(t), app, config.AppConfig, cctx, coreEnv)
+	grpcServer, cctx, cleanupGRPC, err := StartGRPCServer(log.NewTestLogger(t), app, config.AppConfig, cctx, tmNode, config)
 	if err != nil {
 		return Context{}, "", "", cleanup, err
 	}

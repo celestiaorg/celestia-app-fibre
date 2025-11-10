@@ -209,10 +209,14 @@ func (b *benchmarkValidatorClient) UploadRows(ctx context.Context, req *types.Up
 		if err != nil {
 			return
 		}
+		validatorSignBytes, err := fibre.ValidatorSignatureSignBytes(pp.ChainID, signBytes)
+		if err != nil {
+			return
+		}
 
 		// Sign with validator's private key
 		privKeyBytes := b.privKey.Bytes()
-		b.cachedSignature = ed25519.Sign(ed25519.PrivateKey(privKeyBytes), signBytes)
+		b.cachedSignature = ed25519.Sign(ed25519.PrivateKey(privKeyBytes), validatorSignBytes)
 	})
 
 	return &types.UploadRowsResponse{

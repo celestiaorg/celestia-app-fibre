@@ -1,16 +1,18 @@
 package testnode
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"cosmossdk.io/log"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/rpc/client/local"
-	"github.com/cometbft/cometbft/rpc/core"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/server/api"
@@ -53,7 +55,14 @@ func StartNode(cometNode *node.Node, cctx Context) (Context, func() error, error
 // StartGRPCServer starts the GRPC server using the provided application and
 // config. A GRPC client connection to that server is also added to the client
 // context. The returned function should be used to shutdown the server.
-func StartGRPCServer(logger log.Logger, app srvtypes.Application, appCfg *srvconfig.Config, cctx Context, coreEnv *core.Environment) (*grpc.Server, Context, func() error, error) {
+func StartGRPCServer(
+	logger log.Logger,
+	app srvtypes.Application,
+	appCfg *srvconfig.Config,
+	cctx Context,
+	tmNode *node.Node,
+	cfg *Config,
+) (*grpc.Server, Context, func() error, error) {
 	emptycleanup := func() error { return nil }
 	// Add the tx service in the gRPC router.
 	app.RegisterTxService(cctx.Context)
@@ -68,8 +77,57 @@ func StartGRPCServer(logger log.Logger, app srvtypes.Application, appCfg *srvcon
 		return nil, Context{}, emptycleanup, err
 	}
 
+	coreEnv, err := tmNode.ConfigureRPC()
+	if err != nil {
+		return nil, Context{}, emptycleanup, err
+	}
+
 	blockAPI := coregrpc.NewBlockAPI(coreEnv)
 	coregrpc.RegisterBlockAPIServer(grpcSrv, blockAPI)
+
+	nodeGRPCAddr := strings.Replace(appCfg.GRPC.Address, "0.0.0.0", "localhost", 1)
+	conn, err := grpc.NewClient(
+		nodeGRPCAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(
+			grpc.ForceCodec(codec.NewProtoCodec(cctx.InterfaceRegistry).GRPCCodec()),
+			grpc.MaxCallSendMsgSize(math.MaxInt32),
+			grpc.MaxCallRecvMsgSize(math.MaxInt32),
+		),
+	)
+	if err != nil {
+		return nil, Context{}, emptycleanup, err
+	}
+
+	cctx.Context = cctx.WithGRPCClient(conn)
+
+	var fibreServer *fibre.Server
+	if cfg != nil && cfg.EnableFibreServer {
+		if !appCfg.GRPC.Enable {
+			return nil, Context{}, emptycleanup, fmt.Errorf("gRPC server must be enabled to start Fibre server")
+		}
+		serverCfg := fibre.DefaultServerConfig()
+		if cfg.Genesis != nil && cfg.Genesis.ChainID != "" {
+			serverCfg.ChainID = cfg.Genesis.ChainID
+		} else if cctx.ChainID != "" {
+			serverCfg.ChainID = cctx.ChainID
+		}
+		storeRoot := filepath.Join(cctx.HomeDir, "data", "fibre-store")
+		if cfg.TmConfig != nil && cfg.TmConfig.RootDir != "" {
+			storeRoot = filepath.Join(cfg.TmConfig.RootDir, "data", "fibre-store")
+		}
+		serverCfg.Path = storeRoot
+		if cfg.TmConfig != nil {
+			if blockTime := cfg.TmConfig.Consensus.TimeoutCommit; blockTime > 0 {
+				serverCfg.BlockTime = blockTime
+			}
+		}
+
+		fibreServer, err = fibre.NewServerFromGRPC(tmNode.PrivValidator(), grpcSrv, cctx.GRPCClient, serverCfg)
+		if err != nil {
+			return nil, Context{}, emptycleanup, err
+		}
+	}
 
 	go blockAPI.StartNewBlockEventListener(cctx.goContext) //nolint:errcheck
 
@@ -88,23 +146,12 @@ func StartGRPCServer(logger log.Logger, app srvtypes.Application, appCfg *srvcon
 		}
 	}()
 
-	nodeGRPCAddr := strings.Replace(appCfg.GRPC.Address, "0.0.0.0", "localhost", 1)
-	conn, err := grpc.NewClient(
-		nodeGRPCAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(
-			grpc.ForceCodec(codec.NewProtoCodec(cctx.InterfaceRegistry).GRPCCodec()),
-			grpc.MaxCallSendMsgSize(math.MaxInt32),
-			grpc.MaxCallRecvMsgSize(math.MaxInt32),
-		),
-	)
-	if err != nil {
-		return nil, Context{}, emptycleanup, err
-	}
-
-	cctx.Context = cctx.WithGRPCClient(conn)
-
 	return grpcSrv, cctx, func() error {
+		if fibreServer != nil {
+			if err := fibreServer.Stop(); err != nil {
+				return fmt.Errorf("stopping Fibre server: %w", err)
+			}
+		}
 		grpcSrv.Stop()
 		return nil
 	}, nil

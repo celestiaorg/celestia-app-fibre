@@ -48,6 +48,8 @@ type UniversalTestingConfig struct {
 type Config struct {
 	Genesis *genesis.Genesis
 	UniversalTestingConfig
+	// EnableFibreServer indicates whether the Fibre server should be started for this testnode.
+	EnableFibreServer bool
 }
 
 func (c *Config) WithGenesis(g *genesis.Genesis) *Config {
@@ -126,6 +128,12 @@ func (c *Config) WithGenesisTime(t time.Time) *Config {
 // WithChainID sets the chain ID and returns the Config.
 func (c *Config) WithChainID(id string) *Config {
 	c.Genesis = c.Genesis.WithChainID(id)
+	return c
+}
+
+// WithFibreServer enables the Fibre server to be started alongside the testnode.
+func (c *Config) WithFibreServer() *Config {
+	c.EnableFibreServer = true
 	return c
 }
 

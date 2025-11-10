@@ -10,6 +10,7 @@ import (
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
+	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
@@ -29,24 +30,22 @@ func TestFibreE2ESuite(t *testing.T) {
 type FibreE2ETestSuite struct {
 	suite.Suite
 
-	cctx         testnode.Context
-	fibreServer  *fibre.Server
-	fibreClient  *fibre.Client
-	chainID      string
+	cctx          testnode.Context
+	fibreServer   *fibre.Server
+	fibreClient   *fibre.Client
+	chainID       string
 	testNamespace share.Namespace
 }
 
-// SetupSuite initializes a testnode for fibre testing
-// Note: This test demonstrates what would need to be added to testnode
-// to properly initialize the fibre server. Currently, testnode doesn't
-// automatically start the fibre server, so this test is partially incomplete.
+// SetupSuite initializes a testnode for fibre testing and enables the Fibre server.
 func (s *FibreE2ETestSuite) SetupSuite() {
 	t := s.T()
 
 	// Create a testnode with funded accounts
 	cfg := testnode.DefaultConfig().
 		WithFundedAccounts().
-		WithDelayedPrecommitTimeout(time.Millisecond * 500)
+		WithDelayedPrecommitTimeout(time.Millisecond * 500).
+		WithFibreServer()
 
 	cctx, _, grpcAddr := testnode.NewNetwork(t, cfg)
 	s.cctx = cctx
@@ -55,16 +54,6 @@ func (s *FibreE2ETestSuite) SetupSuite() {
 	// Wait for first block
 	_, err := s.cctx.WaitForHeight(1)
 	require.NoError(t, err, "failed to wait for first block")
-
-	// TODO: In a complete implementation, the fibre server would be
-	// initialized here similar to how it's done in start_command_standalone.go:
-	//
-	// serverConfig := fibre.DefaultServerConfig()
-	// serverConfig.ChainID = cmtNode.GenesisDoc().ChainID
-	// serverConfig.Path = filepath.Join(rootDir, "data", "fibre-store")
-	// fibreServer, err := fibre.NewServerFromGRPC(privVal, grpcServer, grpcClient, serverConfig)
-	//
-	// For now, we'll just test that the client can be created properly
 
 	// Create test namespace
 	s.testNamespace, err = share.NewV0Namespace([]byte("fibretest"))
@@ -100,7 +89,7 @@ func (s *FibreE2ETestSuite) SetupSuite() {
 	})
 
 	t.Logf("Fibre e2e test setup complete. Chain ID: %s, gRPC: %s", s.chainID, grpcAddr)
-	t.Log("NOTE: Full server integration requires testnode to initialize fibre.Server")
+	t.Log("NOTE: Fibre server is initialized via testnode.WithFibreServer()")
 }
 
 // TestClientCreation tests that the fibre client can be created with correct chain ID
@@ -114,13 +103,9 @@ func (s *FibreE2ETestSuite) TestClientCreation() {
 	t.Log("This test verifies the client setup works end-to-end")
 }
 
-// TestPutAndGet tests uploading and downloading data via fibre
-// NOTE: This test is currently skipped because testnode doesn't automatically
-// start the fibre server. To make this test work, testnode needs to be updated
-// to initialize fibre.Server similar to start_command_standalone.go
+// TestPutAndGet tests uploading and downloading data via fibre using the embedded testnode.
 func (s *FibreE2ETestSuite) TestPutAndGet() {
 	t := s.T()
-	t.Skip("Skipping until testnode is updated to start fibre server")
 
 	ctx := context.Background()
 
@@ -142,6 +127,18 @@ func (s *FibreE2ETestSuite) TestPutAndGet() {
 	// Wait for the transaction to be included in a block
 	_, err = s.cctx.WaitForHeight(int64(putResp.Height) + 1)
 	require.NoError(t, err, "failed to wait for block")
+
+	t.Log("Validating stored rows via Fibre gRPC DownloadRows...")
+	fibreClient := types.NewFibreClient(s.cctx.GRPCClient)
+	downloadResp, err := fibreClient.DownloadRows(ctx, &types.DownloadRowsRequest{
+		Commitment: putResp.Commitment.Bytes(),
+	})
+	if err != nil {
+		t.Fatalf("failed to download rows: %v", err)
+	}
+	require.NotNil(t, downloadResp, "download response should not be nil")
+	require.NotNil(t, downloadResp.Rows, "download rows should not be nil")
+	require.NotEmpty(t, downloadResp.Rows.GetRows(), "download should return rows")
 
 	t.Log("Fibre e2e test passed!")
 }

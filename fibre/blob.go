@@ -37,6 +37,13 @@ func (c Commitment) Equals(other Commitment) bool {
 	return c == other
 }
 
+// Bytes returns a copy of the commitment bytes.
+func (c Commitment) Bytes() []byte {
+	out := make([]byte, len(c))
+	copy(out, c[:])
+	return out
+}
+
 // BlobConfig contains constant configuration parameters for blob encoding and decoding.
 type BlobConfig struct {
 	// OriginalRows is the number of original rows before erasure coding (K in rsema1d).
