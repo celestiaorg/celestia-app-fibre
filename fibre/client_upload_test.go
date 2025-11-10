@@ -353,13 +353,18 @@ func (v *validatorMockClient) UploadRows(ctx context.Context, req *types.UploadR
 		return nil, err
 	}
 
+	validatorSignBytes, err := fibre.ValidatorSignatureSignBytes(pp.ChainID, signBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	privKeyBytes := v.privKey.Bytes()
 	if len(privKeyBytes) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("invalid private key size: got %d, want %d", len(privKeyBytes), ed25519.PrivateKeySize)
 	}
 
 	return &types.UploadRowsResponse{
-		ValidatorSignature: ed25519.Sign(ed25519.PrivateKey(privKeyBytes), signBytes),
+		ValidatorSignature: ed25519.Sign(ed25519.PrivateKey(privKeyBytes), validatorSignBytes),
 	}, nil
 }
 

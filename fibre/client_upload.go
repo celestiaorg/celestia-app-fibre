@@ -77,8 +77,15 @@ func (c *Client) Upload(ctx context.Context, ns share.Namespace, blob *Blob) (re
 		return result, fmt.Errorf("preparing bytes to sign: %w", err)
 	}
 
+	validatorSignBytes, err := ValidatorSignatureSignBytes(promise.ChainID, signBytes)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to prepare validator sign bytes")
+		return result, fmt.Errorf("preparing validator sign bytes: %w", err)
+	}
+
 	requests := makeUploadRequests(shardMap, promise.ToProto(), blob.RLCCoeffs())
-	sigSet := valSet.NewSignatureSet(c.cfg.UploadTargetVotingPower, c.cfg.UploadTargetSignaturesCount, signBytes)
+	sigSet := valSet.NewSignatureSet(c.cfg.UploadTargetVotingPower, c.cfg.UploadTargetSignaturesCount, validatorSignBytes)
 
 	c.log.DebugContext(ctx, "initiating blob upload",
 		"promise_hash", hex.EncodeToString(promiseHash),

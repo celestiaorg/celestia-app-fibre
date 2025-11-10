@@ -680,13 +680,16 @@ func (suite *MsgServerTestSuite) generateValidatorSignatures(paymentPromise *typ
 	signBytes, err := pp.SignBytes()
 	suite.NoError(err)
 
+	validatorSignBytes, err := fibre.ValidatorSignatureSignBytes(pp.ChainID, signBytes)
+	suite.NoError(err)
+
 	// Get validator key
 	valPrivKey, ok := suite.stakingKeeper.validatorKeys[paymentPromise.Height]
 	if !ok {
 		return [][]byte{}
 	}
 
-	signature, err := valPrivKey.Sign(signBytes)
+	signature, err := valPrivKey.Sign(validatorSignBytes)
 	suite.NoError(err)
 
 	return [][]byte{signature}
