@@ -7,6 +7,7 @@ A tool for generating throughput load on the Fibre network by submitting blob tr
 - Configurable transaction submission interval
 - Configurable payload size (default: 1MB)
 - Smart keyring management (automatically selects key with most funds or creates new key)
+- OpenTelemetry distributed tracing support (optional)
 - Prints transaction confirmations with height for monitoring
 - Graceful shutdown with Ctrl+C
 
@@ -18,11 +19,14 @@ go run tools/fibre-load/main.go [flags]
 
 ### Flags
 
-- `--grpc-endpoint` - gRPC endpoint of the consensus node (default: `localhost:9090`)
+- `--grpc-endpoint` - gRPC endpoint of the consensus node (default: `localhost:9091`)
 - `--keyring-dir` - Directory containing the keyring (default: `~/.celestia-app`)
+- `--validator-hosts` - Path to JSON file containing validator address to host mapping (required)
+- `--chain-id` - Chain ID for the network (default: `celestia`, can also be set via `CHAIN_ID` env var)
 - `--interval` - Interval between transactions in seconds (default: `1.0`)
-- `--payload-size` - Size of payload data in bytes (default: `1048576` / 1MB)
+- `--payload-size` - Size of payload data in bytes (default: `134217728` = 128MiB)
 - `--namespace` - Namespace for blob submission (default: `fibre`)
+- `--traces-dir` - Directory to write metrics traces (default: `~/.celestia-app/data/traces`)
 
 ### Examples
 
@@ -51,6 +55,27 @@ Use a custom keyring directory:
 go run tools/fibre-load/main.go --keyring-dir /path/to/keyring
 ```
 
+## OpenTelemetry Tracing
+
+The tool supports optional OpenTelemetry distributed tracing. To enable it, set the `OTEL_TRACING_ADDRESS` environment variable to your OTLP HTTP endpoint:
+
+```bash
+# Enable tracing to a local collector
+export OTEL_TRACING_ADDRESS="localhost:4318"
+go run tools/fibre-load/main.go
+
+# Or inline
+OTEL_TRACING_ADDRESS="tempo.example.com:4318" go run tools/fibre-load/main.go
+```
+
+The endpoint should be in the format `host:port` and the tool will use an insecure HTTP connection to the OTLP endpoint. Traces will include:
+- Upload operations with namespace, size, and blob commitment details
+- Row upload operations to individual validators
+- Validator signature collection
+- Error tracking and status codes
+
+If the environment variable is not set, tracing is disabled and the tool runs normally without any trace export.
+
 ## Keyring Management
 
 The tool intelligently manages the keyring and automatically selects the best key:
@@ -72,18 +97,50 @@ The tool prints:
 - Configuration summary on startup
 - Balance information for all keys in the keyring
 - The selected key name and address being used
-- Transaction confirmations with transaction hash and block height
+- Transaction confirmations with transaction hash, block height, and latency
 - Total transactions submitted on shutdown
+
+### Metrics Files
+
+The tool automatically writes throughput metrics to a timestamped JSONL file in the traces directory (default: `~/.celestia-app/data/traces/`). Each line contains a JSON object with the following fields:
+
+```json
+{
+  "tx_num": 1,
+  "start_time": "2025-11-09T10:30:00.123456Z",
+  "end_time": "2025-11-09T10:30:00.456789Z",
+  "success": true,
+  "tx_hash": "ABC123...",
+  "height": 12345,
+  "payload_size": 134217728,
+  "latency_ms": 333
+}
+```
+
+**Fields:**
+- `tx_num`: Sequential transaction number
+- `start_time`: When the transaction was initiated
+- `end_time`: When the transaction completed (success or failure)
+- `success`: Whether the transaction succeeded
+- `tx_hash`: Transaction hash (only on success)
+- `height`: Block height where transaction was included (only on success)
+- `error`: Error message (only on failure)
+- `payload_size`: Size of the blob payload in bytes
+- `latency_ms`: End-to-end latency in milliseconds (only on success)
+
+The metrics file is named `fibre-load-metrics-YYYYMMDD-HHMMSS.jsonl` and is automatically collected by the talis `upload-data` command when running on a talis network.
 
 Example output:
 ```
 Fibre Load Generator
 ====================
-gRPC Endpoint: localhost:9090
+gRPC Endpoint: localhost:9091
 Keyring Directory: /Users/user/.celestia-app
+Chain ID: celestia
 Interval: 1.00 seconds
-Payload Size: 1048576 bytes
+Payload Size: 134217728 bytes
 Namespace: fibre
+Traces Directory: /Users/user/.celestia-app/data/traces
 
 Found 2 key(s) in keyring, checking balances...
   Key 'validator' (celestia1abc123...): 1000000000 utia
@@ -93,11 +150,16 @@ Using key: validator
 Using address: celestia1abc123...
 
 Setting up fibre client...
+Funding escrow account with 1000000utia (enough for ~10000000 transactions)...
+Escrow account funded successfully (tx: XYZ789)
+
+Writing metrics to: /Users/user/.celestia-app/data/traces/fibre-load-metrics-20251109-103000.jsonl
+
 Starting load generation...
 Press Ctrl+C to stop
 
-[1] Transaction ABC123... confirmed at height 12345
-[2] Transaction DEF456... confirmed at height 12346
+[1] Transaction ABC123... confirmed at height 12345 (latency: 333ms)
+[2] Transaction DEF456... confirmed at height 12346 (latency: 301ms)
 ...
 ^C
 Shutting down...

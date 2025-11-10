@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	FibreLoadSessionName = "fibre-load"
+	FibreLoadSessionName = "load"
 )
 
 // startFibreLoadCmd creates a cobra command for starting fibre-load on remote instances.
@@ -40,12 +40,7 @@ func startFibreLoadCmd() *cobra.Command {
 
 			resolvedSSHKeyPath := resolveValue(SSHKeyPath, EnvVarSSHKeyPath, strings.ReplaceAll(cfg.SSHPubKeyPath, ".pub", ""))
 
-			fibreLoadScript := fmt.Sprintf(
-				fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %f -s %d", cfg.ChainID, interval, payloadSize),
-				interval,
-				payloadSize,
-				namespace,
-			)
+			fibreLoadScript := fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %f -s %d -n %s", cfg.ChainID, interval, payloadSize, namespace)
 
 			// only spin up fibre-load on the number of instances that were specified.
 			insts := []Instance{}

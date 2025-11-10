@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"time"
 
 	sdkmath "cosmossdk.io/math"
@@ -28,18 +30,22 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
-	defaultEndpoint     = "localhost:9090"
+	defaultEndpoint     = "localhost:9091"
 	defaultKeyringDir   = ".celestia-app"
-	defaultInterval     = 1.0         // seconds between transactions
-	defaultPayloadSize  = 1024 * 1024 // 1MB
-	defaultNamespaceStr = "fibre"     // default namespace for blobs
+	defaultInterval     = 1.0               // seconds between transactions
+	defaultPayloadSize  = 128 * 1024 * 1024 // 128MiB
+	defaultNamespaceStr = "fibre"           // default namespace for blobs
 	defaultKeyName      = "fibre-load-key"
 	defaultChainID      = "celestia" // default chain ID
+	defaultTracesDir    = ".celestia-app/data/traces"
 )
 
 var (
@@ -50,6 +56,7 @@ var (
 	namespaceStr      string
 	validatorHostFile string
 	chainID           string
+	tracesDir         string
 )
 
 var rootCmd = &cobra.Command{
@@ -81,7 +88,7 @@ and submits transactions at a configurable rate.`,
 			cancel()
 		}()
 
-		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID)
+		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir)
 	},
 }
 
@@ -93,6 +100,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&namespaceStr, "namespace", "n", defaultNamespaceStr, "namespace for blob submission")
 	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
 	rootCmd.Flags().StringVarP(&chainID, "chain-id", "c", defaultChainID, "chain ID for the network (can also be set via CHAIN_ID env var)")
+	rootCmd.Flags().StringVarP(&tracesDir, "traces-dir", "t", "", "directory to write metrics traces (defaults to ~/.celestia-app/data/traces)")
 	rootCmd.MarkFlagRequired("validator-hosts")
 
 	// Support CHAIN_ID environment variable - check after flags are parsed
@@ -116,7 +124,17 @@ func runLoad(
 	namespaceStr string,
 	validatorHostFile string,
 	chainID string,
+	tracesDir string,
 ) error {
+	// Set default traces directory if not specified
+	if tracesDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		tracesDir = filepath.Join(homeDir, defaultTracesDir)
+	}
+
 	fmt.Printf("Fibre Load Generator\n")
 	fmt.Printf("====================\n")
 	fmt.Printf("gRPC Endpoint: %s\n", endpoint)
@@ -124,7 +142,18 @@ func runLoad(
 	fmt.Printf("Chain ID: %s\n", chainID)
 	fmt.Printf("Interval: %.2f seconds\n", interval)
 	fmt.Printf("Payload Size: %d bytes\n", payloadSize)
-	fmt.Printf("Namespace: %s\n\n", namespaceStr)
+	fmt.Printf("Namespace: %s\n", namespaceStr)
+	fmt.Printf("Traces Directory: %s\n\n", tracesDir)
+
+	// Set up OpenTelemetry tracing if OTEL_TRACING_ADDRESS is set
+	if otelAddr := os.Getenv("OTEL_TRACING_ADDRESS"); otelAddr != "" {
+		fmt.Printf("Setting up OpenTelemetry tracing to %s\n", otelAddr)
+		if err := setupTracing(ctx, otelAddr); err != nil {
+			fmt.Printf("Warning: failed to setup tracing: %v\n", err)
+		} else {
+			fmt.Println("OpenTelemetry tracing configured successfully\n")
+		}
+	}
 
 	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
 
@@ -184,10 +213,17 @@ func runLoad(
 	}
 
 	// Fund escrow account upfront with enough for many transactions
-	// Estimate: 100 transactions worth of escrow funding
-	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 1000000); err != nil {
+	// Estimate: 10_000_000 transactions worth of escrow funding
+	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 10000000); err != nil {
 		return fmt.Errorf("failed to fund escrow: %w", err)
 	}
+
+	// Set up metrics writer
+	metricsWriter, err := newMetricsWriter(tracesDir)
+	if err != nil {
+		return fmt.Errorf("failed to create metrics writer: %w", err)
+	}
+	defer metricsWriter.Close()
 
 	fmt.Println("Starting load generation...")
 	fmt.Println("Press Ctrl+C to stop")
@@ -209,21 +245,53 @@ func runLoad(
 		case <-ticker.C:
 			txCount++
 			go func(count uint64) {
+				startTime := time.Now()
+
 				// Create random blob data
 				blobData := make([]byte, payloadSize)
 				if _, err := rand.Read(blobData); err != nil {
 					fmt.Printf("[%d] Failed to generate random data: %v\n", count, err)
+					metricsWriter.WriteMetric(TxMetric{
+						TxNum:       count,
+						StartTime:   startTime,
+						EndTime:     time.Now(),
+						Success:     false,
+						Error:       err.Error(),
+						PayloadSize: payloadSize,
+					})
 					return
 				}
 
 				// Submit transaction
 				resp, err := fibreClient.Put(ctx, namespace, blobData)
+				endTime := time.Now()
+
 				if err != nil {
 					fmt.Printf("[%d] Failed to submit tx: %v\n", count, err)
+					metricsWriter.WriteMetric(TxMetric{
+						TxNum:       count,
+						StartTime:   startTime,
+						EndTime:     endTime,
+						Success:     false,
+						Error:       err.Error(),
+						PayloadSize: payloadSize,
+					})
 					return
 				}
 
-				fmt.Printf("[%d] Transaction %s confirmed at height %d\n", count, resp.TxHash, resp.Height)
+				latency := endTime.Sub(startTime)
+				fmt.Printf("[%d] Transaction %s confirmed at height %d (latency: %v)\n", count, resp.TxHash, resp.Height, latency)
+
+				metricsWriter.WriteMetric(TxMetric{
+					TxNum:       count,
+					StartTime:   startTime,
+					EndTime:     endTime,
+					Success:     true,
+					TxHash:      resp.TxHash,
+					Height:      resp.Height,
+					PayloadSize: payloadSize,
+					LatencyMs:   latency.Milliseconds(),
+				})
 			}(txCount)
 		}
 	}
@@ -419,5 +487,108 @@ func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize
 	}
 
 	fmt.Printf("Escrow account funded successfully (tx: %s)\n\n", txResp.TxHash)
+	return nil
+}
+
+// setupTracing configures OpenTelemetry tracing with OTLP HTTP exporter.
+// The endpoint should be in the format "host:port" (e.g., "localhost:4318").
+func setupTracing(ctx context.Context, endpoint string) error {
+	exporter, err := otlptracehttp.New(ctx,
+		otlptracehttp.WithEndpoint(endpoint),
+		otlptracehttp.WithInsecure(), // Use insecure connection for simplicity
+	)
+	if err != nil {
+		return fmt.Errorf("creating OTLP exporter: %w", err)
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+
+	return nil
+}
+
+// TxMetric represents metrics for a single transaction.
+type TxMetric struct {
+	TxNum       uint64    `json:"tx_num"`
+	StartTime   time.Time `json:"start_time"`
+	EndTime     time.Time `json:"end_time"`
+	Success     bool      `json:"success"`
+	TxHash      string    `json:"tx_hash,omitempty"`
+	Height      uint64    `json:"height,omitempty"`
+	Error       string    `json:"error,omitempty"`
+	PayloadSize int       `json:"payload_size"`
+	LatencyMs   int64     `json:"latency_ms,omitempty"`
+}
+
+// metricsWriter handles writing transaction metrics to a file.
+type metricsWriter struct {
+	file   *os.File
+	writer *bufio.Writer
+	mu     sync.Mutex
+}
+
+// newMetricsWriter creates a new metrics writer that writes to a timestamped file
+// in the specified traces directory.
+func newMetricsWriter(tracesDir string) (*metricsWriter, error) {
+	// Ensure traces directory exists
+	if err := os.MkdirAll(tracesDir, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to create traces directory: %w", err)
+	}
+
+	// Create timestamped filename
+	timestamp := time.Now().Format("20060102-150405")
+	filename := filepath.Join(tracesDir, fmt.Sprintf("fibre-load-metrics-%s.jsonl", timestamp))
+
+	// Open file for writing
+	file, err := os.Create(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics file: %w", err)
+	}
+
+	fmt.Printf("Writing metrics to: %s\n\n", filename)
+
+	return &metricsWriter{
+		file:   file,
+		writer: bufio.NewWriter(file),
+	}, nil
+}
+
+// WriteMetric writes a transaction metric to the file as a JSON line.
+func (mw *metricsWriter) WriteMetric(metric TxMetric) error {
+	mw.mu.Lock()
+	defer mw.mu.Unlock()
+
+	data, err := json.Marshal(metric)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metric: %w", err)
+	}
+
+	if _, err := mw.writer.Write(data); err != nil {
+		return fmt.Errorf("failed to write metric: %w", err)
+	}
+
+	if err := mw.writer.WriteByte('\n'); err != nil {
+		return fmt.Errorf("failed to write newline: %w", err)
+	}
+
+	// Flush periodically to ensure data is written
+	return mw.writer.Flush()
+}
+
+// Close flushes and closes the metrics file.
+func (mw *metricsWriter) Close() error {
+	mw.mu.Lock()
+	defer mw.mu.Unlock()
+
+	if err := mw.writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush metrics: %w", err)
+	}
+
+	if err := mw.file.Close(); err != nil {
+		return fmt.Errorf("failed to close metrics file: %w", err)
+	}
+
 	return nil
 }
