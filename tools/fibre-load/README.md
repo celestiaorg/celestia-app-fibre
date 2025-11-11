@@ -9,6 +9,7 @@ A tool for generating throughput load on the Fibre network by submitting blob tr
 - Configurable maximum in-flight transactions to cap memory usage
 - Smart keyring management (automatically selects key with most funds or creates new key)
 - OpenTelemetry distributed tracing support (optional)
+- Optional Pyroscope continuous profiling with OTEL span annotations
 - Prints transaction confirmations with height for monitoring
 - Graceful shutdown with Ctrl+C
 
@@ -29,6 +30,9 @@ go run tools/fibre-load/main.go [flags]
 - `--max-concurrency` - Maximum number of transactions processed concurrently (default: `1`)
 - `--namespace` - Namespace for blob submission (default: `fibre`)
 - `--traces-dir` - Directory to write metrics traces (default: `~/.celestia-app/data/traces`)
+- `--pyroscope-url` - URL of the Pyroscope server used for continuous profiling (disabled when empty)
+- `--pyroscope-trace` - Attach active spans to Pyroscope samples (requires `--pyroscope-url`)
+- `--pyroscope-profile` - Repeat to select custom Pyroscope profile types (defaults to CPU, memory, goroutines, and block profiles)
 
 ### Examples
 
@@ -91,6 +95,24 @@ The endpoint should be in the format `host:port` and the tool will use an insecu
 - Error tracking and status codes
 
 If the environment variable is not set, tracing is disabled and the tool runs normally without any trace export.
+
+## Pyroscope Profiling
+
+Use the new Pyroscope flags to continuously export Go profiles from `fibre-load` to an existing Pyroscope server:
+
+```bash
+go run tools/fibre-load/main.go \
+  --pyroscope-url http://pyroscope.example.com:4040 \
+  --pyroscope-trace \
+  --pyroscope-profile cpu \
+  --pyroscope-profile mem:alloc_space
+```
+
+- `--pyroscope-url` enables profiling and points to your Pyroscope server.
+- `--pyroscope-trace` enriches profiles with active OpenTelemetry spans so flamegraphs link back to trace IDs.
+- `--pyroscope-profile` can be repeated to control the profile set. When omitted, the Fibre client collects CPU, alloc/inuse memory (space and objects), goroutine, and blocking profiles—the same defaults as Celestia Core.
+
+The Fibre client adds labels such as the chain ID and `component=fibre-load` so multiple load generators remain distinguishable inside Pyroscope. If the flag is omitted, no profiling goroutines are started.
 
 ## Keyring Management
 

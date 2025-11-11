@@ -59,6 +59,9 @@ var (
 	validatorHostFile string
 	chainID           string
 	tracesDir         string
+	pyroscopeURL      string
+	pyroscopeTrace    bool
+	pyroscopeProfiles []string
 )
 
 var rootCmd = &cobra.Command{
@@ -90,7 +93,7 @@ and submits transactions at a configurable rate.`,
 			cancel()
 		}()
 
-		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir)
+		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles)
 	},
 }
 
@@ -104,6 +107,9 @@ func init() {
 	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
 	rootCmd.Flags().StringVarP(&chainID, "chain-id", "c", defaultChainID, "chain ID for the network (can also be set via CHAIN_ID env var)")
 	rootCmd.Flags().StringVarP(&tracesDir, "traces-dir", "t", "", "directory to write metrics traces (defaults to ~/.celestia-app/data/traces)")
+	rootCmd.Flags().StringVar(&pyroscopeURL, "pyroscope-url", "", "URL of the Pyroscope server used for continuous profiling (disabled when empty)")
+	rootCmd.Flags().BoolVar(&pyroscopeTrace, "pyroscope-trace", false, "attach active spans to Pyroscope samples (requires --pyroscope-url)")
+	rootCmd.Flags().StringSliceVar(&pyroscopeProfiles, "pyroscope-profile", nil, "Pyroscope profile types to enable (repeat flag, defaults to standard CPU/memory profiles)")
 	rootCmd.MarkFlagRequired("validator-hosts")
 
 	// Support CHAIN_ID environment variable - check after flags are parsed
@@ -128,6 +134,9 @@ func runLoad(
 	validatorHostFile string,
 	chainID string,
 	tracesDir string,
+	pyroURL string,
+	pyroTrace bool,
+	pyroProfiles []string,
 ) error {
 	// Set default traces directory if not specified
 	if tracesDir == "" {
@@ -147,6 +156,9 @@ func runLoad(
 	fmt.Printf("Payload Size: %d bytes\n", payloadSize)
 	fmt.Printf("Namespace: %s\n", namespaceStr)
 	fmt.Printf("Traces Directory: %s\n\n", tracesDir)
+	if pyroURL != "" {
+		fmt.Printf("Pyroscope Profiling: %s (trace=%t)\n\n", pyroURL, pyroTrace)
+	}
 
 	// Set up OpenTelemetry tracing if OTEL_TRACING_ADDRESS is set
 	if otelAddr := os.Getenv("OTEL_TRACING_ADDRESS"); otelAddr != "" {
@@ -154,7 +166,8 @@ func runLoad(
 		if err := setupTracing(ctx, otelAddr); err != nil {
 			fmt.Printf("Warning: failed to setup tracing: %v\n", err)
 		} else {
-			fmt.Println("OpenTelemetry tracing configured successfully\n")
+			fmt.Println("OpenTelemetry tracing configured successfully")
+			fmt.Println()
 		}
 	}
 
@@ -209,6 +222,21 @@ func runLoad(
 	fibreCfg := fibre.DefaultClientConfig()
 	fibreCfg.DefaultKeyName = keyName
 	fibreCfg.ChainID = chainID
+	if pyroURL != "" {
+		labels := map[string]string{
+			"component": "fibre-load",
+		}
+		if chainID != "" {
+			labels["chain_id"] = chainID
+		}
+		fibreCfg.Pyroscope = &fibre.PyroscopeConfig{
+			ServerAddress:   pyroURL,
+			ApplicationName: "fibre-load",
+			EnableTracing:   pyroTrace,
+			ProfileTypes:    pyroProfiles,
+			Labels:          labels,
+		}
+	}
 
 	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostRegistry, fibreCfg)
 	if err != nil {

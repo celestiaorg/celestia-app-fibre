@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
@@ -21,9 +22,13 @@ import (
 	grpctypes "google.golang.org/grpc"
 )
 
-// DefaultKeyName is the default key name for the client.
-// Exposed for testing purposes.
-const DefaultKeyName = "default-fibre"
+const (
+	// DefaultKeyName is the default key name for the client.
+	// Exposed for testing purposes.
+	DefaultKeyName = "default-fibre"
+
+	pyroscopeShutdownTimeout = 5 * time.Second
+)
 
 var (
 	// ErrClientClosed is returned when an operation is attempted on a closed client.
@@ -76,6 +81,8 @@ type ClientConfig struct {
 	// Tracer is the OpenTelemetry tracer for distributed tracing.
 	// If nil, [trace.Default] will be used.
 	Tracer trace.Tracer
+	// Pyroscope enables continuous profiling when configured.
+	Pyroscope *PyroscopeConfig
 	// Clock is the clock for time-related operations.
 	// If nil, [clock.New] will be used.
 	Clock clock.Clock
@@ -116,6 +123,8 @@ type Client struct {
 	uploadSem   chan struct{}
 	downloadSem chan struct{}
 
+	pyroscope *pyroscopeHandle
+
 	// closeWg tracks subroutines spawned by Upload/Download operations.
 	// Close() waits for this WaitGroup to ensure all operations complete before releasing resources.
 	// Upload/Download operations don't wait for their spawned goroutines, allowing them to return early for low latency.
@@ -136,14 +145,39 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	if cfg.NewClientFn == nil {
 		cfg.NewClientFn = fibregrpc.DefaultNewClientFn(hostReg)
 	}
-	if cfg.Tracer == nil {
-		cfg.Tracer = otel.Tracer("fibre-client")
-	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-client")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clock.New()
+	}
+	var (
+		pyroHandle *pyroscopeHandle
+	)
+
+	if cfg.Pyroscope != nil && cfg.Pyroscope.enabled() {
+		pyroCfg := cfg.Pyroscope.clone()
+		if pyroCfg.Labels == nil {
+			pyroCfg.Labels = make(map[string]string, 2)
+		}
+		pyroCfg.Labels["component"] = "fibre-client"
+		if cfg.ChainID != "" {
+			pyroCfg.Labels["chain_id"] = cfg.ChainID
+		}
+		handle, appliedCfg, err := newPyroscopeHandle(pyroCfg)
+		if err != nil {
+			return nil, fmt.Errorf("configuring pyroscope: %w", err)
+		}
+		pyroHandle = handle
+		cfg.Log.Info("pyroscope profiling enabled",
+			"pyroscope_url", appliedCfg.ServerAddress,
+			"application", appliedCfg.ApplicationName,
+			"enable_tracing", appliedCfg.EnableTracing,
+			"profile_types", appliedCfg.ProfileTypes,
+		)
+	}
+	if cfg.Tracer == nil {
+		cfg.Tracer = otel.Tracer("fibre-client")
 	}
 
 	var queryClient fibreQueryClient
@@ -166,6 +200,7 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 		clientCache: fibregrpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
 		uploadSem:   make(chan struct{}, cfg.UploadConcurrency),
 		downloadSem: make(chan struct{}, cfg.DownloadConcurrency),
+		pyroscope:   pyroHandle,
 	}, nil
 }
 
@@ -184,5 +219,18 @@ func (c *Client) Close() error {
 	}
 
 	c.closeWg.Wait()
-	return c.clientCache.Close()
+	var errs error
+	if err := c.clientCache.Close(); err != nil {
+		errs = errors.Join(errs, err)
+	}
+
+	if c.pyroscope != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), pyroscopeShutdownTimeout)
+		defer cancel()
+		if err := c.pyroscope.Close(ctx); err != nil {
+			errs = errors.Join(errs, err)
+		}
+	}
+
+	return errs
 }

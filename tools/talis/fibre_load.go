@@ -23,6 +23,9 @@ func startFibreLoadCmd() *cobra.Command {
 		rootDir        string
 		cfgPath        string
 		SSHKeyPath     string
+		pyroscopeURL   string
+		pyroscopeTrace bool
+		pyroProfiles   []string
 	)
 
 	cmd := &cobra.Command{
@@ -41,7 +44,22 @@ func startFibreLoadCmd() *cobra.Command {
 
 			resolvedSSHKeyPath := resolveValue(SSHKeyPath, EnvVarSSHKeyPath, strings.ReplaceAll(cfg.SSHPubKeyPath, ".pub", ""))
 
-			fibreLoadScript := fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %s -s %d -n %s -m %d -t /root/.celestia-app/data/traces", cfg.ChainID, interval, payloadSize, namespace, maxConcurrency)
+			if pyroscopeTrace && pyroscopeURL == "" {
+				return fmt.Errorf("--pyroscope-trace requires --pyroscope-url")
+			}
+			if len(pyroProfiles) > 0 && pyroscopeURL == "" {
+				return fmt.Errorf("--pyroscope-profile requires --pyroscope-url")
+			}
+
+			fibreLoadScript := fmt.Sprintf(
+				"./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %s -s %d -n %s -m %d -t /root/.celestia-app/data/traces %s",
+				cfg.ChainID,
+				interval,
+				payloadSize,
+				namespace,
+				maxConcurrency,
+				pyroscopeURL,
+			)
 
 			// only spin up fibre-load on the number of instances that were specified.
 			insts := []Instance{}
@@ -67,6 +85,8 @@ func startFibreLoadCmd() *cobra.Command {
 	cmd.Flags().IntVarP(&payloadSize, "payload-size", "p", 128*1024*1024, "size of payload data in bytes (default 128MB)")
 	cmd.Flags().IntVarP(&maxConcurrency, "max-concurrency", "m", 1, "maximum number of concurrent transactions per node")
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "fibre", "namespace for blob submission")
+	cmd.Flags().StringVarP(&pyroscopeURL, "pyroscope-url", "y", "", "Pyroscope server URL to enable continuous profiling for fibre-load")
+	cmd.Flags().BoolVarP(&pyroscopeTrace, "pyroscope-trace", "x", false, "Attach trace data to Pyroscope profiles (requires --pyroscope-url)")
 	_ = cmd.MarkFlagRequired("instances")
 	return cmd
 }
