@@ -20,6 +20,10 @@ jobs:
           go-version-file: "go.mod"
         env:
           GOPRIVATE: github.com/celestiaorg/*
+          GONOSUMDB: github.com/celestiaorg/*
 
       - name: build
         run: make build
+        env:
+          GOPRIVATE: github.com/celestiaorg/*
+          GONOSUMDB: github.com/celestiaorg/*
