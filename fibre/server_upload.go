@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -182,7 +183,7 @@ func (s *Server) verifyAssignment(ctx context.Context, promise *PaymentPromise, 
 // verifyRows verifies the row data and proofs using [rsema1d.VerificationContext].
 // Essentially checks correctness of blob data by only sampling some of the rows.
 // Sets the RLC root on the rows and clears the coefficients after verification.
-func (s *Server) verifyRows(_ context.Context, promise *PaymentPromise, rows *types.Rows) error {
+func (s *Server) verifyRows(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
 	rowSize, err := parseRowSize(rows.Rows)
 	if err != nil {
 		return err
@@ -211,15 +212,24 @@ func (s *Server) verifyRows(_ context.Context, promise *PaymentPromise, rows *ty
 	}
 
 	totalRows := s.cfg.OriginalRows + s.cfg.ParityRows
+	errgrp, ctx := errgroup.WithContext(ctx)
 	for _, rowPb := range rows.Rows {
-		row, err := parseRow(rowPb, totalRows)
-		if err != nil {
-			return err
-		}
+		errgrp.Go(func() error {
+			row, err := parseRow(rowPb, totalRows)
+			if err != nil {
+				return err
+			}
 
-		if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(promise.Commitment), verificationCtx); err != nil {
-			return fmt.Errorf("verification failed for row %d: %w", row.Index, err)
-		}
+			if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(promise.Commitment), verificationCtx); err != nil {
+				return fmt.Errorf("verification failed for row %d: %w", row.Index, err)
+			}
+
+			return nil
+		})
+	}
+
+	if err := errgrp.Wait(); err != nil {
+		return err
 	}
 
 	// set RLC root and clear coefficients
