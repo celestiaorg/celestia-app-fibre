@@ -89,8 +89,6 @@ type ClientConfig struct {
 	// AutoFundEscrow controls whether [Client.Put] automatically ensures the escrow account exists
 	// and has sufficient balance prior to submitting a payment.
 	AutoFundEscrow bool
-	// Appless controls whether [Client.Put] skips the transaction broadcast and confirmation steps.
-	Appless bool
 }
 
 // DefaultClientConfig returns a [ClientConfig] with the default values.

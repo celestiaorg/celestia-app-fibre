@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -29,8 +30,8 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	var promiseHash []byte
 	var err error
 
-	if s.cfg.Appless {
-		// In appless mode, skip verification and just unmarshal the promise
+	if os.Getenv("FIBREMAXXXING") != "" {
+		// In FIBREMAXXXING mode, skip verification and just unmarshal the promise
 		promise = &PaymentPromise{}
 		if err := promise.FromProto(req.Promise); err != nil {
 			s.log.WarnContext(ctx, "failed to unmarshal payment promise", "error", err)
@@ -38,7 +39,7 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 			span.SetStatus(codes.Error, "failed to unmarshal payment promise")
 			return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("failed to unmarshal payment promise: %v", err))
 		}
-		promiseHash = nil // not needed in appless mode
+		promiseHash = nil // not needed in FIBREMAXXXING mode
 	} else {
 		promise, promiseHash, err = s.verifyPromise(ctx, req.Promise)
 		if err != nil {
