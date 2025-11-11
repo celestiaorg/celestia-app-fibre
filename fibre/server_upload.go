@@ -81,14 +81,14 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 		attribute.Int("row_count", len(req.Rows.Rows)),
 	))
 
-	// store payment promise and rows with RLC root
-	if err := s.store.Put(ctx, promise, req.Rows); err != nil {
-		log.ErrorContext(ctx, "failed to store upload data", "error", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to store upload data")
-		return nil, status.Error(grpccodes.Internal, fmt.Sprintf("failed to store upload data: %v", err))
-	}
-	span.AddEvent("data_stored")
+	// // store payment promise and rows with RLC root
+	// if err := s.store.Put(ctx, promise, req.Rows); err != nil {
+	// 	log.ErrorContext(ctx, "failed to store upload data", "error", err)
+	// 	span.RecordError(err)
+	// 	span.SetStatus(codes.Error, "failed to store upload data")
+	// 	return nil, status.Error(grpccodes.Internal, fmt.Sprintf("failed to store upload data: %v", err))
+	// }
+	// span.AddEvent("data_stored")
 
 	// sign the payment promise
 	signature, err := s.signPromise(promise)
