@@ -25,12 +25,28 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	ctx, span := s.tracer.Start(ctx, "fibre.Server.UploadRows")
 	defer span.End()
 
-	promise, promiseHash, err := s.verifyPromise(ctx, req.Promise)
-	if err != nil {
-		s.log.WarnContext(ctx, "payment promise verification failed", "error", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "payment promise verification failed")
-		return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("payment promise verification failed: %v", err))
+	var promise *PaymentPromise
+	var promiseHash []byte
+	var err error
+
+	if s.cfg.Appless {
+		// In appless mode, skip verification and just unmarshal the promise
+		promise = &PaymentPromise{}
+		if err := promise.FromProto(req.Promise); err != nil {
+			s.log.WarnContext(ctx, "failed to unmarshal payment promise", "error", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to unmarshal payment promise")
+			return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("failed to unmarshal payment promise: %v", err))
+		}
+		promiseHash = nil // not needed in appless mode
+	} else {
+		promise, promiseHash, err = s.verifyPromise(ctx, req.Promise)
+		if err != nil {
+			s.log.WarnContext(ctx, "payment promise verification failed", "error", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "payment promise verification failed")
+			return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("payment promise verification failed: %v", err))
+		}
 	}
 
 	log := s.log.With("blob_commitment", promise.Commitment.String(), "promise_height", promise.Height)

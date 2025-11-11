@@ -28,6 +28,40 @@ type PutResult struct {
 	Height uint64
 }
 
+func (c *Client) UploadBlob(ctx context.Context, span trace.Span, ns share.Namespace, data []byte) (SignedPaymentPromise, Commitment, error) {
+	if c.txClient == nil {
+		return SignedPaymentPromise{}, Commitment{}, errors.New("tx client is not configured; Put cannot be executed")
+	}
+
+	defer span.End()
+
+	// encoding section
+	blob, err := NewBlob(data, c.cfg.BlobConfig)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to encode blob")
+		return SignedPaymentPromise{}, Commitment{}, err
+	}
+
+	commitment := blob.Commitment()
+	span.AddEvent("blob_encoded", trace.WithAttributes(
+		attribute.String("blob_commitment", commitment.String()),
+		attribute.Int("row_size", blob.RowSize()),
+	))
+
+	sp, err := c.Upload(ctx, ns, blob)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to upload blob")
+		return sp, commitment, err
+	}
+	span.AddEvent("blob_uploaded", trace.WithAttributes(
+		attribute.Int("sigs_amount", len(sp.ValidatorSignatures)),
+	))
+
+	return sp, commitment, nil
+}
+
 // Put uploads given data to the Fibre network.
 // It encodes the data into a [Blob], calls [Client.Upload] to upload it,
 // and submits a MsgPayForFibre transaction.
@@ -44,29 +78,19 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 	)
 	defer span.End()
 
-	// encoding section
-	blob, err := NewBlob(data, c.cfg.BlobConfig)
+	signedPromise, commitment, err := c.UploadBlob(ctx, span, ns, data)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to encode blob")
-		return result, err
+		span.SetStatus(codes.Error, "failed to broadcast PayForFibre transaction")
+		return result, fmt.Errorf("broadcasting PayForFibre transaction: %w", err)
 	}
 
-	commitment := blob.Commitment()
-	span.AddEvent("blob_encoded", trace.WithAttributes(
-		attribute.String("blob_commitment", commitment.String()),
-		attribute.Int("row_size", blob.RowSize()),
-	))
-
-	signedPromise, err := c.Upload(ctx, ns, blob)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to upload blob")
-		return result, err
+	if c.cfg.Appless {
+		return PutResult{
+			Commitment:          commitment,
+			ValidatorSignatures: signedPromise.ValidatorSignatures,
+		}, nil
 	}
-	span.AddEvent("blob_uploaded", trace.WithAttributes(
-		attribute.Int("sigs_amount", len(signedPromise.ValidatorSignatures)),
-	))
 
 	// broadcast PayForFibre transaction
 	signerAddr := c.txClient.DefaultAddress()

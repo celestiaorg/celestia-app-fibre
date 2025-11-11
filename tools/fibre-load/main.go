@@ -62,6 +62,7 @@ var (
 	pyroscopeURL      string
 	pyroscopeTrace    bool
 	pyroscopeProfiles []string
+	appless           bool
 )
 
 var rootCmd = &cobra.Command{
@@ -93,7 +94,7 @@ and submits transactions at a configurable rate.`,
 			cancel()
 		}()
 
-		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles)
+		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles, appless)
 	},
 }
 
@@ -110,6 +111,7 @@ func init() {
 	rootCmd.Flags().StringVar(&pyroscopeURL, "pyroscope-url", "", "URL of the Pyroscope server used for continuous profiling (disabled when empty)")
 	rootCmd.Flags().BoolVar(&pyroscopeTrace, "pyroscope-trace", false, "attach active spans to Pyroscope samples (requires --pyroscope-url)")
 	rootCmd.Flags().StringSliceVar(&pyroscopeProfiles, "pyroscope-profile", nil, "Pyroscope profile types to enable (repeat flag, defaults to standard CPU/memory profiles)")
+	rootCmd.Flags().BoolVarP(&appless, "appless", "a", false, "don't submit PFFs just upload")
 	rootCmd.MarkFlagRequired("validator-hosts")
 
 	// Support CHAIN_ID environment variable - check after flags are parsed
@@ -137,6 +139,7 @@ func runLoad(
 	pyroURL string,
 	pyroTrace bool,
 	pyroProfiles []string,
+	appless bool,
 ) error {
 	// Set default traces directory if not specified
 	if tracesDir == "" {

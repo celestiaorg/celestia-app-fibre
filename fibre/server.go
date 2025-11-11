@@ -34,6 +34,8 @@ type ServerConfig struct {
 	// Tracer is the OpenTelemetry tracer for distributed tracing.
 	// If nil, otel.Tracer("fibre-server") will be used.
 	Tracer trace.Tracer
+	// Appless controls whether the server skips payment promise verification.
+	Appless bool
 }
 
 // DefaultServerConfig returns a [ServerConfig] with default values.
