@@ -347,8 +347,12 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byt
 		}
 
 		// Add signature to set (this validates the signature internally)
-		if err := sigSet.Add(cmtValidators[i], signature); err != nil {
+		hasEnough, err := sigSet.Add(cmtValidators[i], signature)
+		if err != nil {
 			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "invalid signature at index %d: %s", i, err)
+		}
+		if hasEnough {
+			return nil
 		}
 	}
 
