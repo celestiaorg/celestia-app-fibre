@@ -26,7 +26,7 @@ require (
 	github.com/celestiaorg/go-square/v2 v2.3.3
 	github.com/celestiaorg/go-square/v3 v3.0.2
 	github.com/celestiaorg/nmt v0.24.2
-	github.com/celestiaorg/rsema1d v0.0.0-20251031140154-a36e18b9e940
+	github.com/celestiaorg/rsema1d v0.0.0-20251111024305-1a3bc63f5532
 	github.com/celestiaorg/rsmt2d v0.15.1
 	github.com/cometbft/cometbft v1.0.1
 	github.com/cometbft/cometbft-db v1.0.4
