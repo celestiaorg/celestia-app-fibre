@@ -21,13 +21,18 @@ import (
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	db "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
+	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
+	"github.com/cosmos/cosmos-sdk/server/grpc/gogoreflection"
+	reflection "github.com/cosmos/cosmos-sdk/server/grpc/reflection/v2alpha1"
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -189,8 +194,8 @@ func startCometNode(svrCtx *server.Context, appInstance servertypes.Application)
 	return cmtNode, nil
 }
 
-// createGRPCServer creates and configures the gRPC server but does not start serving.
-// This allows services (like Fibre) to be registered before the server starts.
+// createGRPCServer creates and configures the gRPC server with OpenTelemetry support
+// but does not start serving. This allows services (like Fibre) to be registered before the server starts.
 func createGRPCServer(
 	svrCtx *server.Context,
 	clientCtx client.Context,
@@ -215,11 +220,48 @@ func createGRPCServer(
 
 	clientCtx = clientCtx.WithGRPCClient(grpcClient)
 
-	// Create gRPC server
-	grpcServer, err := servergrpc.NewGRPCServer(clientCtx, appInstance, svrCfg.GRPC)
-	if err != nil {
-		return nil, clientCtx, fmt.Errorf("failed to create gRPC server: %w", err)
+	// Determine max message sizes
+	maxSendMsgSize := svrCfg.GRPC.MaxSendMsgSize
+	if maxSendMsgSize == 0 {
+		maxSendMsgSize = serverconfig.DefaultGRPCMaxSendMsgSize
 	}
+
+	maxRecvMsgSize := svrCfg.GRPC.MaxRecvMsgSize
+	if maxRecvMsgSize == 0 {
+		maxRecvMsgSize = serverconfig.DefaultGRPCMaxRecvMsgSize
+	}
+
+	// Create gRPC server with OpenTelemetry instrumentation
+	grpcServer := grpc.NewServer(
+		grpc.ForceServerCodec(codec.NewProtoCodec(clientCtx.InterfaceRegistry).GRPCCodec()),
+		grpc.MaxSendMsgSize(maxSendMsgSize),
+		grpc.MaxRecvMsgSize(maxRecvMsgSize),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
+
+	// Register application gRPC services
+	appInstance.RegisterGRPCServer(grpcServer)
+
+	// Register reflection services for dynamic clients
+	err = reflection.Register(grpcServer, reflection.Config{
+		SigningModes: func() map[string]int32 {
+			supportedModes := clientCtx.TxConfig.SignModeHandler().SupportedModes()
+			modes := make(map[string]int32, len(supportedModes))
+			for _, m := range supportedModes {
+				modes[m.String()] = (int32)(m)
+			}
+			return modes
+		}(),
+		ChainID:           clientCtx.ChainID,
+		SdkConfig:         sdk.GetConfig(),
+		InterfaceRegistry: clientCtx.InterfaceRegistry,
+	})
+	if err != nil {
+		return nil, clientCtx, fmt.Errorf("failed to register reflection service: %w", err)
+	}
+
+	// Register gogo reflection
+	gogoreflection.Register(grpcServer)
 
 	// Register BlockAPI on gRPC server (needed for Fibre server's SetGetter)
 	coreEnv, err := cmtNode.ConfigureRPC()
@@ -229,7 +271,7 @@ func createGRPCServer(
 	blockAPI := coregrpc.NewBlockAPI(coreEnv)
 	coregrpc.RegisterBlockAPIServer(grpcServer, blockAPI)
 
-	svrCtx.Logger.Info("gRPC server created and configured", "address", svrCfg.GRPC.Address)
+	svrCtx.Logger.Info("gRPC server created and configured with OpenTelemetry", "address", svrCfg.GRPC.Address)
 
 	return grpcServer, clientCtx, nil
 }

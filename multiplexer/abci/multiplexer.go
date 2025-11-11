@@ -29,11 +29,15 @@ import (
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
+	"github.com/cosmos/cosmos-sdk/server/grpc/gogoreflection"
+	reflection "github.com/cosmos/cosmos-sdk/server/grpc/reflection/v2alpha1"
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/hashicorp/go-metrics"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -326,8 +330,8 @@ func (m *Multiplexer) initRemoteGrpcConn() error {
 	return nil
 }
 
-// createGRPCServer creates and configures the gRPC server but does not start serving.
-// This allows services (like Fibre) to be registered before the server starts.
+// createGRPCServer creates and configures the gRPC server with OpenTelemetry support
+// but does not start serving. This allows services (like Fibre) to be registered before the server starts.
 func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	_, _, err := net.SplitHostPort(m.svrCfg.GRPC.Address)
 	if err != nil {
@@ -360,10 +364,38 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 
 	m.clientContext = m.clientContext.WithGRPCClient(grpcClient)
 	m.logger.Debug("gRPC client assigned to client context", "target", m.svrCfg.GRPC.Address)
-	grpcSrv, err := servergrpc.NewGRPCServer(m.clientContext, m.nativeApp, m.svrCfg.GRPC)
+
+	// Create gRPC server with OpenTelemetry instrumentation
+	grpcSrv := grpc.NewServer(
+		grpc.ForceServerCodec(codec.NewProtoCodec(m.clientContext.InterfaceRegistry).GRPCCodec()),
+		grpc.MaxSendMsgSize(maxSendMsgSize),
+		grpc.MaxRecvMsgSize(maxRecvMsgSize),
+		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+	)
+
+	// Register application gRPC services
+	m.nativeApp.RegisterGRPCServer(grpcSrv)
+
+	// Register reflection services for dynamic clients
+	err = reflection.Register(grpcSrv, reflection.Config{
+		SigningModes: func() map[string]int32 {
+			supportedModes := m.clientContext.TxConfig.SignModeHandler().SupportedModes()
+			modes := make(map[string]int32, len(supportedModes))
+			for _, mode := range supportedModes {
+				modes[mode.String()] = (int32)(mode)
+			}
+			return modes
+		}(),
+		ChainID:           m.clientContext.ChainID,
+		SdkConfig:         sdk.GetConfig(),
+		InterfaceRegistry: m.clientContext.InterfaceRegistry,
+	})
 	if err != nil {
 		return nil, m.clientContext, err
 	}
+
+	// Register gogo reflection
+	gogoreflection.Register(grpcSrv)
 
 	coreEnv, err := m.cmNode.ConfigureRPC()
 	if err != nil {
@@ -374,7 +406,7 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	coregrpc.RegisterBlockAPIServer(grpcSrv, blockAPI)
 
 	m.conn = grpcClient
-	m.logger.Info("gRPC server created and configured", "address", m.svrCfg.GRPC.Address)
+	m.logger.Info("gRPC server created and configured with OpenTelemetry", "address", m.svrCfg.GRPC.Address)
 	return grpcSrv, m.clientContext, nil
 }
 
