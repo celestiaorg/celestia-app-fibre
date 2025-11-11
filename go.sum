@@ -805,8 +805,8 @@ github.com/celestiaorg/nmt v0.24.2 h1:LlpJSPOd6/Lw1Ig6HUhZuqiINHLka/ZSRTBzlNJpch
 github.com/celestiaorg/nmt v0.24.2/go.mod h1:vgLBpWBi8F5KLxTdXSwb7AU4NhiIQ1AQRGa+PzdcLEA=
 github.com/celestiaorg/reedsolomon v1.12.6-0.20250824224240-8b66bda83fd0 h1:nM6tHBLW1Uej4VKe6Zm3+kYnOrvcQ1Q4I1qFBIbC+EU=
 github.com/celestiaorg/reedsolomon v1.12.6-0.20250824224240-8b66bda83fd0/go.mod h1:39naxIQYdj/oxjNZVvWvhRreh3uguAq4v6Ke7mI9cDI=
-github.com/celestiaorg/rsema1d v0.0.0-20251111024305-1a3bc63f5532 h1:u2GEUfp96cXSw7S9u86wV/WNvKe6u/I0sRga1E3IFHg=
-github.com/celestiaorg/rsema1d v0.0.0-20251111024305-1a3bc63f5532/go.mod h1:WtDhTrN17IA6ZBLEIZsXv+IAQJD4grchKeodmLbjt+g=
+github.com/celestiaorg/rsema1d v0.0.0-20251111040743-7d12ec49bd3a h1:uh9jdQU8/JsqV8nxnvmLmZdJBDFxV/cW1Gci3sqzUX8=
+github.com/celestiaorg/rsema1d v0.0.0-20251111040743-7d12ec49bd3a/go.mod h1:WtDhTrN17IA6ZBLEIZsXv+IAQJD4grchKeodmLbjt+g=
 github.com/celestiaorg/rsmt2d v0.15.1 h1:NF4D0LX501oDjw00RoJrTUrMHrO+Kv0LewL0FKQU7hg=
 github.com/celestiaorg/rsmt2d v0.15.1/go.mod h1:WKkpXoD1foHn4qgFx6GNoz36Wm0fbCh29ze4rA7ZwCs=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=

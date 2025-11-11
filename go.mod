@@ -26,7 +26,7 @@ require (
 	github.com/celestiaorg/go-square/v2 v2.3.3
 	github.com/celestiaorg/go-square/v3 v3.0.2
 	github.com/celestiaorg/nmt v0.24.2
-	github.com/celestiaorg/rsema1d v0.0.0-20251111024305-1a3bc63f5532
+	github.com/celestiaorg/rsema1d v0.0.0-20251111040743-7d12ec49bd3a
 	github.com/celestiaorg/rsmt2d v0.15.1
 	github.com/cometbft/cometbft v1.0.1
 	github.com/cometbft/cometbft-db v1.0.4
@@ -41,9 +41,9 @@ require (
 	github.com/digitalocean/godo v1.165.1
 	github.com/filecoin-project/go-clock v0.1.0
 	github.com/go-kit/log v0.2.1
+	github.com/golang/protobuf v1.5.4
 	github.com/grafana/otel-profiling-go v0.5.1
 	github.com/grafana/pyroscope-go v1.2.7
-	github.com/golang/protobuf v1.5.4
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/hashicorp/go-metrics v0.5.4
 	github.com/ipfs/go-datastore v0.9.0
