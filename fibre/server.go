@@ -1,6 +1,8 @@
 package fibre
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -58,8 +60,9 @@ type Server struct {
 	valGet      validator.SetGetter
 	store       *Store
 
-	log    *slog.Logger
-	tracer trace.Tracer
+	log            *slog.Logger
+	tracer         trace.Tracer
+	tracerShutdown func(context.Context) error
 }
 
 // NewServer creates a new Fibre [Server] with the provided dependencies.
@@ -73,8 +76,22 @@ func NewServer(
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-server")
 	}
-	if cfg.Tracer == nil {
-		cfg.Tracer = otel.Tracer("fibre-server")
+
+	var (
+		tracer         trace.Tracer
+		tracerShutdown func(context.Context) error
+	)
+	if cfg.Tracer != nil {
+		tracer = cfg.Tracer
+	} else {
+		var err error
+		tracer, tracerShutdown, err = newServerTracer(context.Background(), cfg.Log)
+		if err != nil {
+			return nil, fmt.Errorf("configuring fibre tracer: %w", err)
+		}
+		if tracer == nil {
+			tracer = otel.Tracer(tracerName)
+		}
 	}
 
 	// cache the validator's public key in case the implementation does IO internally
@@ -89,14 +106,15 @@ func NewServer(
 	}
 
 	server := &Server{
-		cfg:         cfg,
-		privVal:     privVal,
-		pubKey:      pubKey,
-		queryClient: queryClient,
-		valGet:      valGet,
-		store:       store,
-		log:         cfg.Log,
-		tracer:      cfg.Tracer,
+		cfg:            cfg,
+		privVal:        privVal,
+		pubKey:         pubKey,
+		queryClient:    queryClient,
+		valGet:         valGet,
+		store:          store,
+		log:            cfg.Log,
+		tracer:         tracer,
+		tracerShutdown: tracerShutdown,
 	}
 
 	return server, nil
@@ -133,5 +151,17 @@ func (s *Server) Store() *Store {
 // Stop stops the server.
 // NOTE: It is not a graceful shutdown as it doesn't await for pending requests to complete.
 func (s *Server) Stop() error {
-	return s.store.Close()
+	var err error
+	if s.tracerShutdown != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if shutdownErr := s.tracerShutdown(ctx); shutdownErr != nil {
+			err = errors.Join(err, fmt.Errorf("shutting down tracer: %w", shutdownErr))
+			s.log.Error("failed to flush fibre tracer", "error", shutdownErr)
+		}
+	}
+	if storeErr := s.store.Close(); storeErr != nil {
+		err = errors.Join(err, storeErr)
+	}
+	return err
 }
