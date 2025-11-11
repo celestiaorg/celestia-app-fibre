@@ -1,9 +1,8 @@
 package fibre_test
 
 import (
+	"context"
 	"crypto/ed25519"
-	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,30 +14,28 @@ import (
 	"github.com/celestiaorg/rsema1d/field"
 	"github.com/cometbft/cometbft/crypto"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	txsigning "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
-// TestServerUploadRows unit tests the [Server.UploadRows].
+// TestServerUploadShard unit tests the [Server.UploadShard].
 // It currently covers random cases and should be eventually extended for 100% coverage.
 // The request modifier approach should allow simulating any failure.
-func TestServerUploadRows(t *testing.T) {
+func TestServerUploadShard(t *testing.T) {
 	server, valSet, serverValidator := makeTestServer(t)
 
 	tests := []struct {
 		name            string
-		requestModifier func(*types.UploadRowsRequest)
-		check           func(*testing.T, *types.UploadRowsResponse, error)
+		requestModifier func(*types.UploadShardRequest)
+		check           func(*testing.T, *types.UploadShardResponse, error)
 	}{
 		{
 			name:            "Success",
 			requestModifier: nil,
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
 				require.NotEmpty(t, resp.ValidatorSignature)
@@ -47,40 +44,40 @@ func TestServerUploadRows(t *testing.T) {
 		},
 		{
 			name: "InvalidPaymentPromise",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// invalidate promise by removing signature
 				req.Promise.Signature = nil
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "payment promise validation failed")
 			},
 		},
 		{
 			name: "WrongChainID",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// set wrong chain ID
 				req.Promise.ChainId = "wrong-chain"
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "chain ID mismatch")
 			},
 		},
 		{
 			name: "TimestampTooOld",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// set timestamp 2 hours ago (exceeds default 1 hour PaymentPromiseTimeout)
 				req.Promise.CreationTimestamp = time.Now().Add(-2 * time.Hour)
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "payment promise expired")
 			},
 		},
 		{
 			name: "InvalidRowAssignment",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// replace with another validator's rows
 				totalRows := server.Config().OriginalRows + server.Config().ParityRows
 				// get commitment from the request (it's already a byte slice)
@@ -89,44 +86,44 @@ func TestServerUploadRows(t *testing.T) {
 				shardMap := valSet.Assign(commitment, totalRows)
 				for val, indices := range shardMap {
 					if val.Address.String() != serverValidator.Address.String() && len(indices) > 0 {
-						req.Rows.Rows[0].Index = uint32(indices[0])
+						req.Shard.Rows[0].Index = uint32(indices[0])
 						break
 					}
 				}
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "row assignment verification failed")
 			},
 		},
 		{
 			name: "InvalidRowProof",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// corrupt the proof
-				req.Rows.Rows[0].Proof[0] = []byte("invalid proof")
+				req.Shard.Rows[0].Proof[0] = []byte("invalid proof")
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "verification failed")
 			},
 		},
 		{
 			name: "MissingRows",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// remove all rows
-				req.Rows.Rows = nil
+				req.Shard.Rows = nil
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 			},
 		},
 		{
 			name: "InvalidUploadSize",
-			requestModifier: func(req *types.UploadRowsRequest) {
+			requestModifier: func(req *types.UploadShardRequest) {
 				// set wrong upload size
 				req.Promise.BlobSize = 12345
 			},
-			check: func(t *testing.T, resp *types.UploadRowsResponse, err error) {
+			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "upload size mismatch")
 			},
@@ -136,7 +133,7 @@ func TestServerUploadRows(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := makeTestRequest(t, valSet, serverValidator, tt.requestModifier)
-			resp, err := server.UploadRows(t.Context(), req)
+			resp, err := server.UploadShard(t.Context(), req)
 			tt.check(t, resp, err)
 		})
 	}
@@ -153,15 +150,10 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 		Height:       100,
 	}
 
-	cfg := fibre.DefaultServerConfig()
-	// Set a temporary directory for the BadgerDB store
-	tmpDir := t.TempDir()
-	cfg.StoreConfig.Path = filepath.Join(tmpDir, "fibre-store")
-
 	// use first validator as the server's identity
 	privVal := newTestPrivValidator(privKeys[0])
 
-	// Find the server validator in the ValidatorSet by matching the address
+	// find the server validator in the ValidatorSet by matching the address
 	// Note: core.NewValidatorSet may reorder validators, so we can't assume validators[0] == privKeys[0]
 	serverPubKey, err := privVal.GetPubKey()
 	require.NoError(t, err)
@@ -171,58 +163,27 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	require.True(t, found, "server validator not found in validator set")
 	require.NotNil(t, serverValidator, "server validator is nil")
 
-	// Create gRPC server with mock services
-	grpcServer := grpc.NewServer()
-
-	// Register mock Query service
-	mockQueryServer := &mockQueryServer{}
-	types.RegisterQueryServer(grpcServer, mockQueryServer)
-
-	// Register mock BlockAPI service
-	valSetProto, err := valSet.ValidatorSet.ToProto()
-	require.NoError(t, err)
-	mockBlockAPIServer := &mockBlockAPIServer{
-		validatorSetResponse: &coregrpc.ValidatorSetResponse{
-			ValidatorSet: valSetProto,
-			Height:       int64(valSet.Height),
-		},
-	}
-	coregrpc.RegisterBlockAPIServer(grpcServer, mockBlockAPIServer)
-
-	// Create in-memory listener
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	// Create client connection to the mock server (will connect after server starts)
-	conn, err := grpc.NewClient(
-		listener.Addr().String(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	// create server
+	server, err := fibre.NewInMemoryServer(
+		privVal,
+		&mockQueryClient{},
+		&mockValidatorSetGetter{set: valSet},
+		fibre.DefaultServerConfig(),
 	)
 	require.NoError(t, err)
-
-	// Create server with gRPC infrastructure - this registers the Fibre service
-	server, err := fibre.NewServerFromGRPC(privVal, grpcServer, conn, cfg)
-	require.NoError(t, err)
-
-	// Start gRPC server after all services are registered
-	go func() {
-		if err := grpcServer.Serve(listener); err != nil {
-			t.Logf("gRPC server error: %v", err)
-		}
-	}()
 
 	return server, valSet, serverValidator
 }
 
-// makeTestRequest creates a valid UploadRowsRequest for the given test setup.
+// makeTestRequest creates a valid UploadShardRequest for the given test setup.
 // Optional modifier can be provided to customize the request after construction.
 // The promise is automatically re-signed after modification.
 func makeTestRequest(
 	t *testing.T,
 	valSet validator.Set,
 	serverValidator *core.Validator,
-	requestModifier func(*types.UploadRowsRequest),
-) *types.UploadRowsRequest {
+	requestModifier func(*types.UploadShardRequest),
+) *types.UploadShardRequest {
 	t.Helper()
 
 	blob := makeTestBlobV0(t, 256*1024)
@@ -272,11 +233,11 @@ func makeTestRequest(
 	require.NotEmpty(t, rowIndices, "server validator has no rows assigned")
 
 	// create rows with proofs
-	rows := make([]*types.Row, len(rowIndices))
+	rows := make([]*types.BlobRow, len(rowIndices))
 	for i, rowIndex := range rowIndices {
 		rowProof, err := blob.Row(rowIndex)
 		require.NoError(t, err)
-		rows[i] = &types.Row{
+		rows[i] = &types.BlobRow{
 			Index: uint32(rowIndex),
 			Data:  rowProof.Row,
 			Proof: rowProof.RowProof.RowProof,
@@ -291,11 +252,11 @@ func makeTestRequest(
 		copy(rlcCoeffsBytes[i*16:(i+1)*16], b[:])
 	}
 
-	req := &types.UploadRowsRequest{
+	req := &types.UploadShardRequest{
 		Promise: promisePb,
-		Rows: &types.Rows{
+		Shard: &types.BlobShard{
 			Rows: rows,
-			Rlc:  &types.Rows_Coefficients{Coefficients: rlcCoeffsBytes},
+			Rlc:  &types.BlobShard_Coefficients{Coefficients: rlcCoeffsBytes},
 		},
 	}
 
@@ -309,6 +270,30 @@ func makeTestRequest(
 	}
 
 	return req
+}
+
+// mockQueryClient is a mock implementation of types.QueryClient for testing.
+type mockQueryClient struct{}
+
+func (m *mockQueryClient) Params(ctx context.Context, in *types.QueryParamsRequest, opts ...grpc.CallOption) (*types.QueryParamsResponse, error) {
+	return &types.QueryParamsResponse{}, nil
+}
+
+func (m *mockQueryClient) EscrowAccount(ctx context.Context, in *types.QueryEscrowAccountRequest, opts ...grpc.CallOption) (*types.QueryEscrowAccountResponse, error) {
+	return &types.QueryEscrowAccountResponse{}, nil
+}
+
+func (m *mockQueryClient) Withdrawals(ctx context.Context, in *types.QueryWithdrawalsRequest, opts ...grpc.CallOption) (*types.QueryWithdrawalsResponse, error) {
+	return &types.QueryWithdrawalsResponse{}, nil
+}
+
+func (m *mockQueryClient) IsPaymentProcessed(ctx context.Context, in *types.QueryIsPaymentProcessedRequest, opts ...grpc.CallOption) (*types.QueryIsPaymentProcessedResponse, error) {
+	return &types.QueryIsPaymentProcessedResponse{}, nil
+}
+
+func (m *mockQueryClient) ValidatePaymentPromise(ctx context.Context, in *types.QueryValidatePaymentPromiseRequest, opts ...grpc.CallOption) (*types.QueryValidatePaymentPromiseResponse, error) {
+	// Always return valid for testing
+	return &types.QueryValidatePaymentPromiseResponse{IsValid: true}, nil
 }
 
 // testPrivValidator is a simple mock PrivValidator for testing.
