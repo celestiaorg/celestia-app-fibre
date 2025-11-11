@@ -1,9 +1,12 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	square "github.com/celestiaorg/go-square/v3"
+	"github.com/celestiaorg/go-square/v3/share"
 	"github.com/celestiaorg/go-square/v3/tx"
 	tmbytes "github.com/cometbft/cometbft/libs/bytes"
 	coretypes "github.com/cometbft/cometbft/types"
@@ -184,6 +187,38 @@ func (fsb *FilteredSquareBuilder) Fill(ctx sdk.Context, txs [][]byte) [][]byte {
 			continue
 		}
 
+		// Generate and add system-level blob for this MsgPayForFibre transaction
+		msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+		if hasPayForFibre {
+			systemBlob, err := createSystemBlobForPayForFibre(msgPayForFibre)
+			if err != nil {
+				logger.Error(
+					"failed to create system blob for pay-for-fibre transaction",
+					"tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()),
+					"error", err,
+				)
+				telemetry.IncrCounter(1, "prepare_proposal", "failed_system_blob_creation")
+				err = fsb.builder.RevertLastPayForFibreTx()
+				if err != nil {
+					logger.Error("reverting last pay-for-fibre transaction after system blob creation failure", "error", err)
+				}
+				continue
+			}
+
+			// Add system blob to builder
+			if !fsb.builder.AppendSystemBlob(systemBlob) {
+				logger.Debug(
+					"skipping pay-for-fibre tx because system blob was too large to fit in the square",
+					"tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()),
+				)
+				err = fsb.builder.RevertLastPayForFibreTx()
+				if err != nil {
+					logger.Error("reverting last pay-for-fibre transaction after system blob addition failure", "error", err)
+				}
+				continue
+			}
+		}
+
 		payForFibreTxs[payForFibreTxCount] = tx
 		payForFibreTxCount++
 	}
@@ -265,4 +300,43 @@ func extractMsgPayForFibre(sdkTx sdk.Tx) (*fibretypes.MsgPayForFibre, bool) {
 		}
 	}
 	return nil, false
+}
+
+// createSystemBlobForPayForFibre creates a system-level blob for a MsgPayForFibre message.
+// The blob uses share version 2 and contains the Fibre blob version and commitment.
+func createSystemBlobForPayForFibre(msg *fibretypes.MsgPayForFibre) (*share.Blob, error) {
+	// Extract namespace from PaymentPromise
+	namespaceBytes := msg.PaymentPromise.Namespace
+	if len(namespaceBytes) != share.NamespaceSize {
+		return nil, fmt.Errorf("invalid namespace size: expected %d bytes, got %d", share.NamespaceSize, len(namespaceBytes))
+	}
+	namespace, err := share.NewNamespaceFromBytes(namespaceBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace: %w", err)
+	}
+
+	// Convert signer from bech32 to 20-byte address
+	signerAddr, err := sdk.AccAddressFromBech32(msg.Signer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode signer address: %w", err)
+	}
+	signerBytes := signerAddr.Bytes()
+	if len(signerBytes) != share.SignerSize {
+		return nil, fmt.Errorf("invalid signer size: expected %d bytes, got %d", share.SignerSize, len(signerBytes))
+	}
+
+	// Extract fibre_blob_version and commitment from PaymentPromise
+	fibreBlobVersion := msg.PaymentPromise.BlobVersion
+	commitment := msg.PaymentPromise.Commitment
+	if len(commitment) != share.FibreCommitmentSize {
+		return nil, fmt.Errorf("invalid commitment size: expected %d bytes, got %d", share.FibreCommitmentSize, len(commitment))
+	}
+
+	// Create V2 blob using NewV2Blob
+	blob, err := share.NewV2Blob(namespace, fibreBlobVersion, commitment, signerBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create V2 blob: %w", err)
+	}
+
+	return blob, nil
 }
