@@ -15,13 +15,14 @@ const (
 // startFibreLoadCmd creates a cobra command for starting fibre-load on remote instances.
 func startFibreLoadCmd() *cobra.Command {
 	var (
-		instances   int
-		interval    float64
-		payloadSize int
-		namespace   string
-		rootDir     string
-		cfgPath     string
-		SSHKeyPath  string
+		instances      int
+		interval       time.Duration
+		payloadSize    int
+		namespace      string
+		maxConcurrency int
+		rootDir        string
+		cfgPath        string
+		SSHKeyPath     string
 	)
 
 	cmd := &cobra.Command{
@@ -40,7 +41,7 @@ func startFibreLoadCmd() *cobra.Command {
 
 			resolvedSSHKeyPath := resolveValue(SSHKeyPath, EnvVarSSHKeyPath, strings.ReplaceAll(cfg.SSHPubKeyPath, ".pub", ""))
 
-			fibreLoadScript := fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %f -s %d -n %s -t /root/.celestia-app/data/traces", cfg.ChainID, interval, payloadSize, namespace)
+			fibreLoadScript := fmt.Sprintf("./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %s -s %d -n %s -m %d -t /root/.celestia-app/data/traces", cfg.ChainID, interval, payloadSize, namespace, maxConcurrency)
 
 			// only spin up fibre-load on the number of instances that were specified.
 			insts := []Instance{}
@@ -62,8 +63,9 @@ func startFibreLoadCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&cfgPath, "config", "c", "config.json", "name of the config")
 	cmd.Flags().StringVarP(&SSHKeyPath, "ssh-key-path", "k", "", "path to the user's SSH key (overrides environment variable and default)")
 	cmd.Flags().IntVarP(&instances, "instances", "i", 1, "the number of instances of fibre-load, each ran on its own validator")
-	cmd.Flags().Float64VarP(&interval, "interval", "t", 1.0, "interval between transactions in seconds")
+	cmd.Flags().DurationVarP(&interval, "interval", "t", time.Second, "interval between transactions (e.g. 500ms, 2s)")
 	cmd.Flags().IntVarP(&payloadSize, "payload-size", "p", 128*1024*1024, "size of payload data in bytes (default 128MB)")
+	cmd.Flags().IntVarP(&maxConcurrency, "max-concurrency", "m", 1, "maximum number of concurrent transactions per node")
 	cmd.Flags().StringVarP(&namespace, "namespace", "n", "fibre", "namespace for blob submission")
 	_ = cmd.MarkFlagRequired("instances")
 	return cmd

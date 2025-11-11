@@ -6,6 +6,7 @@ A tool for generating throughput load on the Fibre network by submitting blob tr
 
 - Configurable transaction submission interval
 - Configurable payload size (default: 1MB)
+- Configurable maximum in-flight transactions to cap memory usage
 - Smart keyring management (automatically selects key with most funds or creates new key)
 - OpenTelemetry distributed tracing support (optional)
 - Prints transaction confirmations with height for monitoring
@@ -23,8 +24,9 @@ go run tools/fibre-load/main.go [flags]
 - `--keyring-dir` - Directory containing the keyring (default: `~/.celestia-app`)
 - `--validator-hosts` - Path to JSON file containing validator address to host mapping (required)
 - `--chain-id` - Chain ID for the network (default: `celestia`, can also be set via `CHAIN_ID` env var)
-- `--interval` - Interval between transactions in seconds (default: `1.0`)
+- `--interval` - Interval between transactions as a Go duration string (default: `1s`, e.g. `500ms`, `2s`)
 - `--payload-size` - Size of payload data in bytes (default: `134217728` = 128MiB)
+- `--max-concurrency` - Maximum number of transactions processed concurrently (default: `1`)
 - `--namespace` - Namespace for blob submission (default: `fibre`)
 - `--traces-dir` - Directory to write metrics traces (default: `~/.celestia-app/data/traces`)
 
@@ -37,12 +39,12 @@ go run tools/fibre-load/main.go
 
 Submit a transaction every 0.5 seconds with 2MB payloads:
 ```bash
-go run tools/fibre-load/main.go --interval 0.5 --payload-size 2097152
+go run tools/fibre-load/main.go --interval 500ms --payload-size 2097152
 ```
 
 Submit smaller 100KB blobs every 2 seconds:
 ```bash
-go run tools/fibre-load/main.go --interval 2.0 --payload-size 102400
+go run tools/fibre-load/main.go --interval 2s --payload-size 102400
 ```
 
 Use a custom gRPC endpoint:
@@ -54,6 +56,20 @@ Use a custom keyring directory:
 ```bash
 go run tools/fibre-load/main.go --keyring-dir /path/to/keyring
 ```
+
+### Controlling In-Flight Load
+
+Large payloads require significant RAM while the Fibre client encodes and uploads them to validators. Use `--max-concurrency` to cap the number of simultaneous transactions and therefore the peak memory footprint. For example, `--max-concurrency 10 --payload-size 134217728` keeps at most ten 128MiB blobs in memory (~1.3GiB plus Fibre overhead). The default of `1` guarantees sequential submission, which is safer on smaller machines.
+
+### Benchmarking Allocations
+
+A synthetic benchmark mimics the per-transaction worker used by `fibre-load` and reports allocations for several payload sizes. Run it with:
+
+```bash
+go test ./tools/fibre-load -bench=LoadWorkerAllocations -benchmem -run=^$
+```
+
+Focus on the `allocs/op` and `B/op` columns to understand how payload size influences steady-state memory needs before tuning `--max-concurrency`.
 
 ## OpenTelemetry Tracing
 
@@ -137,7 +153,7 @@ Fibre Load Generator
 gRPC Endpoint: localhost:9091
 Keyring Directory: /Users/user/.celestia-app
 Chain ID: celestia
-Interval: 1.00 seconds
+Interval: 1s
 Payload Size: 134217728 bytes
 Namespace: fibre
 Traces Directory: /Users/user/.celestia-app/data/traces

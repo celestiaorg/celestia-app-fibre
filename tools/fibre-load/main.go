@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdkmath "cosmossdk.io/math"
@@ -40,7 +41,7 @@ import (
 const (
 	defaultEndpoint     = "localhost:9091"
 	defaultKeyringDir   = ".celestia-app"
-	defaultInterval     = 1.0               // seconds between transactions
+	defaultInterval     = time.Second       // interval between transactions
 	defaultPayloadSize  = 128 * 1024 * 1024 // 128MiB
 	defaultNamespaceStr = "fibre"           // default namespace for blobs
 	defaultKeyName      = "fibre-load-key"
@@ -51,8 +52,9 @@ const (
 var (
 	endpoint          string
 	keyringDir        string
-	interval          float64
+	interval          time.Duration
 	payloadSize       int
+	maxConcurrency    int
 	namespaceStr      string
 	validatorHostFile string
 	chainID           string
@@ -95,8 +97,9 @@ and submits transactions at a configurable rate.`,
 func init() {
 	rootCmd.Flags().StringVarP(&endpoint, "grpc-endpoint", "e", defaultEndpoint, "gRPC endpoint of the consensus node")
 	rootCmd.Flags().StringVarP(&keyringDir, "keyring-dir", "k", "", "directory containing the keyring (defaults to ~/.celestia-app)")
-	rootCmd.Flags().Float64VarP(&interval, "interval", "i", defaultInterval, "interval between transactions in seconds")
+	rootCmd.Flags().DurationVarP(&interval, "interval", "i", defaultInterval, "interval between transactions (e.g. 500ms, 2s)")
 	rootCmd.Flags().IntVarP(&payloadSize, "payload-size", "s", defaultPayloadSize, "size of payload data in bytes")
+	rootCmd.Flags().IntVarP(&maxConcurrency, "max-concurrency", "m", 1, "maximum number of concurrent transactions in flight")
 	rootCmd.Flags().StringVarP(&namespaceStr, "namespace", "n", defaultNamespaceStr, "namespace for blob submission")
 	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
 	rootCmd.Flags().StringVarP(&chainID, "chain-id", "c", defaultChainID, "chain ID for the network (can also be set via CHAIN_ID env var)")
@@ -119,7 +122,7 @@ func runLoad(
 	ctx context.Context,
 	endpoint string,
 	keyringDir string,
-	interval float64,
+	interval time.Duration,
 	payloadSize int,
 	namespaceStr string,
 	validatorHostFile string,
@@ -140,7 +143,7 @@ func runLoad(
 	fmt.Printf("gRPC Endpoint: %s\n", endpoint)
 	fmt.Printf("Keyring Directory: %s\n", keyringDir)
 	fmt.Printf("Chain ID: %s\n", chainID)
-	fmt.Printf("Interval: %.2f seconds\n", interval)
+	fmt.Printf("Interval: %s\n", interval)
 	fmt.Printf("Payload Size: %d bytes\n", payloadSize)
 	fmt.Printf("Namespace: %s\n", namespaceStr)
 	fmt.Printf("Traces Directory: %s\n\n", tracesDir)
@@ -229,70 +232,93 @@ func runLoad(
 	fmt.Println("Press Ctrl+C to stop")
 	fmt.Println()
 
+	if maxConcurrency <= 0 {
+		return fmt.Errorf("max-concurrency must be greater than zero")
+	}
+	if interval <= 0 {
+		return fmt.Errorf("interval must be greater than zero")
+	}
+
 	// Create ticker with the specified interval
-	tickerDuration := time.Duration(interval * float64(time.Second))
-	ticker := time.NewTicker(tickerDuration)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	var txCount uint64
+	var (
+		txCount atomic.Uint64
+		wg      sync.WaitGroup
+		sem     = make(chan struct{}, maxConcurrency)
+	)
 
-	// Main load generation loop
+	defer func() {
+		wg.Wait()
+		fmt.Printf("\nTotal transactions submitted: %d\n", txCount.Load())
+	}()
+
+	startTx := func(count uint64) {
+		wg.Add(1)
+		go func(txNum uint64) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			startTime := time.Now()
+			blobData := make([]byte, payloadSize)
+			if _, err := rand.Read(blobData); err != nil {
+				fmt.Printf("[%d] Failed to generate random data: %v\n", txNum, err)
+				metricsWriter.WriteMetric(TxMetric{
+					TxNum:       txNum,
+					StartTime:   startTime,
+					EndTime:     time.Now(),
+					Success:     false,
+					Error:       err.Error(),
+					PayloadSize: payloadSize,
+				})
+				return
+			}
+
+			resp, err := fibreClient.Put(ctx, namespace, blobData)
+			endTime := time.Now()
+
+			if err != nil {
+				fmt.Printf("[%d] Failed to submit tx: %v\n", txNum, err)
+				metricsWriter.WriteMetric(TxMetric{
+					TxNum:       txNum,
+					StartTime:   startTime,
+					EndTime:     endTime,
+					Success:     false,
+					Error:       err.Error(),
+					PayloadSize: payloadSize,
+				})
+				return
+			}
+
+			latency := endTime.Sub(startTime)
+			fmt.Printf("[%d] Transaction %s confirmed at height %d (latency: %v)\n", txNum, resp.TxHash, resp.Height, latency)
+
+			metricsWriter.WriteMetric(TxMetric{
+				TxNum:       txNum,
+				StartTime:   startTime,
+				EndTime:     endTime,
+				Success:     true,
+				TxHash:      resp.TxHash,
+				Height:      resp.Height,
+				PayloadSize: payloadSize,
+				LatencyMs:   latency.Milliseconds(),
+			})
+		}(count)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Printf("\nTotal transactions submitted: %d\n", txCount)
 			return nil
 		case <-ticker.C:
-			txCount++
-			go func(count uint64) {
-				startTime := time.Now()
-
-				// Create random blob data
-				blobData := make([]byte, payloadSize)
-				if _, err := rand.Read(blobData); err != nil {
-					fmt.Printf("[%d] Failed to generate random data: %v\n", count, err)
-					metricsWriter.WriteMetric(TxMetric{
-						TxNum:       count,
-						StartTime:   startTime,
-						EndTime:     time.Now(),
-						Success:     false,
-						Error:       err.Error(),
-						PayloadSize: payloadSize,
-					})
-					return
-				}
-
-				// Submit transaction
-				resp, err := fibreClient.Put(ctx, namespace, blobData)
-				endTime := time.Now()
-
-				if err != nil {
-					fmt.Printf("[%d] Failed to submit tx: %v\n", count, err)
-					metricsWriter.WriteMetric(TxMetric{
-						TxNum:       count,
-						StartTime:   startTime,
-						EndTime:     endTime,
-						Success:     false,
-						Error:       err.Error(),
-						PayloadSize: payloadSize,
-					})
-					return
-				}
-
-				latency := endTime.Sub(startTime)
-				fmt.Printf("[%d] Transaction %s confirmed at height %d (latency: %v)\n", count, resp.TxHash, resp.Height, latency)
-
-				metricsWriter.WriteMetric(TxMetric{
-					TxNum:       count,
-					StartTime:   startTime,
-					EndTime:     endTime,
-					Success:     true,
-					TxHash:      resp.TxHash,
-					Height:      resp.Height,
-					PayloadSize: payloadSize,
-					LatencyMs:   latency.Milliseconds(),
-				})
-			}(txCount)
+			select {
+			case sem <- struct{}{}:
+				count := txCount.Add(1)
+				startTx(count)
+			case <-ctx.Done():
+				return nil
+			}
 		}
 	}
 }
