@@ -167,7 +167,7 @@ func runLoad(
 	// Set up OpenTelemetry tracing with hardcoded endpoint
 	otelAddr := "137.184.170.98:4317"
 	fmt.Printf("Setting up OpenTelemetry tracing to %s\n", otelAddr)
-	tracerShutdown, err := setupTracing(ctx, otelAddr)
+	tracerShutdown, err := setupTracing(ctx, otelAddr, chainID)
 	if err != nil {
 		fmt.Printf("Warning: failed to setup tracing: %v\n", err)
 	} else {
@@ -591,7 +591,7 @@ func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize
 // setupTracing configures OpenTelemetry tracing with OTLP gRPC exporter.
 // The endpoint should be in the format "host:port" (e.g., "localhost:4317").
 // Returns a shutdown function that should be called before the application exits.
-func setupTracing(ctx context.Context, endpoint string) (func(context.Context) error, error) {
+func setupTracing(ctx context.Context, endpoint string, chainID string) (func(context.Context) error, error) {
 	exporter, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithEndpoint(endpoint),
 		otlptracegrpc.WithInsecure(), // Use insecure connection for simplicity
@@ -600,9 +600,14 @@ func setupTracing(ctx context.Context, endpoint string) (func(context.Context) e
 		return nil, fmt.Errorf("creating OTLP exporter: %w", err)
 	}
 
+	serviceName := "fibre-load"
+	if chainID != "" {
+		serviceName = "fibre-load-" + chainID
+	}
+
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
-			attribute.String("service.name", "fibre-load"),
+			attribute.String("service.name", serviceName),
 		),
 	)
 	if err != nil {
@@ -633,10 +638,10 @@ type TxMetric struct {
 
 // BlobMetric represents a successful blob upload record.
 type BlobMetric struct {
-	Size         int       `json:"size"`
-	SubmittedAt  time.Time `json:"submitted_at"`
-	TxHash       string    `json:"tx_hash"`
-	Height       uint64    `json:"height"`
+	Size        int       `json:"size"`
+	SubmittedAt time.Time `json:"submitted_at"`
+	TxHash      string    `json:"tx_hash"`
+	Height      uint64    `json:"height"`
 }
 
 // metricsWriter handles writing transaction metrics to a file.

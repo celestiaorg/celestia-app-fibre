@@ -34,8 +34,13 @@ func newServerTracer(ctx context.Context, logger *slog.Logger, chainID string) (
 		return nil, nil, fmt.Errorf("creating OTLP exporter: %w", err)
 	}
 
+	serviceName := serverTracerName
+	if chainID != "" {
+		serviceName = serverTracerName + "-" + chainID
+	}
+
 	attrs := []attribute.KeyValue{
-		attribute.String("service.name", serverTracerName),
+		attribute.String("service.name", serviceName),
 	}
 	if chainID != "" {
 		attrs = append(attrs, attribute.String("chain.id", chainID))
@@ -73,8 +78,13 @@ func newClientTracer(ctx context.Context, logger *slog.Logger, chainID string) (
 		return nil, nil, fmt.Errorf("creating OTLP exporter: %w", err)
 	}
 
+	serviceName := clientTracerName
+	if chainID != "" {
+		serviceName = clientTracerName + "-" + chainID
+	}
+
 	attrs := []attribute.KeyValue{
-		attribute.String("service.name", clientTracerName),
+		attribute.String("service.name", serviceName),
 	}
 	if chainID != "" {
 		attrs = append(attrs, attribute.String("chain.id", chainID))
