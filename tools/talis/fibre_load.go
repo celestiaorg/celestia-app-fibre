@@ -52,7 +52,7 @@ func startFibreLoadCmd() *cobra.Command {
 			}
 
 			fibreLoadScript := fmt.Sprintf(
-				"./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json -c %s -i %s -s %d -n %s -m %d -t /root/.celestia-app/data/traces %s",
+				"./payload/build/fibre-load -e localhost:9091 -v ./payload/validator_hosts.json --reuse-blob -c %s -i %s -s %d -n %s -m %d -t /root/.celestia-app/data/traces %s",
 				cfg.ChainID,
 				interval,
 				payloadSize,
