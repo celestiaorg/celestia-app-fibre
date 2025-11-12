@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -30,7 +29,8 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	var promiseHash []byte
 	var err error
 
-	if os.Getenv("FIBREMAXXXING") != "" {
+	const FIBREMAXXXING = true
+	if FIBREMAXXXING {
 		// In FIBREMAXXXING mode, skip verification and just unmarshal the promise
 		promise = &PaymentPromise{}
 		if err := promise.FromProto(req.Promise); err != nil {

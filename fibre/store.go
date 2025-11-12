@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -81,8 +80,9 @@ func NewBadgerStore(cfg StoreConfig) (*Store, error) {
 //
 // Puts for the same commitments but different promises are allowed and are stored independently without deduplication.
 func (s *Store) Put(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
-	// If FIBREMAXXXING env var is set, skip all storage operations
-	if os.Getenv("FIBREMAXXXING") != "" {
+	// If FIBREMAXXXING is true, skip all storage operations
+	const FIBREMAXXXING = true
+	if FIBREMAXXXING {
 		return nil
 	}
 

@@ -30,6 +30,39 @@ type DOClient struct {
 }
 
 func NewClient(cfg Config) (Client, error) {
+	// Determine which provider to use based on the instances in the config
+	hasGC := false
+	hasDO := false
+
+	for _, v := range cfg.Validators {
+		if v.Provider == GoogleCloud {
+			hasGC = true
+		} else if v.Provider == DigitalOcean {
+			hasDO = true
+		}
+	}
+
+	// If instances are mixed providers, return error
+	if hasGC && hasDO {
+		return nil, errors.New("mixed cloud providers detected in config; please use a single provider")
+	}
+
+	// Create client based on instance provider
+	if hasGC {
+		if cfg.GoogleCloudProject == "" {
+			return nil, errors.New("google cloud instances found but no GoogleCloudProject configured")
+		}
+		return NewGCClient(cfg)
+	}
+
+	if hasDO {
+		if cfg.DigitalOceanToken == "" {
+			return nil, errors.New("digital ocean instances found but no DigitalOceanToken configured")
+		}
+		return NewDOClient(cfg)
+	}
+
+	// If no instances, fall back to credential priority
 	if cfg.DigitalOceanToken != "" {
 		return NewDOClient(cfg)
 	}

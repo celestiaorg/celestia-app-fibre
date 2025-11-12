@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	DODefaultValidatorSlug = "c2-16vcpu-32gb"
+	DODefaultValidatorSlug = "c2-32vcpu-64gb"
 	DODefaultImage         = "ubuntu-22-04-x64"
 	RandomRegion           = "random"
 )

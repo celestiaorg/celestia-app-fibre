@@ -200,9 +200,25 @@ func (c *Client) uploadTo(
 	)
 	defer span.End()
 
+	checkCtx := func() bool {
+		if err := ctx.Err(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return true
+		}
+		return false
+	}
+
+	if checkCtx() {
+		return
+	}
+
 	// get a new or cached client with active connection
 	client, err := c.clientCache.GetClient(ctx, val)
 	if err != nil {
+		if checkCtx() {
+			return
+		}
 		log.WarnContext(ctx, "can't get grpc.FibreClient", "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "can't get grpc.FibreClient")
@@ -212,6 +228,9 @@ func (c *Client) uploadTo(
 
 	// get proofs and rows here in per request routine which is in parallel which ~39% faster for max blob size
 	for i, rowPb := range req.Rows.Rows {
+		if checkCtx() {
+			return
+		}
 		row, err := blob.Row(int(rowPb.Index))
 		if err != nil {
 			log.WarnContext(ctx, "failed to generate proof for row", "row_index", rowPb.Index, "error", err)
@@ -224,9 +243,16 @@ func (c *Client) uploadTo(
 	}
 	span.AddEvent("proofs_generated")
 
+	if checkCtx() {
+		return
+	}
+
 	// actually push the data to the validator
 	resp, err := client.UploadRows(ctx, req)
 	if err != nil {
+		if checkCtx() {
+			return
+		}
 		log.WarnContext(ctx, "failed to upload rows", "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to upload rows")
@@ -261,11 +287,14 @@ func (c *Client) uploadTo(
 // Returns when either all the responses are exhausted or signatures collected or the context is done.
 // It continues uploading to every validator even after necessary amount of signatures are collected.
 func (c *Client) uploadRows(
-	ctx context.Context,
+	parentCtx context.Context,
 	requests map[*core.Validator]*types.UploadRowsRequest,
 	blob *Blob,
 	sigSet *validator.SignatureSet,
 ) error {
+	uploadCtx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+
 	var (
 		responses            atomic.Uint32         // tracks finished responses
 		responsesExhaustedCh = make(chan struct{}) // closes when all responses complete
@@ -275,8 +304,9 @@ func (c *Client) uploadRows(
 		// acquire semaphore before spawning goroutine
 		select {
 		case c.uploadSem <- struct{}{}:
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-parentCtx.Done():
+			cancel()
+			return parentCtx.Err()
 		}
 
 		c.closeWg.Add(1)
@@ -294,17 +324,24 @@ func (c *Client) uploadRows(
 				c.closeWg.Done()
 			}()
 
-			c.uploadTo(ctx, val, req, blob, sigSet)
+			c.uploadTo(uploadCtx, val, req, blob, sigSet)
 		}(val, req)
 	}
 
 	select {
 	case <-responsesExhaustedCh: // no more responses to wait for
+		return nil
 	case <-sigSet.Done(): // enough signatures collected
-	case <-ctx.Done():
-		return ctx.Err()
+		cancel()
+		<-responsesExhaustedCh
+		return nil
+	case <-parentCtx.Done():
+		cancel()
+		<-responsesExhaustedCh
+		return parentCtx.Err()
 	}
 
+	// unreachable, but keeps compiler happy if select gains new cases later.
 	return nil
 }
 

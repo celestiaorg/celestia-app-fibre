@@ -32,7 +32,9 @@ import (
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -160,15 +162,23 @@ func runLoad(
 		fmt.Printf("Pyroscope Profiling: %s (trace=%t)\n\n", pyroURL, pyroTrace)
 	}
 
-	// Set up OpenTelemetry tracing if OTEL_TRACING_ADDRESS is set
-	if otelAddr := os.Getenv("OTEL_TRACING_ADDRESS"); otelAddr != "" {
-		fmt.Printf("Setting up OpenTelemetry tracing to %s\n", otelAddr)
-		if err := setupTracing(ctx, otelAddr); err != nil {
-			fmt.Printf("Warning: failed to setup tracing: %v\n", err)
-		} else {
-			fmt.Println("OpenTelemetry tracing configured successfully")
-			fmt.Println()
-		}
+	// Set up OpenTelemetry tracing with hardcoded endpoint
+	otelAddr := "137.184.170.98:4317"
+	fmt.Printf("Setting up OpenTelemetry tracing to %s\n", otelAddr)
+	tracerShutdown, err := setupTracing(ctx, otelAddr)
+	if err != nil {
+		fmt.Printf("Warning: failed to setup tracing: %v\n", err)
+	} else {
+		fmt.Println("OpenTelemetry tracing configured successfully")
+		fmt.Println()
+		// Ensure tracer is shutdown on exit
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := tracerShutdown(shutdownCtx); err != nil {
+				fmt.Printf("Error shutting down tracer: %v\n", err)
+			}
+		}()
 	}
 
 	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
@@ -544,23 +554,34 @@ func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize
 	return nil
 }
 
-// setupTracing configures OpenTelemetry tracing with OTLP HTTP exporter.
-// The endpoint should be in the format "host:port" (e.g., "localhost:4318").
-func setupTracing(ctx context.Context, endpoint string) error {
-	exporter, err := otlptracehttp.New(ctx,
-		otlptracehttp.WithEndpoint(endpoint),
-		otlptracehttp.WithInsecure(), // Use insecure connection for simplicity
+// setupTracing configures OpenTelemetry tracing with OTLP gRPC exporter.
+// The endpoint should be in the format "host:port" (e.g., "localhost:4317").
+// Returns a shutdown function that should be called before the application exits.
+func setupTracing(ctx context.Context, endpoint string) (func(context.Context) error, error) {
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint(endpoint),
+		otlptracegrpc.WithInsecure(), // Use insecure connection for simplicity
 	)
 	if err != nil {
-		return fmt.Errorf("creating OTLP exporter: %w", err)
+		return nil, fmt.Errorf("creating OTLP exporter: %w", err)
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			attribute.String("service.name", "fibre-load"),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating OTLP resource: %w", err)
 	}
 
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
 	)
 	otel.SetTracerProvider(tp)
 
-	return nil
+	return tp.Shutdown, nil
 }
 
 // TxMetric represents metrics for a single transaction.

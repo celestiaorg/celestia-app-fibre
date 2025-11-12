@@ -115,9 +115,10 @@ type Client struct {
 	hostReg     validator.HostRegistry
 	queryClient fibreQueryClient
 
-	log    *slog.Logger
-	tracer trace.Tracer
-	clock  clock.Clock
+	log            *slog.Logger
+	tracer         trace.Tracer
+	tracerShutdown func(context.Context) error
+	clock          clock.Clock
 
 	clientCache *fibregrpc.ClientCache
 	uploadSem   chan struct{}
@@ -176,8 +177,16 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 			"profile_types", appliedCfg.ProfileTypes,
 		)
 	}
+	var tracerShutdown func(context.Context) error
 	if cfg.Tracer == nil {
-		cfg.Tracer = otel.Tracer("fibre-client")
+		var err error
+		cfg.Tracer, tracerShutdown, err = newClientTracer(context.Background(), cfg.Log, cfg.ChainID)
+		if err != nil {
+			return nil, fmt.Errorf("configuring fibre client tracer: %w", err)
+		}
+		if cfg.Tracer == nil {
+			cfg.Tracer = otel.Tracer("fibre-client")
+		}
 	}
 
 	var queryClient fibreQueryClient
@@ -188,19 +197,20 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	}
 
 	return &Client{
-		cfg:         cfg,
-		txClient:    txClient,
-		keyring:     kr,
-		valGet:      valGet,
-		hostReg:     hostReg,
-		queryClient: queryClient,
-		log:         cfg.Log,
-		tracer:      cfg.Tracer,
-		clock:       cfg.Clock,
-		clientCache: fibregrpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
-		uploadSem:   make(chan struct{}, cfg.UploadConcurrency),
-		downloadSem: make(chan struct{}, cfg.DownloadConcurrency),
-		pyroscope:   pyroHandle,
+		cfg:            cfg,
+		txClient:       txClient,
+		keyring:        kr,
+		valGet:         valGet,
+		hostReg:        hostReg,
+		queryClient:    queryClient,
+		log:            cfg.Log,
+		tracer:         cfg.Tracer,
+		tracerShutdown: tracerShutdown,
+		clock:          cfg.Clock,
+		clientCache:    fibregrpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
+		uploadSem:      make(chan struct{}, cfg.UploadConcurrency),
+		downloadSem:    make(chan struct{}, cfg.DownloadConcurrency),
+		pyroscope:      pyroHandle,
 	}, nil
 }
 
@@ -222,6 +232,15 @@ func (c *Client) Close() error {
 	var errs error
 	if err := c.clientCache.Close(); err != nil {
 		errs = errors.Join(errs, err)
+	}
+
+	if c.tracerShutdown != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := c.tracerShutdown(ctx); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("shutting down tracer: %w", err))
+			c.log.Error("failed to flush fibre client tracer", "error", err)
+		}
 	}
 
 	if c.pyroscope != nil {

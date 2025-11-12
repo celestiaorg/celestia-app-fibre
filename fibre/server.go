@@ -85,7 +85,7 @@ func NewServer(
 		tracer = cfg.Tracer
 	} else {
 		var err error
-		tracer, tracerShutdown, err = newServerTracer(context.Background(), cfg.Log)
+		tracer, tracerShutdown, err = newServerTracer(context.Background(), cfg.Log, cfg.ChainID)
 		if err != nil {
 			return nil, fmt.Errorf("configuring fibre tracer: %w", err)
 		}

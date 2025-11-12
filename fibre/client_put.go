@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -69,7 +68,8 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 		attribute.Int("sigs_amount", len(signedPromise.ValidatorSignatures)),
 	))
 
-	if os.Getenv("FIBREMAXXXING") != "" {
+	const FIBREMAXXXING = true
+	if FIBREMAXXXING {
 		return PutResult{
 			Commitment:          commitment,
 			ValidatorSignatures: signedPromise.ValidatorSignatures,
