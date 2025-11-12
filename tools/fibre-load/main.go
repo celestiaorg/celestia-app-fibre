@@ -366,6 +366,14 @@ func runLoad(
 				PayloadSize: payloadSize,
 				LatencyMs:   latency.Milliseconds(),
 			})
+
+			// Track successful blob upload
+			metricsWriter.WriteBlobMetric(BlobMetric{
+				Size:        payloadSize,
+				SubmittedAt: endTime,
+				TxHash:      resp.TxHash,
+				Height:      resp.Height,
+			})
 		}(count)
 	}
 
@@ -621,11 +629,22 @@ type TxMetric struct {
 	LatencyMs   int64     `json:"latency_ms,omitempty"`
 }
 
+// BlobMetric represents a successful blob upload record.
+type BlobMetric struct {
+	Size         int       `json:"size"`
+	SubmittedAt  time.Time `json:"submitted_at"`
+	TxHash       string    `json:"tx_hash"`
+	Height       uint64    `json:"height"`
+}
+
 // metricsWriter handles writing transaction metrics to a file.
 type metricsWriter struct {
-	file   *os.File
-	writer *bufio.Writer
-	mu     sync.Mutex
+	file       *os.File
+	writer     *bufio.Writer
+	mu         sync.Mutex
+	blobFile   *os.File
+	blobWriter *bufio.Writer
+	blobMu     sync.Mutex
 }
 
 // newMetricsWriter creates a new metrics writer that writes to a timestamped file
@@ -636,7 +655,7 @@ func newMetricsWriter(tracesDir string) (*metricsWriter, error) {
 		return nil, fmt.Errorf("failed to create traces directory: %w", err)
 	}
 
-	// Create filename
+	// Create filename for transaction metrics
 	filename := filepath.Join(tracesDir, "fibre-load-metrics.jsonl")
 
 	// Open file for writing
@@ -645,11 +664,25 @@ func newMetricsWriter(tracesDir string) (*metricsWriter, error) {
 		return nil, fmt.Errorf("failed to create metrics file: %w", err)
 	}
 
-	fmt.Printf("Writing metrics to: %s\n\n", filename)
+	fmt.Printf("Writing metrics to: %s\n", filename)
+
+	// Create filename for blob tracking
+	blobFilename := filepath.Join(tracesDir, "blobs.jsonl")
+
+	// Open blob file for appending (create if doesn't exist)
+	blobFile, err := os.OpenFile(blobFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("failed to create blobs file: %w", err)
+	}
+
+	fmt.Printf("Writing blob uploads to: %s\n\n", blobFilename)
 
 	return &metricsWriter{
-		file:   file,
-		writer: bufio.NewWriter(file),
+		file:       file,
+		writer:     bufio.NewWriter(file),
+		blobFile:   blobFile,
+		blobWriter: bufio.NewWriter(blobFile),
 	}, nil
 }
 
@@ -675,7 +708,29 @@ func (mw *metricsWriter) WriteMetric(metric TxMetric) error {
 	return mw.writer.Flush()
 }
 
-// Close flushes and closes the metrics file.
+// WriteBlobMetric writes a blob upload metric to the blobs.jsonl file.
+func (mw *metricsWriter) WriteBlobMetric(metric BlobMetric) error {
+	mw.blobMu.Lock()
+	defer mw.blobMu.Unlock()
+
+	data, err := json.Marshal(metric)
+	if err != nil {
+		return fmt.Errorf("failed to marshal blob metric: %w", err)
+	}
+
+	if _, err := mw.blobWriter.Write(data); err != nil {
+		return fmt.Errorf("failed to write blob metric: %w", err)
+	}
+
+	if err := mw.blobWriter.WriteByte('\n'); err != nil {
+		return fmt.Errorf("failed to write newline: %w", err)
+	}
+
+	// Flush to ensure data is written
+	return mw.blobWriter.Flush()
+}
+
+// Close flushes and closes the metrics files.
 func (mw *metricsWriter) Close() error {
 	mw.mu.Lock()
 	defer mw.mu.Unlock()
@@ -686,6 +741,17 @@ func (mw *metricsWriter) Close() error {
 
 	if err := mw.file.Close(); err != nil {
 		return fmt.Errorf("failed to close metrics file: %w", err)
+	}
+
+	mw.blobMu.Lock()
+	defer mw.blobMu.Unlock()
+
+	if err := mw.blobWriter.Flush(); err != nil {
+		return fmt.Errorf("failed to flush blob metrics: %w", err)
+	}
+
+	if err := mw.blobFile.Close(); err != nil {
+		return fmt.Errorf("failed to close blob metrics file: %w", err)
 	}
 
 	return nil
