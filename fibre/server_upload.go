@@ -222,7 +222,7 @@ func (s *Server) verifyRows(ctx context.Context, promise *PaymentPromise, rows *
 		K:           s.cfg.OriginalRows,
 		N:           s.cfg.ParityRows,
 		RowSize:     rowSize,
-		WorkerCount: s.cfg.CodingWorkers,
+		WorkerCount: s.cfg.CodingWorkers, // not actually used
 	})
 	if err != nil {
 		return fmt.Errorf("creating verification context: %w", err)
@@ -230,6 +230,7 @@ func (s *Server) verifyRows(ctx context.Context, promise *PaymentPromise, rows *
 
 	totalRows := s.cfg.OriginalRows + s.cfg.ParityRows
 	errgrp, ctx := errgroup.WithContext(ctx)
+	errgrp.SetLimit(s.cfg.CodingWorkers)
 	for _, rowPb := range rows.Rows {
 		errgrp.Go(func() error {
 			row, err := parseRow(rowPb, totalRows)
