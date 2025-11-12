@@ -807,6 +807,8 @@ github.com/celestiaorg/reedsolomon v1.12.6-0.20250824224240-8b66bda83fd0 h1:nM6t
 github.com/celestiaorg/reedsolomon v1.12.6-0.20250824224240-8b66bda83fd0/go.mod h1:39naxIQYdj/oxjNZVvWvhRreh3uguAq4v6Ke7mI9cDI=
 github.com/celestiaorg/rsema1d v0.0.0-20251111040743-7d12ec49bd3a h1:uh9jdQU8/JsqV8nxnvmLmZdJBDFxV/cW1Gci3sqzUX8=
 github.com/celestiaorg/rsema1d v0.0.0-20251111040743-7d12ec49bd3a/go.mod h1:WtDhTrN17IA6ZBLEIZsXv+IAQJD4grchKeodmLbjt+g=
+github.com/celestiaorg/rsema1d v0.0.0-20251112110726-f22198962325 h1:8Dj3tUyRIPZYEJs4Nei3g8+cAeZb09gXTEN8dkPQ194=
+github.com/celestiaorg/rsema1d v0.0.0-20251112110726-f22198962325/go.mod h1:WtDhTrN17IA6ZBLEIZsXv+IAQJD4grchKeodmLbjt+g=
 github.com/celestiaorg/rsmt2d v0.15.1 h1:NF4D0LX501oDjw00RoJrTUrMHrO+Kv0LewL0FKQU7hg=
 github.com/celestiaorg/rsmt2d v0.15.1/go.mod h1:WKkpXoD1foHn4qgFx6GNoz36Wm0fbCh29ze4rA7ZwCs=
 github.com/cenkalti/backoff v2.2.1+incompatible h1:tNowT99t7UNflLxfYYSlKYsBpXdEet03Pg2g16Swow4=
