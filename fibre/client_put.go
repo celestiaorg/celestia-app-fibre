@@ -44,7 +44,6 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 	)
 	defer span.End()
 
-	// encoding section
 	blob, err := NewBlob(data, c.cfg.BlobConfig)
 	if err != nil {
 		span.RecordError(err)
@@ -52,6 +51,31 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 		return result, err
 	}
 
+	return c.putBlob(ctx, span, ns, blob)
+}
+
+// PutBlob uploads a pre-encoded [Blob] to the Fibre network without re-encoding the data.
+// This is useful when the same blob needs to be submitted multiple times.
+func (c *Client) PutBlob(ctx context.Context, ns share.Namespace, blob *Blob) (result PutResult, err error) {
+	if c.txClient == nil {
+		return result, errors.New("tx client is not configured; Put cannot be executed")
+	}
+	if blob == nil {
+		return result, fmt.Errorf("blob cannot be nil")
+	}
+
+	ctx, span := c.tracer.Start(ctx, "fibre.Client.Put",
+		trace.WithAttributes(
+			attribute.String("namespace", ns.String()),
+			attribute.Int("data_size", blob.DataSize()),
+		),
+	)
+	defer span.End()
+
+	return c.putBlob(ctx, span, ns, blob)
+}
+
+func (c *Client) putBlob(ctx context.Context, span trace.Span, ns share.Namespace, blob *Blob) (result PutResult, err error) {
 	commitment := blob.Commitment()
 	span.AddEvent("blob_encoded", trace.WithAttributes(
 		attribute.String("blob_commitment", commitment.String()),
@@ -70,6 +94,7 @@ func (c *Client) Put(ctx context.Context, ns share.Namespace, data []byte) (resu
 
 	const FIBREMAXXXING = true
 	if FIBREMAXXXING {
+		span.SetStatus(codes.Ok, "")
 		return PutResult{
 			Commitment:          commitment,
 			ValidatorSignatures: signedPromise.ValidatorSignatures,

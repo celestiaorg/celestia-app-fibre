@@ -57,6 +57,7 @@ var (
 	interval          time.Duration
 	payloadSize       int
 	maxConcurrency    int
+	reuseBlob         bool
 	namespaceStr      string
 	validatorHostFile string
 	chainID           string
@@ -106,6 +107,7 @@ func init() {
 	rootCmd.Flags().IntVarP(&payloadSize, "payload-size", "s", defaultPayloadSize, "size of payload data in bytes")
 	rootCmd.Flags().IntVarP(&maxConcurrency, "max-concurrency", "m", 1, "maximum number of concurrent transactions in flight")
 	rootCmd.Flags().StringVarP(&namespaceStr, "namespace", "n", defaultNamespaceStr, "namespace for blob submission")
+	rootCmd.Flags().BoolVar(&reuseBlob, "reuse-blob", true, "reuse a single pre-encoded blob for all submissions to minimize encoding overhead")
 	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
 	rootCmd.Flags().StringVarP(&chainID, "chain-id", "c", defaultChainID, "chain ID for the network (can also be set via CHAIN_ID env var)")
 	rootCmd.Flags().StringVarP(&tracesDir, "traces-dir", "t", "", "directory to write metrics traces (defaults to ~/.celestia-app/data/traces)")
@@ -253,6 +255,20 @@ func runLoad(
 		return fmt.Errorf("failed to create fibre client: %w", err)
 	}
 
+	var reusableBlob *fibre.Blob
+	if reuseBlob {
+		fmt.Println("Generating single reusable blob payload...")
+		blobData := make([]byte, payloadSize)
+		if _, err := rand.Read(blobData); err != nil {
+			return fmt.Errorf("failed to generate reusable blob data: %w", err)
+		}
+		reusableBlob, err = fibre.NewBlob(blobData, fibreClient.Config().BlobConfig)
+		if err != nil {
+			return fmt.Errorf("failed to encode reusable blob: %w", err)
+		}
+		fmt.Printf("Reusing blob commitment %s for all submissions\n\n", reusableBlob.Commitment().String())
+	}
+
 	// Fund escrow account upfront with enough for many transactions
 	// Estimate: 10_000_000 transactions worth of escrow funding
 	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 10000000); err != nil {
@@ -299,21 +315,29 @@ func runLoad(
 			defer func() { <-sem }()
 
 			startTime := time.Now()
-			blobData := make([]byte, payloadSize)
-			if _, err := rand.Read(blobData); err != nil {
-				fmt.Printf("[%d] Failed to generate random data: %v\n", txNum, err)
-				metricsWriter.WriteMetric(TxMetric{
-					TxNum:       txNum,
-					StartTime:   startTime,
-					EndTime:     time.Now(),
-					Success:     false,
-					Error:       err.Error(),
-					PayloadSize: payloadSize,
-				})
-				return
-			}
+			var (
+				resp fibre.PutResult
+				err  error
+			)
+			if reuseBlob {
+				resp, err = fibreClient.PutBlob(ctx, namespace, reusableBlob)
+			} else {
+				blobData := make([]byte, payloadSize)
+				if _, err = rand.Read(blobData); err != nil {
+					fmt.Printf("[%d] Failed to generate random data: %v\n", txNum, err)
+					metricsWriter.WriteMetric(TxMetric{
+						TxNum:       txNum,
+						StartTime:   startTime,
+						EndTime:     time.Now(),
+						Success:     false,
+						Error:       err.Error(),
+						PayloadSize: payloadSize,
+					})
+					return
+				}
 
-			resp, err := fibreClient.Put(ctx, namespace, blobData)
+				resp, err = fibreClient.Put(ctx, namespace, blobData)
+			}
 			endTime := time.Now()
 
 			if err != nil {

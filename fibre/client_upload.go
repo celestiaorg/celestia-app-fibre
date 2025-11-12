@@ -340,9 +340,6 @@ func (c *Client) uploadRows(
 		<-responsesExhaustedCh
 		return parentCtx.Err()
 	}
-
-	// unreachable, but keeps compiler happy if select gains new cases later.
-	return nil
 }
 
 // makeUploadRequests constructs the requests map for all validators.
