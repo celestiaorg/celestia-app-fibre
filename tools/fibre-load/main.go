@@ -83,20 +83,23 @@ and submits transactions at a configurable rate.`,
 			keyringDir = filepath.Join(homeDir, defaultKeyringDir)
 		}
 
-		// Create cancellable context
+		// Create cancellable context for operations
 		ctx, cancel := context.WithCancel(cmd.Context())
 		defer cancel()
+
+		// Create shutdown signal channel
+		shutdown := make(chan struct{})
 
 		// Handle interrupt signal
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, os.Interrupt)
 		go func() {
 			<-sigChan
-			fmt.Println("\nShutting down...")
-			cancel()
+			fmt.Println("\nShutdown signal received. Waiting for running operations to complete...")
+			close(shutdown)
 		}()
 
-		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles)
+		return runLoad(ctx, shutdown, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles)
 	},
 }
 
@@ -130,6 +133,7 @@ func main() {
 
 func runLoad(
 	ctx context.Context,
+	shutdown <-chan struct{},
 	endpoint string,
 	keyringDir string,
 	interval time.Duration,
@@ -305,11 +309,6 @@ func runLoad(
 		sem     = make(chan struct{}, maxConcurrency)
 	)
 
-	defer func() {
-		wg.Wait()
-		fmt.Printf("\nTotal transactions submitted: %d\n", txCount.Load())
-	}()
-
 	startTx := func(count uint64) {
 		wg.Add(1)
 		go func(txNum uint64) {
@@ -379,16 +378,38 @@ func runLoad(
 		}(count)
 	}
 
+	// Main loop - stops accepting new work on shutdown, but keeps context alive for running operations
 	for {
 		select {
+		case <-shutdown:
+			// Graceful shutdown: stop accepting new work and wait for in-flight operations
+			ticker.Stop()
+			fmt.Println("Waiting for in-flight operations to complete...")
+			wg.Wait()
+			fmt.Printf("\nGraceful shutdown complete. Total transactions submitted: %d\n", txCount.Load())
+			return nil
 		case <-ctx.Done():
+			// Context cancelled (parent context done)
+			ticker.Stop()
+			wg.Wait()
+			fmt.Printf("\nTotal transactions submitted: %d\n", txCount.Load())
 			return nil
 		case <-ticker.C:
 			select {
 			case sem <- struct{}{}:
 				count := txCount.Add(1)
 				startTx(count)
+			case <-shutdown:
+				// Check shutdown again in case it happened while waiting for semaphore
+				ticker.Stop()
+				fmt.Println("Waiting for in-flight operations to complete...")
+				wg.Wait()
+				fmt.Printf("\nGraceful shutdown complete. Total transactions submitted: %d\n", txCount.Load())
+				return nil
 			case <-ctx.Done():
+				ticker.Stop()
+				wg.Wait()
+				fmt.Printf("\nTotal transactions submitted: %d\n", txCount.Load())
 				return nil
 			}
 		}
