@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	square "github.com/celestiaorg/go-square/v3"
 	"github.com/celestiaorg/go-square/v3/tx"
 	tmbytes "github.com/cometbft/cometbft/libs/bytes"
@@ -48,7 +49,7 @@ func (fsb *FilteredSquareBuilder) Fill(ctx sdk.Context, txs [][]byte) [][]byte {
 	logger := ctx.Logger().With("app/filtered-square-builder")
 
 	// note that there is an additional filter step for tx size of raw txs here
-	normalTxs, blobTxs := separateTxs(fsb.txConfig, txs)
+	normalTxs, blobTxs, payForFibreTxs := separateTxs(fsb.txConfig, txs)
 
 	var (
 		nonPFBMessageCount = 0
@@ -144,9 +145,53 @@ func (fsb *FilteredSquareBuilder) Fill(ctx sdk.Context, txs [][]byte) [][]byte {
 		m++
 	}
 
-	kept := make([][]byte, 0, m+n)
+	payForFibreTxCount := 0
+
+	for _, tx := range payForFibreTxs {
+		sdkTx, err := dec(tx)
+		if err != nil {
+			logger.Error("decoding already checked pay-for-fibre transaction", "tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()), "error", err)
+			continue
+		}
+
+		// Set the tx size on the context before calling the AnteHandler
+		ctx = ctx.WithTxBytes(tx)
+
+		msgTypes := msgTypes(sdkTx)
+
+		// Append pay-for-fibre transaction to builder (will be routed to PayForFibreNamespace in Export)
+		if !fsb.builder.AppendPayForFibreTx(tx) {
+			logger.Debug("skipping pay-for-fibre tx because it was too large to fit in the square", "tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()))
+			continue
+		}
+
+		ctx, err = fsb.handler(ctx, sdkTx, false)
+		// either the transaction is invalid (ie incorrect nonce) and we
+		// simply want to remove this tx, or we're catching a panic from one
+		// of the anteHandlers which is logged.
+		if err != nil {
+			logger.Error(
+				"filtering already checked pay-for-fibre transaction",
+				"tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()),
+				"error", err,
+				"msgs", msgTypes,
+			)
+			telemetry.IncrCounter(1, "prepare_proposal", "invalid_pay_for_fibre_txs")
+			err = fsb.builder.RevertLastPayForFibreTx()
+			if err != nil {
+				logger.Error("reverting last pay-for-fibre transaction", "error", err)
+			}
+			continue
+		}
+
+		payForFibreTxs[payForFibreTxCount] = tx
+		payForFibreTxCount++
+	}
+
+	kept := make([][]byte, 0, m+n+payForFibreTxCount)
 	kept = append(kept, normalTxs[:n]...)
 	kept = append(kept, encodeBlobTxs(blobTxs[:m])...)
+	kept = append(kept, payForFibreTxs[:payForFibreTxCount]...)
 	return kept
 }
 
@@ -171,10 +216,13 @@ func encodeBlobTxs(blobTxs []*tx.BlobTx) [][]byte {
 	return txs
 }
 
-// separateTxs decodes raw tendermint txs into normal and blob txs.
-func separateTxs(_ client.TxConfig, rawTxs [][]byte) ([][]byte, []*tx.BlobTx) {
-	normalTxs := make([][]byte, 0, len(rawTxs))
-	blobTxs := make([]*tx.BlobTx, 0, len(rawTxs))
+// separateTxs decodes raw tendermint txs into normal, blob, and pay-for-fibre txs.
+func separateTxs(txConfig client.TxConfig, rawTxs [][]byte) (normalTxs [][]byte, blobTxs []*tx.BlobTx, payForFibreTxs [][]byte) {
+	normalTxs = make([][]byte, 0, len(rawTxs))
+	blobTxs = make([]*tx.BlobTx, 0, len(rawTxs))
+	payForFibreTxs = make([][]byte, 0, len(rawTxs))
+	dec := txConfig.TxDecoder()
+
 	for _, rawTx := range rawTxs {
 		// this check in theory shouldn't get hit, as txs should be filtered
 		// in CheckTx. However in tests we're inserting too large of txs
@@ -190,8 +238,31 @@ func separateTxs(_ client.TxConfig, rawTxs [][]byte) ([][]byte, []*tx.BlobTx) {
 			}
 			blobTxs = append(blobTxs, bTx)
 		} else {
-			normalTxs = append(normalTxs, rawTx)
+			// Check if this is a pay-for-fibre transaction
+			sdkTx, err := dec(rawTx)
+			if err != nil {
+				normalTxs = append(normalTxs, rawTx)
+				continue
+			}
+
+			if _, hasPayForFibre := extractMsgPayForFibre(sdkTx); hasPayForFibre {
+				payForFibreTxs = append(payForFibreTxs, rawTx)
+			} else {
+				normalTxs = append(normalTxs, rawTx)
+			}
 		}
 	}
-	return normalTxs, blobTxs
+	return normalTxs, blobTxs, payForFibreTxs
+}
+
+// extractMsgPayForFibre extracts MsgPayForFibre from a transaction's messages.
+// Returns the first MsgPayForFibre found and true if found, nil and false otherwise.
+func extractMsgPayForFibre(sdkTx sdk.Tx) (*fibretypes.MsgPayForFibre, bool) {
+	msgs := sdkTx.GetMsgs()
+	for _, msg := range msgs {
+		if pff, ok := msg.(*fibretypes.MsgPayForFibre); ok {
+			return pff, true
+		}
+	}
+	return nil, false
 }
