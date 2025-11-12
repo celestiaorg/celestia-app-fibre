@@ -228,7 +228,9 @@ func runLoad(
 	}
 
 	hostRegistry := newStaticHostRegistry(validatorHosts)
-	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
+	valGet := &cachedSetGetter{
+		underlying: fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn)),
+	}
 
 	// Configure fibre client with the selected key and chain ID
 	fibreCfg := fibre.DefaultClientConfig()
@@ -755,4 +757,26 @@ func (mw *metricsWriter) Close() error {
 	}
 
 	return nil
+}
+
+// cachedSetGetter wraps a validator.SetGetter and caches the first Head() call.
+// This eliminates redundant gRPC calls during load testing when the validator set is static.
+type cachedSetGetter struct {
+	underlying validator.SetGetter
+	once       sync.Once
+	cached     validator.Set
+	err        error
+}
+
+// Head returns the cached validator set after the first call.
+func (c *cachedSetGetter) Head(ctx context.Context) (validator.Set, error) {
+	c.once.Do(func() {
+		c.cached, c.err = c.underlying.Head(ctx)
+	})
+	return c.cached, c.err
+}
+
+// GetByHeight delegates to the underlying getter (no caching for historical queries).
+func (c *cachedSetGetter) GetByHeight(ctx context.Context, height uint64) (validator.Set, error) {
+	return c.underlying.GetByHeight(ctx, height)
 }
