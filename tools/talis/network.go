@@ -298,7 +298,7 @@ func (n *Network) SaveValidatorHostMapping(filename string) error {
 		}
 
 		// Use port 9091 as the default app gRPC port where Fibre is served
-		host := fmt.Sprintf("%s:9091", nodeInfo.IP)
+		host := fmt.Sprintf("%s:26658", nodeInfo.IP)
 		hostMapping[consensusAddrHex] = host
 	}
 
