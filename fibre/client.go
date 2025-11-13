@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/bits"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -259,6 +260,16 @@ func (c *Client) Close() error {
 
 // MaxMessageSize returns the maximum message size that can be sent over the network.
 func MaxMessageSize(cfg BlobConfig) int {
+	nextPowerOfTwo := func(n int) int {
+		if n <= 1 {
+			return 1
+		}
+		if n&(n-1) == 0 {
+			return n
+		}
+		return 1 << bits.Len(uint(n))
+	}
+
 	msgSize := cfg.MaxShardSize() + MaxPaymentPromiseSize
-	return msgSize + (msgSize / 50) // add 2% protobuf overhead
+	return nextPowerOfTwo(msgSize + (msgSize / 50)) // add 2% protobuf overhead
 }

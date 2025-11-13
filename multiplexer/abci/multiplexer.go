@@ -178,6 +178,14 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 	// startGRPCServer the grpc server in the case of a native app. If using an embedded app
 	// it will use that instead.
 	if m.svrCfg.GRPC.Enable {
+		serverConfig := fibre.DefaultServerConfig()
+		serverConfig.ChainID = m.chainID
+		serverConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+		serverConfig.ShardingFactor = 5
+		maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
+		m.svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
+		m.svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
+
 		// Create and configure gRPC server (but don't start serving yet)
 		grpcServer, clientContext, err := m.createGRPCServer()
 		if err != nil {
@@ -189,17 +197,12 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		// This ensures all services are registered before Server.Serve() is called
 		var fibreServer *fibre.Server
 		if m.cmNode != nil {
-			serverConfig := fibre.DefaultServerConfig()
-			serverConfig.ChainID = m.chainID
-			serverConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+
 			// TODO: convert the m.Logger into a *slog.Logger and then propgate
 			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, serverConfig)
 			if err != nil {
 				return fmt.Errorf("failed to start Fibre server: %w", err)
 			}
-			maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
-			m.svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
-			m.svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
 
 			// Add graceful shutdown for Fibre server
 			if fibreServer != nil {
@@ -374,6 +377,9 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 		grpc.MaxSendMsgSize(maxSendMsgSize),
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
+		grpc.ReadBufferSize(maxRecvMsgSize),
+		grpc.InitialConnWindowSize(int32(maxRecvMsgSize)),
+		grpc.InitialWindowSize(int32(maxRecvMsgSize)),
 	)
 
 	// Register application gRPC services

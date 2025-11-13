@@ -242,6 +242,8 @@ func runLoad(
 	fibreCfg := fibre.DefaultClientConfig()
 	fibreCfg.DefaultKeyName = keyName
 	fibreCfg.ChainID = chainID
+	fibreCfg.ShardingFactor = 5
+
 	if pyroURL != "" {
 		labels := map[string]string{
 			"component": "fibre-load",

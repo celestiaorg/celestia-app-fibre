@@ -118,6 +118,7 @@ func startCommandHandler(
 		maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
 		svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
 		svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
+		serverConfig.ShardingFactor = 5
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
@@ -239,6 +240,9 @@ func createGRPCServer(
 		grpc.ForceServerCodec(codec.NewProtoCodec(clientCtx.InterfaceRegistry).GRPCCodec()),
 		grpc.MaxSendMsgSize(maxSendMsgSize),
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
+		grpc.ReadBufferSize(maxRecvMsgSize),
+		grpc.InitialConnWindowSize(int32(maxRecvMsgSize)),
+		grpc.InitialWindowSize(int32(maxRecvMsgSize)),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 
