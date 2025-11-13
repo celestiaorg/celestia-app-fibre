@@ -16,6 +16,8 @@ import (
 	"github.com/cosmos/gogoproto/grpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
 )
 
 // ServerConfig contains configuration options for the Fibre [Server].
@@ -64,6 +66,12 @@ type Server struct {
 	tracer         trace.Tracer
 	tracerShutdown func(context.Context) error
 }
+
+// Compile-time checks that Server implements both gRPC and DRPC interfaces
+var (
+	_ types.FibreServer      = (*Server)(nil) // gRPC interface
+	_ types.DRPCFibreServer  = (*Server)(nil) // DRPC interface
+)
 
 // NewServer creates a new Fibre [Server] with the provided dependencies.
 // Returns an error if the validator's public key cannot be retrieved.
@@ -137,6 +145,31 @@ func NewServerFromGRPC(
 	}
 	types.RegisterFibreServer(grpcServer, server)
 	return server, nil
+}
+
+// NewServerFromDRPC creates a new Fibre [Server] for DRPC and returns both the server
+// and a configured DRPC handler (mux) that can be passed to drpcserver.NewWithOptions().
+// It follows the same pattern as NewServerFromGRPC but for DRPC.
+func NewServerFromDRPC(
+	privVal core.PrivValidator,
+	grpcClient grpc.ClientConn, // Still use gRPC client for queries
+	cfg ServerConfig,
+) (*Server, drpc.Handler, error) {
+	queryClient := types.NewQueryClient(grpcClient)
+	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcClient))
+
+	server, err := NewServer(privVal, queryClient, valGet, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create a DRPC mux and register the Fibre service
+	mux := drpcmux.New()
+	if err := types.DRPCRegisterFibre(mux, server); err != nil {
+		return nil, nil, fmt.Errorf("registering Fibre DRPC service: %w", err)
+	}
+
+	return server, mux, nil
 }
 
 func (s *Server) Config() ServerConfig {

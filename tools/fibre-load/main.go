@@ -631,10 +631,10 @@ type TxMetric struct {
 
 // BlobMetric represents a successful blob upload record.
 type BlobMetric struct {
-	Size         int       `json:"size"`
-	SubmittedAt  time.Time `json:"submitted_at"`
-	TxHash       string    `json:"tx_hash"`
-	Height       uint64    `json:"height"`
+	Size        int       `json:"size"`
+	SubmittedAt time.Time `json:"submitted_at"`
+	TxHash      string    `json:"tx_hash"`
+	Height      uint64    `json:"height"`
 }
 
 // metricsWriter handles writing transaction metrics to a file.

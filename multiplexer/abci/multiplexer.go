@@ -41,6 +41,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcserver"
 )
 
 const (
@@ -85,6 +87,10 @@ type Multiplexer struct {
 	ctx context.Context
 	// g is the errgroup to which the gRPC server, API server, block event listener, and signal handler are added to.
 	g *errgroup.Group
+	// drpcListener is the network listener for the DRPC server.
+	drpcListener net.Listener
+	// drpcShutdown is the channel to signal DRPC server shutdown.
+	drpcShutdown chan struct{}
 	// traceWriter is the trace writer for the multiplexer.
 	traceWriter io.WriteCloser
 }
@@ -179,46 +185,65 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 	// it will use that instead.
 	if m.svrCfg.GRPC.Enable {
 		// Create and configure gRPC server (but don't start serving yet)
+		// Note: Fibre service will use DRPC, but other services (Query, Msg) still use gRPC
 		grpcServer, clientContext, err := m.createGRPCServer()
 		if err != nil {
 			return err
 		}
 		m.clientContext = clientContext // update client context with grpc
 
-		// Register Fibre server BEFORE starting the gRPC server
-		// This ensures all services are registered before Server.Serve() is called
-		var fibreServer *fibre.Server
-		if m.cmNode != nil {
-			serverConfig := fibre.DefaultServerConfig()
-			serverConfig.ChainID = m.chainID
-			serverConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
-			// TODO: convert the m.Logger into a *slog.Logger and then propgate
-			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, serverConfig)
-			if err != nil {
-				return fmt.Errorf("failed to start Fibre server: %w", err)
-			}
-
-			// Add graceful shutdown for Fibre server
-			if fibreServer != nil {
-				m.g.Go(func() error {
-					<-m.ctx.Done()
-					m.logger.Info("Stopping Fibre server")
-					if err := fibreServer.Stop(); err != nil {
-						m.logger.Error("Error stopping Fibre server", "error", err)
-						return err
-					}
-					return nil
-				})
-			}
-		} else {
-			m.logger.Info("CometBFT node is not running, skipping Fibre server startup")
-		}
-
-		// Now start the gRPC server (after all services are registered)
+		// Start the gRPC server (for Query, Msg, and other non-Fibre services)
 		if err := m.startGRPCServer(grpcServer); err != nil {
 			return err
 		}
 
+		// Register Fibre DRPC service
+		// Note: Fibre runs exclusively on DRPC, not gRPC
+		var fibreDRPCServer *fibre.Server
+		var drpcHandler drpc.Handler
+		if m.cmNode != nil {
+			// Configure Fibre server
+			drpcServerConfig := fibre.DefaultServerConfig()
+			drpcServerConfig.ChainID = m.chainID
+			drpcServerConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+
+			// Create Fibre server for DRPC and get the configured handler (mux)
+			var err error
+			fibreDRPCServer, drpcHandler, err = fibre.NewServerFromDRPC(
+				m.cmNode.PrivValidator(),
+				m.clientContext.GRPCClient, // Still use gRPC client for queries
+				drpcServerConfig,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create Fibre DRPC server: %w", err)
+			}
+
+			// Add graceful shutdown for Fibre DRPC server
+			m.g.Go(func() error {
+				<-m.ctx.Done()
+				m.logger.Info("Stopping Fibre DRPC server")
+				if err := fibreDRPCServer.Stop(); err != nil {
+					m.logger.Error("Error stopping Fibre DRPC server", "error", err)
+					return err
+				}
+				return nil
+			})
+
+			// Create and configure DRPC server with the handler
+			drpcServer, err := m.createDRPCServer(drpcHandler)
+			if err != nil {
+				return fmt.Errorf("failed to create DRPC server: %w", err)
+			}
+
+			// Start DRPC server on port 26658
+			drpcPort := "26658" // TODO: Make this configurable
+			if err := m.startDRPCServer(drpcServer, drpcPort); err != nil {
+				return fmt.Errorf("failed to start DRPC server: %w", err)
+			}
+			m.logger.Info("DRPC server started", "port", drpcPort)
+		} else {
+			m.logger.Info("CometBFT node is not running, skipping Fibre DRPC server startup")
+		}
 		// startAPIServer starts the api server for a native app. If using an embedded app
 		// it will use that instead.
 		if m.svrCfg.API.Enable {
@@ -410,6 +435,16 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	return grpcSrv, m.clientContext, nil
 }
 
+// createDRPCServer creates and configures the DRPC server but does not start serving.
+// This allows services (like Fibre) to be registered before the server starts.
+func (m *Multiplexer) createDRPCServer(handler drpc.Handler) (*drpcserver.Server, error) {
+	// Create DRPC server with the provided handler (mux with registered services)
+	drpcSrv := drpcserver.NewWithOptions(handler, drpcserver.Options{})
+
+	m.logger.Info("DRPC server created")
+	return drpcSrv, nil
+}
+
 // startGRPCServer starts the gRPC server and BlockAPI event listener.
 // The server must have all services registered before this is called.
 func (m *Multiplexer) startGRPCServer(grpcSrv *grpc.Server) error {
@@ -431,6 +466,58 @@ func (m *Multiplexer) startGRPCServer(grpcSrv *grpc.Server) error {
 	})
 
 	m.logger.Info("gRPC server started", "address", m.svrCfg.GRPC.Address)
+	return nil
+}
+
+// startDRPCServer starts the DRPC server on the specified port.
+// The server must have all services registered before this is called.
+func (m *Multiplexer) startDRPCServer(drpcSrv *drpcserver.Server, port string) error {
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
+	if err != nil {
+		return fmt.Errorf("failed to create DRPC listener on port %s: %w", port, err)
+	}
+	m.drpcListener = listener
+	m.drpcShutdown = make(chan struct{})
+
+	m.g.Go(func() error {
+		m.logger.Info("DRPC server started", "address", listener.Addr().String())
+
+		for {
+			select {
+			case <-m.ctx.Done():
+				// Context cancelled, stop accepting connections
+				m.logger.Info("DRPC server context cancelled")
+				return nil
+			case <-m.drpcShutdown:
+				// Explicit shutdown signal
+				m.logger.Info("DRPC server shutdown signal received")
+				return nil
+			default:
+				// Accept new connection with timeout
+				conn, err := listener.Accept()
+				if err != nil {
+					// Check if we're shutting down
+					select {
+					case <-m.ctx.Done():
+						return nil
+					case <-m.drpcShutdown:
+						return nil
+					default:
+						m.logger.Error("DRPC accept error", "error", err)
+						continue
+					}
+				}
+
+				// Handle connection in separate goroutine
+				go func() {
+					if err := drpcSrv.ServeOne(m.ctx, conn); err != nil {
+						m.logger.Debug("DRPC serve error", "error", err)
+					}
+				}()
+			}
+		}
+	})
+
 	return nil
 }
 
@@ -632,6 +719,19 @@ func (m *Multiplexer) startCmtNode() error {
 // even if an error occurs in order to shut down as many components as possible.
 func (m *Multiplexer) Stop() error {
 	m.logger.Info("stopping multiplexer")
+
+	// Stop DRPC server first
+	if m.drpcListener != nil {
+		m.logger.Info("closing DRPC listener")
+		if m.drpcShutdown != nil {
+			close(m.drpcShutdown) // Signal shutdown
+		}
+		if err := m.drpcListener.Close(); err != nil {
+			m.logger.Error("error closing DRPC listener", "error", err)
+			fmt.Println(err)
+		}
+	}
+
 	if err := m.stopCometNode(); err != nil {
 		fmt.Println(err)
 	}

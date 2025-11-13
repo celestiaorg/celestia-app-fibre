@@ -219,9 +219,9 @@ func (c *Client) uploadTo(
 		if checkCtx() {
 			return
 		}
-		log.WarnContext(ctx, "can't get grpc.FibreClient", "error", err)
+		log.WarnContext(ctx, "can't get DRPC FibreClient", "error", err)
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "can't get grpc.FibreClient")
+		span.SetStatus(codes.Error, "can't get DRPC FibreClient")
 		return
 	}
 	span.AddEvent("client_acquired")

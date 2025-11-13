@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
+	fibredrpc "github.com/celestiaorg/celestia-app/v6/fibre/drpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -72,9 +72,9 @@ type ClientConfig struct {
 	// DownloadConcurrency is the maximum number of concurrent read requests to validators.
 	DownloadConcurrency int
 
-	// NewClientFn is the constructor function for creating [types.Client]s.
-	// If nil, [types.DefaultFibreClientFn] will be used.
-	NewClientFn fibregrpc.NewClientFn
+	// NewClientFn is the constructor function for creating DRPC clients.
+	// If nil, [fibredrpc.DefaultNewClientFn] will be used.
+	NewClientFn fibredrpc.NewClientFn
 	// Log is the logger for the client.
 	// If nil, [slog.Default] will be used.
 	Log *slog.Logger
@@ -120,7 +120,7 @@ type Client struct {
 	tracerShutdown func(context.Context) error
 	clock          clock.Clock
 
-	clientCache *fibregrpc.ClientCache
+	clientCache *fibredrpc.ClientCache
 	uploadSem   chan struct{}
 	downloadSem chan struct{}
 
@@ -144,7 +144,7 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	}
 
 	if cfg.NewClientFn == nil {
-		cfg.NewClientFn = fibregrpc.DefaultNewClientFn(hostReg)
+		cfg.NewClientFn = fibredrpc.DefaultNewClientFn(hostReg)
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-client")
@@ -207,7 +207,7 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 		tracer:         cfg.Tracer,
 		tracerShutdown: tracerShutdown,
 		clock:          cfg.Clock,
-		clientCache:    fibregrpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
+		clientCache:    fibredrpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
 		uploadSem:      make(chan struct{}, cfg.UploadConcurrency),
 		downloadSem:    make(chan struct{}, cfg.DownloadConcurrency),
 		pyroscope:      pyroHandle,
