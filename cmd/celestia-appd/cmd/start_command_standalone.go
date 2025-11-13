@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -521,7 +522,7 @@ func handleYamuxConnection(ctx context.Context, svrCtx *server.Context, tcpConn 
 		// Note: We don't close the stream here; yamux handles stream lifecycle
 		go func(s net.Conn, id int) {
 			svrCtx.Logger.Info("DRPC: starting ServeOne", "stream_id", id)
-			if err := drpcSrv.ServeOne(ctx, s); err != nil {
+			if err := drpcSrv.ServeOne(ctx, s); err != nil && !errors.Is(err, io.EOF) {
 				svrCtx.Logger.Error("DRPC serve error", "error", err, "stream_id", id)
 			} else {
 				svrCtx.Logger.Info("DRPC: ServeOne completed successfully", "stream_id", id)

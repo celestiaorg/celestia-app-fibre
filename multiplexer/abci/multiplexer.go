@@ -571,7 +571,7 @@ func (m *Multiplexer) handleYamuxConnection(tcpConn net.Conn, drpcSrv *drpcserve
 		// Note: We don't close the stream here; yamux handles stream lifecycle
 		go func(s net.Conn, id int) {
 			m.logger.Info("DRPC: starting ServeOne", "stream_id", id)
-			if err := drpcSrv.ServeOne(m.ctx, s); err != nil {
+			if err := drpcSrv.ServeOne(m.ctx, s); err != nil && !errors.Is(err, io.EOF) {
 				m.logger.Error("DRPC serve error", "error", err, "stream_id", id)
 			} else {
 				m.logger.Info("DRPC: ServeOne completed successfully", "stream_id", id)
