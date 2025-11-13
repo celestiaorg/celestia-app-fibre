@@ -31,6 +31,8 @@ func main() {
 		uploadDataCmd(),
 		killTmuxSessionCmd(),
 		resetCmd(),
+		findMachineTypesCmd(),
+		pruneCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

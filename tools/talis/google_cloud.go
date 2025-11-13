@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,16 +18,48 @@ import (
 )
 
 const (
-	GCDefaultValidatorMachineType = "c3d-highcpu-16"
-	GCDefaultImage                = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts"
-	GCDefaultDiskSizeGB           = 400
+	GCDefaultValidatorMachineType = "c4d-highcpu-64"
+	// GCDefaultImage points to the Ubuntu 22.04 LTS family, which ships the gVNIC driver out of the box.
+	GCDefaultImage      = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts"
+	GCDefaultDiskSizeGB = 120
 )
 
 var (
-	GCRegions = []string{
+	C4D_GCRegions = []string{
+		"asia-northeast1",
+		"asia-south1",
+		"asia-southeast1",
+		"europe-west1",
+		"europe-west2",
+		"europe-west3",
+		"europe-west4",
+		"us-central1",
+		"us-east1",
+		"us-east4",
+		"us-west1",
+		"us-west4",
+	}
+	C4D_GCZones = map[string][]string{
+		"asia-northeast1": {"asia-northeast1-b", "asia-northeast1-c"},
+		"asia-south1":     {"asia-south1-b", "asia-south1-c"},
+		"asia-southeast1": {"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c"},
+		"europe-west1":    {"europe-west1-b"},
+		"europe-west2":    {"europe-west2-a", "europe-west2-b"},
+		"europe-west3":    {"europe-west3-a", "europe-west3-b", "europe-west3-c"},
+		"europe-west4":    {"europe-west4-a", "europe-west4-b", "europe-west4-c"},
+		"us-central1":     {"us-central1-a", "us-central1-b", "us-central1-c"},
+		"us-east1":        {"us-east1-b", "us-east1-c"},
+		"us-east4":        {"us-east4-a", "us-east4-b", "us-east4-c"},
+		"us-west1":        {"us-west1-a", "us-west1-b"},
+		"us-west4":        {"us-west4-a", "us-west4-b"},
+	}
+)
+
+var (
+	C3D_GCRegions = []string{
 		"us-central1", "us-east1", "us-east4", "asia-southeast1", "europe-west1", "asia-east1",
 	}
-	GCZones = map[string][]string{
+	C3D_GCZones = map[string][]string{
 		"us-central1":     {"us-central1-a", "us-central1-b", "us-central1-c"},
 		"us-east1":        {"us-east1-b", "us-east1-c", "us-east1-d"},
 		"us-east4":        {"us-east4-a", "us-east4-b", "us-east4-c"},
@@ -136,9 +169,12 @@ func (c *GCClient) List(ctx context.Context) error {
 	}
 	defer client.Close()
 
+	// Get all regions and zones across all machine types
+	regions, zonesMap := GetAllRegionsAndZones()
+
 	cnt := 0
-	for _, region := range GCRegions {
-		zones := GCZones[region]
+	for _, region := range regions {
+		zones := zonesMap[region]
 		for _, zone := range zones {
 			req := &computepb.ListInstancesRequest{
 				Project: c.project,
@@ -212,7 +248,90 @@ func NewGoogleCloudValidator(region string) Instance {
 }
 
 func RandomGCRegion() string {
-	return GCRegions[rand.Intn(len(GCRegions))]
+	return RandomGCRegionForMachineType(GCDefaultValidatorMachineType)
+}
+
+// RandomGCRegionForMachineType returns a random region that supports the given machine type
+func RandomGCRegionForMachineType(machineType string) string {
+	regions := GetRegionsForMachineType(machineType)
+	if len(regions) == 0 {
+		// Fallback to C3D regions if machine type not recognized
+		regions = C3D_GCRegions
+	}
+	return regions[rand.Intn(len(regions))]
+}
+
+// GetRegionsForMachineType returns the list of regions that support a given machine type
+func GetRegionsForMachineType(machineType string) []string {
+	machineType = strings.ToLower(machineType)
+
+	// Check by prefix
+	if strings.HasPrefix(machineType, "c4d-") {
+		return C4D_GCRegions
+	}
+	if strings.HasPrefix(machineType, "c3d-") {
+		return C3D_GCRegions
+	}
+
+	// Default to C3D regions for backwards compatibility
+	return C3D_GCRegions
+}
+
+// GetZonesForMachineType returns the zone map for a given machine type
+func GetZonesForMachineType(machineType string) map[string][]string {
+	machineType = strings.ToLower(machineType)
+
+	// Check by prefix
+	if strings.HasPrefix(machineType, "c4d-") {
+		return C4D_GCZones
+	}
+	if strings.HasPrefix(machineType, "c3d-") {
+		return C3D_GCZones
+	}
+
+	// Default to C3D zones for backwards compatibility
+	return C3D_GCZones
+}
+
+// GetAllRegionsAndZones returns all unique regions and zones across all machine type families
+func GetAllRegionsAndZones() ([]string, map[string][]string) {
+	allZones := make(map[string]map[string]bool)
+
+	// Collect zones from all machine type families
+	for region, zones := range C4D_GCZones {
+		if allZones[region] == nil {
+			allZones[region] = make(map[string]bool)
+		}
+		for _, zone := range zones {
+			allZones[region][zone] = true
+		}
+	}
+
+	for region, zones := range C3D_GCZones {
+		if allZones[region] == nil {
+			allZones[region] = make(map[string]bool)
+		}
+		for _, zone := range zones {
+			allZones[region][zone] = true
+		}
+	}
+
+	// Convert to sorted slices
+	var regions []string
+	zoneMap := make(map[string][]string)
+
+	for region := range allZones {
+		regions = append(regions, region)
+		var zoneList []string
+		for zone := range allZones[region] {
+			zoneList = append(zoneList, zone)
+		}
+		sort.Strings(zoneList)
+		zoneMap[region] = zoneList
+	}
+	sort.Strings(regions)
+
+	return regions, zoneMap
 }
 
 func gcClientOptions(cfg Config) ([]option.ClientOption, error) {
@@ -228,7 +347,13 @@ func gcClientOptions(cfg Config) ([]option.ClientOption, error) {
 }
 
 func RandomGCZone(region string) string {
-	zones, ok := GCZones[region]
+	return RandomGCZoneForMachineType(region, GCDefaultValidatorMachineType)
+}
+
+// RandomGCZoneForMachineType returns a random zone for a region that supports the machine type
+func RandomGCZoneForMachineType(region, machineType string) string {
+	zonesMap := GetZonesForMachineType(machineType)
+	zones, ok := zonesMap[region]
 	if !ok || len(zones) == 0 {
 		return region + "-a"
 	}
@@ -342,7 +467,7 @@ func CreateGCInstances(ctx context.Context, project string, insts []Instance, ss
 			start := time.Now()
 			log.Println("Creating instance", inst.Name, "in region", inst.Region, start.Format(time.RFC3339))
 
-			zone := RandomGCZone(inst.Region)
+			zone := RandomGCZoneForMachineType(inst.Region, inst.Slug)
 			pubIP, privIP, err := createGCInstance(ctx, project, inst, zone, sshKey, opts)
 			if err != nil {
 				results <- result{inst: inst, err: fmt.Errorf("create %s: %w", inst.Name, err)}
@@ -407,6 +532,9 @@ func createGCInstance(ctx context.Context, project string, inst Instance, zone s
 				{
 					Boot:       ptr(true),
 					AutoDelete: ptr(true),
+					GuestOsFeatures: []*computepb.GuestOsFeature{
+						{Type: ptr(computepb.GuestOsFeature_GVNIC.String())},
+					},
 					InitializeParams: &computepb.AttachedDiskInitializeParams{
 						SourceImage: &sourceImage,
 						DiskSizeGb:  ptr(int64(GCDefaultDiskSizeGB)),
@@ -415,6 +543,7 @@ func createGCInstance(ctx context.Context, project string, inst Instance, zone s
 			},
 			NetworkInterfaces: []*computepb.NetworkInterface{
 				{
+					NicType: ptr(computepb.NetworkInterface_GVNIC.String()),
 					AccessConfigs: []*computepb.AccessConfig{
 						{
 							Name: ptr("External NAT"),
@@ -496,8 +625,9 @@ func filterExistingGCInstances(ctx context.Context, project string, insts []Inst
 	defer client.Close()
 
 	existingTags := make(map[string]bool)
-	for _, region := range GCRegions {
-		zones := GCZones[region]
+	regions, zonesMap := GetAllRegionsAndZones()
+	for _, region := range regions {
+		zones := zonesMap[region]
 		for _, zone := range zones {
 			req := &computepb.ListInstancesRequest{
 				Project: project,
@@ -542,7 +672,9 @@ func findGCInstanceZone(ctx context.Context, project, instanceName, region strin
 	}
 	defer client.Close()
 
-	zones := GCZones[region]
+	// Try all zones across all machine types for this region
+	_, zonesMap := GetAllRegionsAndZones()
+	zones := zonesMap[region]
 	if len(zones) == 0 {
 		zones = []string{region + "-a", region + "-b", region + "-c"}
 	}
@@ -598,8 +730,9 @@ func checkForRunningGCExperiments(ctx context.Context, project string, opts []op
 	}
 	defer client.Close()
 
-	for _, region := range GCRegions {
-		zones := GCZones[region]
+	regions, zonesMap := GetAllRegionsAndZones()
+	for _, region := range regions {
+		zones := zonesMap[region]
 		for _, zone := range zones {
 			req := &computepb.ListInstancesRequest{
 				Project: project,
@@ -644,8 +777,9 @@ func destroyAllTalisGCInstances(ctx context.Context, project string, opts []opti
 	defer client.Close()
 
 	var talisInstances []Instance
-	for _, region := range GCRegions {
-		zones := GCZones[region]
+	regions, zonesMap := GetAllRegionsAndZones()
+	for _, region := range regions {
+		zones := zonesMap[region]
 		for _, zone := range zones {
 			req := &computepb.ListInstancesRequest{
 				Project: project,
