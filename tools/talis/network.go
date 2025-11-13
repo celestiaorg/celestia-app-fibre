@@ -31,13 +31,14 @@ import (
 // of a node.
 type NodeInfo struct {
 	Name           string `json:"name"`
-	IP             string `json:"ip"`
+	PublicIP       string `json:"public_ip"`
+	PrivateIP      string `json:"private_ip"`
 	NetworkAddress string `json:"network_address"`
 	Region         string `json:"region"`
 }
 
 func (n NodeInfo) PeerID() string {
-	return fmt.Sprintf("%s@%s:26656", n.NetworkAddress, n.IP)
+	return fmt.Sprintf("%s@%s:26656", n.NetworkAddress, n.PublicIP)
 }
 
 // Network maintains the initial state of the network. This includes the
@@ -90,11 +91,12 @@ func SetMinFee(codec codec.Codec, minFee float64) genesis.Modifier {
 // account and keyring are saved to the payload directory that can be used by
 // txsim.
 // if the stake is set to 0, a default value is used.
-func (n *Network) AddValidator(name, ip, payLoadRoot, region string, stake int64) error {
+func (n *Network) AddValidator(name, publicIP, privateIP, payLoadRoot, region string, stake int64) error {
 	n.validators[name] = NodeInfo{
-		Name:   name,
-		IP:     ip,
-		Region: region,
+		Name:      name,
+		PublicIP:  publicIP,
+		PrivateIP: privateIP,
+		Region:    region,
 	}
 
 	val := genesis.NewDefaultValidator(name)
@@ -158,7 +160,7 @@ func (n *Network) AddValidator(name, ip, payLoadRoot, region string, stake int64
 func (n *Network) Peers() []string {
 	var peers []string //nolint:prealloc
 	for _, v := range n.validators {
-		if v.IP == "" {
+		if v.PublicIP == "" {
 			continue
 		}
 		peers = append(peers, v.PeerID())
@@ -297,8 +299,17 @@ func (n *Network) SaveValidatorHostMapping(filename string) error {
 			return fmt.Errorf("no IP found for validator %s", v.Name)
 		}
 
+		hostIP := nodeInfo.PrivateIP
+		if hostIP == "" {
+			// Fall back to public IP if no private address was discovered.
+			hostIP = nodeInfo.PublicIP
+		}
+		if hostIP == "" {
+			return fmt.Errorf("no IP found for validator %s", v.Name)
+		}
+
 		// Use port 9091 as the default app gRPC port where Fibre is served
-		host := fmt.Sprintf("%s:9091", nodeInfo.IP)
+		host := fmt.Sprintf("%s:9091", hostIP)
 		hostMapping[consensusAddrHex] = host
 	}
 

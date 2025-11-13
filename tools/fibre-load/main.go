@@ -358,6 +358,12 @@ func runLoad(
 
 			latency := endTime.Sub(startTime)
 
+			logMsg := fmt.Sprintf("[%d] Uploaded blob %s in %s", txNum, resp.Commitment.String(), latency)
+			if resp.TxHash != "" {
+				logMsg = fmt.Sprintf("%s (tx %s @ height %d)", logMsg, resp.TxHash, resp.Height)
+			}
+			fmt.Println(logMsg)
+
 			metricsWriter.WriteMetric(TxMetric{
 				TxNum:       txNum,
 				StartTime:   startTime,

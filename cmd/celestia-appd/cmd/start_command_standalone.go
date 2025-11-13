@@ -38,6 +38,18 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+const (
+	// fibreGRPCStreamWindowSize controls how much data can be in-flight per HTTP/2 stream.
+	fibreGRPCStreamWindowSize = 256 * 1024 * 1024 // 32 MiB
+	// fibreGRPCConnWindowSize controls total in-flight data per HTTP/2 connection.
+	fibreGRPCConnWindowSize = 512 * 1024 * 1024 // 64 MiB
+	// fibreGRPCReadBufferSize/WriteBufferSize lift socket buffers enough to keep 20+ Gbps links busy.
+	fibreGRPCReadBufferSize  = 256 * 1024 * 1024 // 8 MiB
+	fibreGRPCWriteBufferSize = 256 * 1024 * 1024 // 8 MiB
+	// fibreGRPCMaxMsgSize ensures a single UploadRows RPC can carry a full 128MiB blob plus proofs.
+	fibreGRPCMaxMsgSize = 1024 * 1024 * 1024 // 512 MiB
+)
+
 // startCommandHandler is a custom start command handler that wraps the default Cosmos SDK
 // start logic and adds Fibre server initialization for validator nodes.
 func startCommandHandler(
@@ -225,10 +237,16 @@ func createGRPCServer(
 	if maxSendMsgSize == 0 {
 		maxSendMsgSize = serverconfig.DefaultGRPCMaxSendMsgSize
 	}
+	if maxSendMsgSize < fibreGRPCMaxMsgSize {
+		maxSendMsgSize = fibreGRPCMaxMsgSize
+	}
 
 	maxRecvMsgSize := svrCfg.GRPC.MaxRecvMsgSize
 	if maxRecvMsgSize == 0 {
 		maxRecvMsgSize = serverconfig.DefaultGRPCMaxRecvMsgSize
+	}
+	if maxRecvMsgSize < fibreGRPCMaxMsgSize {
+		maxRecvMsgSize = fibreGRPCMaxMsgSize
 	}
 
 	// Create gRPC server with OpenTelemetry instrumentation
@@ -236,6 +254,10 @@ func createGRPCServer(
 		grpc.ForceServerCodec(codec.NewProtoCodec(clientCtx.InterfaceRegistry).GRPCCodec()),
 		grpc.MaxSendMsgSize(maxSendMsgSize),
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
+		grpc.ReadBufferSize(fibreGRPCReadBufferSize),
+		grpc.WriteBufferSize(fibreGRPCWriteBufferSize),
+		grpc.InitialWindowSize(fibreGRPCStreamWindowSize),
+		grpc.InitialConnWindowSize(fibreGRPCConnWindowSize),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 

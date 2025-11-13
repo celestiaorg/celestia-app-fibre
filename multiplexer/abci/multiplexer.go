@@ -46,6 +46,8 @@ import (
 const (
 	flagTraceStore = "trace-store"
 	flagGRPCOnly   = "grpc-only"
+	// fibreGRPCMaxMsgSize ensures upload RPCs can transport full Fibre blobs plus proofs.
+	fibreGRPCMaxMsgSize = 512 * 1024 * 1024 // 512 MiB
 )
 
 // Multiplexer is responsible for managing multiple versions of applications and coordinating their lifecycle.
@@ -342,10 +344,16 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	if maxSendMsgSize == 0 {
 		maxSendMsgSize = serverconfig.DefaultGRPCMaxSendMsgSize
 	}
+	if maxSendMsgSize < fibreGRPCMaxMsgSize {
+		maxSendMsgSize = fibreGRPCMaxMsgSize
+	}
 
 	maxRecvMsgSize := m.svrCfg.GRPC.MaxRecvMsgSize
 	if maxRecvMsgSize == 0 {
 		maxRecvMsgSize = serverconfig.DefaultGRPCMaxRecvMsgSize
+	}
+	if maxRecvMsgSize < fibreGRPCMaxMsgSize {
+		maxRecvMsgSize = fibreGRPCMaxMsgSize
 	}
 
 	// if gRPC is enabled, configure gRPC client for gRPC gateway
@@ -354,8 +362,8 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(
 			grpc.ForceCodec(codec.NewProtoCodec(m.clientContext.InterfaceRegistry).GRPCCodec()),
-			grpc.MaxCallRecvMsgSize(maxRecvMsgSize),
-			grpc.MaxCallSendMsgSize(maxSendMsgSize),
+			grpc.MaxCallRecvMsgSize(math.MaxInt32),
+			grpc.MaxCallSendMsgSize(math.MaxInt32),
 		),
 	)
 	if err != nil {

@@ -379,6 +379,7 @@ build-talis-bins:
 	GOPRIVATE=github.com/celestiaorg/* GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags="ledger" -ldflags="$(LDFLAGS_STANDALONE)" -o build/celestia-appd ./cmd/celestia-appd
 	GOPRIVATE=github.com/celestiaorg/* GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags="ledger" -ldflags="$(LDFLAGS_STANDALONE)" -o build/latency-monitor ./tools/latency-monitor
 	GOPRIVATE=github.com/celestiaorg/* GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o build/fibre-load ./tools/fibre-load
+	GOPRIVATE=github.com/celestiaorg/* GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o build/validator-blast ./tools/validator-blast
 .PHONY: build-talis-bins
 
 

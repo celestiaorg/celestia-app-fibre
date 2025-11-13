@@ -225,6 +225,23 @@ talis status
 
 To download traces from the network, we can use `talis` to download traces from as many validator nodes as we want for that experiment.
 
+#### TCP network tracing
+
+Every node payload now includes `start_tcp_trace.sh`, which can be used to start a continuous `tshark` capture that writes `.pcapng` files to `/root/.celestia-app/data/traces`. Run it inside a tmux session so it survives SSH disconnects, for example:
+
+```sh
+tmux new-session -d -s tcp-trace 'bash /root/payload/start_tcp_trace.sh'
+```
+
+By default the script records TCP traffic on the default route interface and rotates files every 300 s, keeping six files in the trace directory. You can customize its behaviour by exporting any of the following environment variables before launching it:
+
+- `TRACE_INTERFACE` – override the network interface (defaults to the system's default route or `any`)
+- `TRACE_RING_DURATION`, `TRACE_RING_FILES`, `TRACE_RING_FILESIZE_MB` – control the `tshark` ring buffer rotation settings (set to `0` to disable a limiter)
+- `TRACE_SNAPLEN` – set a custom snap length (bytes)
+- `TRACE_FILTER` – change the BPF filter (defaults to `tcp`)
+- `TRACE_FORCE_RESTART=1` – stop any existing capture managed by the script before starting a new one
+- `TRACE_EXTRA_ARGS` – append raw arguments to the underlying `tshark` command
+
 ```sh
 # download some number of traces directly from nodes to your machine via sftp
 talis download -n <validator-*> -t <table> [flags]

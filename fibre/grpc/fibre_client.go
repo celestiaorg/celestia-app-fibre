@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"io"
+	"math"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -10,6 +11,15 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+)
+
+const (
+	// These mirror the tuned values from the server upload benchmarks to avoid HTTP/2 flow-control throttling.
+	clientStreamWindowSize = 256 * 1024 * 1024  // 32 MiB
+	clientConnWindowSize   = 512 * 1024 * 1024  // 64 MiB
+	clientReadBufferSize   = 256 * 1024 * 1024  // 8 MiB
+	clientWriteBufferSize  = 256 * 1024 * 1024  // 8 MiB
+	clientMaxMsgSize       = 1024 * 1024 * 1024 // 512 MiB
 )
 
 // Client combines [FibreClient] with [io.Closer] to manage the lifecycle
@@ -47,6 +57,14 @@ func DefaultNewClientFn(hostReg validator.HostRegistry) NewClientFn {
 		conn, err := grpclib.NewClient(host.String(),
 			grpclib.WithTransportCredentials(insecure.NewCredentials()),
 			grpclib.WithStatsHandler(otelgrpc.NewClientHandler()),
+			grpclib.WithReadBufferSize(clientReadBufferSize),
+			grpclib.WithWriteBufferSize(clientWriteBufferSize),
+			grpclib.WithInitialWindowSize(clientStreamWindowSize),
+			grpclib.WithInitialConnWindowSize(clientConnWindowSize),
+			grpclib.WithDefaultCallOptions(
+				grpclib.MaxCallSendMsgSize(math.MaxInt32),
+				grpclib.MaxCallRecvMsgSize(math.MaxInt32),
+			),
 		)
 		if err != nil {
 			return nil, err
