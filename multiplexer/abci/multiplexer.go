@@ -37,6 +37,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/version"
 	"github.com/hashicorp/go-metrics"
+	"github.com/hashicorp/yamux"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -481,6 +482,7 @@ func (m *Multiplexer) startGRPCServer(grpcSrv *grpc.Server) error {
 
 // startDRPCServer starts the DRPC server on the specified port.
 // The server must have all services registered before this is called.
+// Uses yamux for connection multiplexing over TCP.
 func (m *Multiplexer) startDRPCServer(drpcSrv *drpcserver.Server, port string) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
 	if err != nil {
@@ -490,7 +492,7 @@ func (m *Multiplexer) startDRPCServer(drpcSrv *drpcserver.Server, port string) e
 	m.drpcShutdown = make(chan struct{})
 
 	m.g.Go(func() error {
-		m.logger.Info("DRPC server started", "address", listener.Addr().String())
+		m.logger.Info("DRPC server started with yamux", "address", listener.Addr().String())
 
 		for {
 			select {
@@ -503,8 +505,8 @@ func (m *Multiplexer) startDRPCServer(drpcSrv *drpcserver.Server, port string) e
 				m.logger.Info("DRPC server shutdown signal received")
 				return nil
 			default:
-				// Accept new connection with timeout
-				conn, err := listener.Accept()
+				// Accept new TCP connection
+				tcpConn, err := listener.Accept()
 				if err != nil {
 					// Check if we're shutting down
 					select {
@@ -513,22 +515,69 @@ func (m *Multiplexer) startDRPCServer(drpcSrv *drpcserver.Server, port string) e
 					case <-m.drpcShutdown:
 						return nil
 					default:
-						m.logger.Error("DRPC accept error", "error", err)
+						m.logger.Error("TCP accept error", "error", err)
 						continue
 					}
 				}
 
-				// Handle connection in separate goroutine
-				go func() {
-					if err := drpcSrv.ServeOne(m.ctx, conn); err != nil {
-						m.logger.Error("DRPC serve error", "error", err)
-					}
-				}()
+				m.logger.Info("TCP connection accepted!", "remote_addr", tcpConn.RemoteAddr())
+
+				// Handle TCP connection in separate goroutine
+				// Each TCP connection will have a yamux server session
+				go m.handleYamuxConnection(tcpConn, drpcSrv)
 			}
 		}
 	})
 
 	return nil
+}
+
+// handleYamuxConnection handles a single TCP connection by creating a yamux server session
+// and serving DRPC on each yamux stream.
+func (m *Multiplexer) handleYamuxConnection(tcpConn net.Conn, drpcSrv *drpcserver.Server) {
+	m.logger.Info("handleYamuxConnection: TCP connection received", "remote_addr", tcpConn.RemoteAddr())
+
+	// Create yamux server session on the TCP connection
+	yamuxSess, err := yamux.Server(tcpConn, nil)
+	if err != nil {
+		m.logger.Error("failed to create yamux session", "error", err)
+		tcpConn.Close()
+		return
+	}
+
+	m.logger.Info("yamux session established successfully", "remote_addr", tcpConn.RemoteAddr())
+
+	// Accept streams from the yamux session and serve DRPC on each stream
+	streamCount := 0
+	for {
+		m.logger.Info("yamux: waiting to accept stream...", "stream_count", streamCount)
+		stream, err := yamuxSess.Accept()
+		if err != nil {
+			// Session closed or error
+			if err != io.EOF {
+				m.logger.Warn("yamux accept error", "error", err, "stream_count", streamCount)
+			} else {
+				m.logger.Info("yamux session closed (EOF)", "stream_count", streamCount)
+			}
+			yamuxSess.Close()
+			tcpConn.Close()
+			return
+		}
+
+		streamCount++
+		m.logger.Info("yamux: stream accepted", "stream_id", streamCount, "remote_addr", stream.RemoteAddr())
+
+		// Serve DRPC on this yamux stream
+		// Note: We don't close the stream here; yamux handles stream lifecycle
+		go func(s net.Conn, id int) {
+			m.logger.Info("DRPC: starting ServeOne", "stream_id", id)
+			if err := drpcSrv.ServeOne(m.ctx, s); err != nil {
+				m.logger.Error("DRPC serve error", "error", err, "stream_id", id)
+			} else {
+				m.logger.Info("DRPC: ServeOne completed successfully", "stream_id", id)
+			}
+		}(stream, streamCount)
+	}
 }
 
 // startAPIServer initializes and starts the API server, setting up routes, telemetry, and running it within an error group.

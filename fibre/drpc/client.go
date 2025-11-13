@@ -64,9 +64,8 @@ func (f *fibreClientCloser) DoDrpc(ctx context.Context, do func(conn drpc.Conn) 
 	const maxMessageSize = 256 * 1024 * 1024 // 256 MB
 	conn := drpcconn.NewWithOptions(stream, drpcconn.Options{
 		Manager: drpcmanager.Options{
-			SoftCancel: true,
-			Reader:     drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
-			Stream:     drpcstream.Options{MaximumBufferSize: maxMessageSize},
+			Reader: drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
+			Stream: drpcstream.Options{MaximumBufferSize: maxMessageSize},
 		},
 	})
 	defer conn.Close()

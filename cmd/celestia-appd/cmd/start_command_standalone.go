@@ -424,9 +424,8 @@ func createDRPCServer(svrCtx *server.Context, handler drpc.Handler) *drpcserver.
 	const maxMessageSize = 256 * 1024 * 1024 // 256 MB
 	drpcSrv := drpcserver.NewWithOptions(handler, drpcserver.Options{
 		Manager: drpcmanager.Options{
-			SoftCancel: true,
-			Reader:     drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
-			Stream:     drpcstream.Options{MaximumBufferSize: maxMessageSize},
+			Reader: drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
+			Stream: drpcstream.Options{MaximumBufferSize: maxMessageSize},
 		},
 	})
 
