@@ -377,7 +377,7 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 		grpc.MaxSendMsgSize(maxSendMsgSize),
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ReadBufferSize(maxRecvMsgSize),
+		grpc.ReadBufferSize(2*1024*1024),
 		grpc.InitialConnWindowSize(int32(maxRecvMsgSize)),
 		grpc.InitialWindowSize(int32(maxRecvMsgSize)),
 	)

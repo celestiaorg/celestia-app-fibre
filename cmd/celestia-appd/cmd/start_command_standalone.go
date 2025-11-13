@@ -240,7 +240,7 @@ func createGRPCServer(
 		grpc.ForceServerCodec(codec.NewProtoCodec(clientCtx.InterfaceRegistry).GRPCCodec()),
 		grpc.MaxSendMsgSize(maxSendMsgSize),
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
-		grpc.ReadBufferSize(maxRecvMsgSize),
+		grpc.ReadBufferSize(2*1024*1024),
 		grpc.InitialConnWindowSize(int32(maxRecvMsgSize)),
 		grpc.InitialWindowSize(int32(maxRecvMsgSize)),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),

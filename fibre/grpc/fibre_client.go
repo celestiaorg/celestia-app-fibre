@@ -52,7 +52,7 @@ func DefaultNewClientFn(hostReg validator.HostRegistry, maxMsgSize int) NewClien
 				grpclib.MaxCallRecvMsgSize(maxMsgSize),
 				grpclib.MaxCallSendMsgSize(maxMsgSize),
 			),
-			grpclib.WithWriteBufferSize(maxMsgSize),
+			grpclib.WithWriteBufferSize(2*1024*1024),
 			grpclib.WithInitialConnWindowSize(int32(maxMsgSize)),
 			grpclib.WithInitialWindowSize(int32(maxMsgSize)),
 		)
