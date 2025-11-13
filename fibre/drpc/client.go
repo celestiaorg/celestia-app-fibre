@@ -10,6 +10,9 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	core "github.com/cometbft/cometbft/types"
 	"storj.io/drpc/drpcconn"
+	"storj.io/drpc/drpcmanager"
+	"storj.io/drpc/drpcstream"
+	"storj.io/drpc/drpcwire"
 )
 
 // Client combines [DRPCFibreClient] with [io.Closer] to manage the lifecycle
@@ -48,8 +51,14 @@ func DefaultNewClientFn(hostReg validator.HostRegistry) NewClientFn {
 			return nil, fmt.Errorf("failed to dial DRPC host %s: %w", host.String(), err)
 		}
 
-		// Wrap the raw connection in a DRPC connection
-		conn := drpcconn.New(rawConn)
+		// Wrap the raw connection in a DRPC connection with large message size limits (256 MB)
+		const maxMessageSize = 256 * 1024 * 1024 // 256 MB
+		conn := drpcconn.NewWithOptions(rawConn, drpcconn.Options{
+			Manager: drpcmanager.Options{
+				Reader: drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
+				Stream: drpcstream.Options{MaximumBufferSize: maxMessageSize},
+			},
+		})
 
 		return &fibreClientCloser{
 			DRPCFibreClient: types.NewDRPCFibreClient(conn),

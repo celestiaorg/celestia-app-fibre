@@ -42,7 +42,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcmanager"
 	"storj.io/drpc/drpcserver"
+	"storj.io/drpc/drpcstream"
+	"storj.io/drpc/drpcwire"
 )
 
 const (
@@ -439,9 +442,16 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 // This allows services (like Fibre) to be registered before the server starts.
 func (m *Multiplexer) createDRPCServer(handler drpc.Handler) (*drpcserver.Server, error) {
 	// Create DRPC server with the provided handler (mux with registered services)
-	drpcSrv := drpcserver.NewWithOptions(handler, drpcserver.Options{})
+	// Configure with large message size limits for Fibre data transfers (256 MB)
+	const maxMessageSize = 256 * 1024 * 1024 // 256 MB
+	drpcSrv := drpcserver.NewWithOptions(handler, drpcserver.Options{
+		Manager: drpcmanager.Options{
+			Reader: drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
+			Stream: drpcstream.Options{MaximumBufferSize: maxMessageSize},
+		},
+	})
 
-	m.logger.Info("DRPC server created")
+	m.logger.Info("DRPC server created", "max_message_size", maxMessageSize)
 	return drpcSrv, nil
 }
 
@@ -511,7 +521,7 @@ func (m *Multiplexer) startDRPCServer(drpcSrv *drpcserver.Server, port string) e
 				// Handle connection in separate goroutine
 				go func() {
 					if err := drpcSrv.ServeOne(m.ctx, conn); err != nil {
-						m.logger.Debug("DRPC serve error", "error", err)
+						m.logger.Error("DRPC serve error", "error", err)
 					}
 				}()
 			}
