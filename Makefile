@@ -163,6 +163,26 @@ proto-gen:
 	@echo "Generating Protobuf files"
 	@sh ./scripts/protocgen.sh
 
+## proto-gen-drpc-deps: Install protoc-gen-go-drpc plugin.
+proto-gen-drpc-deps:
+	@echo "Installing protoc-gen-go-drpc"
+	@go install storj.io/drpc/cmd/protoc-gen-go-drpc@latest
+
+## proto-gen-drpc: Generate DRPC code for fibre service.
+proto-gen-drpc: proto-gen-drpc-deps
+	@echo "Generating DRPC code for fibre service"
+	@cd proto/celestia/fibre/v1 && protoc \
+		--go-drpc_out=protolib=github.com/gogo/protobuf,paths=source_relative:../../../../x/fibre/types \
+		--proto_path=../../../ \
+		--proto_path=$(HOME)/.cache/buf/v3/modules/shake256/buf.build/cosmos/cosmos-sdk/aa25660f4ff746388669ce36b3778442/files \
+		--proto_path=$(HOME)/.cache/buf/v3/modules/shake256/buf.build/cosmos/gogo-proto/34d970b699f84aa382f3c29773a60836/files \
+		--proto_path=$(HOME)/.cache/buf/v3/modules/shake256/buf.build/cosmos/cosmos-proto/1935555c206d4afb9e94615dfd0fad31/files \
+		--proto_path=$(HOME)/.cache/buf/v3/modules/shake256/buf.build/googleapis/googleapis/8d7204855ec14631a499bd7393ce1970/files \
+		celestia/fibre/v1/service.proto
+	@mv x/fibre/types/celestia/fibre/v1/service_drpc.pb.go x/fibre/types/ 2>/dev/null || true
+	@rm -rf x/fibre/types/celestia 2>/dev/null || true
+	@echo "DRPC code generated in x/fibre/types/"
+
 ## proto-format: Format Protobuf files.
 proto-format:
 	@find ./ -name "*.proto" -exec clang-format -i {} \;
@@ -180,7 +200,7 @@ proto-update-deps:
 	@echo "Updating Protobuf dependencies"
 	@cd proto && buf dep update
 
-.PHONY: proto-all proto-deps proto-gen proto-format proto-lint proto-check-breaking proto-update-deps
+.PHONY: proto-all proto-deps proto-gen proto-gen-drpc-deps proto-gen-drpc proto-format proto-lint proto-check-breaking proto-update-deps
 
 ## build-docker-standalone: Build the celestia-appd Docker image using the local Dockerfile.
 build-docker-standalone:
