@@ -272,20 +272,23 @@ func separateTxs(txConfig client.TxConfig, rawTxs [][]byte) (normalTxs [][]byte,
 				panic(err)
 			}
 			blobTxs = append(blobTxs, bTx)
-		} else {
-			// Check if this is a pay-for-fibre transaction
-			sdkTx, err := dec(rawTx)
-			if err != nil {
-				normalTxs = append(normalTxs, rawTx)
-				continue
-			}
-
-			if _, hasPayForFibre := extractMsgPayForFibre(sdkTx); hasPayForFibre {
-				payForFibreTxs = append(payForFibreTxs, rawTx)
-			} else {
-				normalTxs = append(normalTxs, rawTx)
-			}
+			continue
 		}
+
+		// Decode the transaction
+		sdkTx, err := dec(rawTx)
+		if err != nil {
+			normalTxs = append(normalTxs, rawTx)
+			continue
+		}
+
+		// Check if this is a pay-for-fibre transaction
+		if _, hasPayForFibre := extractMsgPayForFibre(sdkTx); hasPayForFibre {
+			payForFibreTxs = append(payForFibreTxs, rawTx)
+			continue
+		}
+		// If it's not a pay-for-fibre transaction, add it to the normal transactions
+		normalTxs = append(normalTxs, rawTx)
 	}
 	return normalTxs, blobTxs, payForFibreTxs
 }
