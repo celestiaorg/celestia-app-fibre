@@ -36,6 +36,11 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcmanager"
+	"storj.io/drpc/drpcserver"
+	"storj.io/drpc/drpcstream"
+	"storj.io/drpc/drpcwire"
 )
 
 // startCommandHandler is a custom start command handler that wraps the default Cosmos SDK
@@ -97,6 +102,7 @@ func startCommandHandler(
 	// Start gRPC server if enabled
 	var grpcServer *grpc.Server
 	var fibreServer *fibre.Server
+	var drpcListener net.Listener
 	if svrCfg.GRPC.Enable {
 		// Create and configure gRPC server (but don't start serving yet)
 		var err error
@@ -105,36 +111,64 @@ func startCommandHandler(
 			return fmt.Errorf("failed to create gRPC server: %w", err)
 		}
 
-		// Register Fibre server BEFORE starting the gRPC server
+		// Create Fibre DRPC server BEFORE starting the gRPC server
 		serverConfig := fibre.DefaultServerConfig()
 		// Get chain ID from genesis (the source of truth) instead of CLI flag
 		serverConfig.ChainID = cmtNode.GenesisDoc().ChainID
 		serverConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
-		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
-		fibreServer, err = fibre.NewServerFromGRPC(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, serverConfig)
+
+		// Use DRPC for Fibre service
+		var drpcHandler drpc.Handler
+		fibreServer, drpcHandler, err = fibre.NewServerFromDRPC(
+			cmtNode.PrivValidator(),
+			clientCtx.GRPCClient, // Still use gRPC client for queries
+			serverConfig,
+		)
 		if err != nil {
-			return fmt.Errorf("failed to start Fibre server: %w", err)
+			return fmt.Errorf("failed to create Fibre DRPC server: %w", err)
 		}
+
+		// Add graceful shutdown for Fibre server
+		g.Go(func() error {
+			<-ctx.Done()
+			svrCtx.Logger.Info("Stopping Fibre DRPC server")
+			if err := fibreServer.Stop(); err != nil {
+				svrCtx.Logger.Error("Error stopping Fibre DRPC server", "error", err)
+				return err
+			}
+			return nil
+		})
+
+		// Create and configure DRPC server with the handler
+		drpcServer := createDRPCServer(svrCtx, drpcHandler)
+
+		// Start DRPC server on port 26658
+		drpcPort := "26658" // TODO: Make this configurable
+		drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcPort)
+		if err != nil {
+			return fmt.Errorf("failed to start DRPC server: %w", err)
+		}
+		svrCtx.Logger.Info("DRPC server started", "port", drpcPort)
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
 			return fmt.Errorf("failed to start gRPC server: %w", err)
 		}
-
-		// Add graceful shutdown for Fibre server
-		if fibreServer != nil {
-			g.Go(func() error {
-				<-ctx.Done()
-				svrCtx.Logger.Info("Stopping Fibre server")
-				if err := fibreServer.Stop(); err != nil {
-					svrCtx.Logger.Error("Error stopping Fibre server", "error", err)
-					return err
-				}
-				return nil
-			})
-		}
 	} else {
 		svrCtx.Logger.Info("gRPC server is disabled, skipping Fibre server startup")
+	}
+
+	// Ensure DRPC listener is closed on shutdown
+	if drpcListener != nil {
+		g.Go(func() error {
+			<-ctx.Done()
+			svrCtx.Logger.Info("Closing DRPC listener")
+			if err := drpcListener.Close(); err != nil {
+				svrCtx.Logger.Error("Error closing DRPC listener", "error", err)
+				return err
+			}
+			return nil
+		})
 	}
 
 	// Start API server if enabled
@@ -379,4 +413,72 @@ func openTraceWriter(traceWriterFile string) (io.WriteCloser, error) {
 func openDB(rootDir string, backendType db.BackendType) (db.DB, error) {
 	dataDir := filepath.Join(rootDir, "data")
 	return db.NewDB("application", backendType, dataDir)
+}
+
+// createDRPCServer creates and configures the DRPC server with the provided handler.
+// The handler should have all DRPC services registered.
+func createDRPCServer(svrCtx *server.Context, handler drpc.Handler) *drpcserver.Server {
+	// Create DRPC server with the provided handler (mux with registered services)
+	// Configure with large message size limits for Fibre data transfers (256 MB)
+	const maxMessageSize = 256 * 1024 * 1024 // 256 MB
+	drpcSrv := drpcserver.NewWithOptions(handler, drpcserver.Options{
+		Manager: drpcmanager.Options{
+			Reader: drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
+			Stream: drpcstream.Options{MaximumBufferSize: maxMessageSize},
+		},
+	})
+
+	svrCtx.Logger.Info("DRPC server created", "max_message_size", maxMessageSize)
+	return drpcSrv
+}
+
+// startDRPCServer starts the DRPC server on the specified port.
+// The server must have all services registered before this is called.
+// Returns the net.Listener so it can be closed on shutdown.
+func startDRPCServer(
+	ctx context.Context,
+	g *errgroup.Group,
+	svrCtx *server.Context,
+	drpcSrv *drpcserver.Server,
+	port string,
+) (net.Listener, error) {
+	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DRPC listener on port %s: %w", port, err)
+	}
+
+	g.Go(func() error {
+		svrCtx.Logger.Info("DRPC server started", "address", listener.Addr().String())
+
+		for {
+			select {
+			case <-ctx.Done():
+				// Context cancelled, stop accepting connections
+				svrCtx.Logger.Info("DRPC server context cancelled")
+				return nil
+			default:
+				// Accept new connection
+				conn, err := listener.Accept()
+				if err != nil {
+					// Check if we're shutting down
+					select {
+					case <-ctx.Done():
+						return nil
+					default:
+						svrCtx.Logger.Error("DRPC accept error", "error", err)
+						continue
+					}
+				}
+
+				// Handle connection in separate goroutine
+				go func() {
+					if err := drpcSrv.ServeOne(ctx, conn); err != nil {
+						svrCtx.Logger.Error("DRPC serve error", "error", err)
+					}
+				}()
+			}
+		}
+	})
+
+	return listener, nil
 }
