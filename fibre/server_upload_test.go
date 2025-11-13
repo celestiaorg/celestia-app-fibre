@@ -218,14 +218,27 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 // Optional modifier can be provided to customize the request after construction.
 // The promise is automatically re-signed after modification.
 func makeTestRequest(
-	t *testing.T,
+	t testing.TB,
 	valSet validator.Set,
 	serverValidator *core.Validator,
 	requestModifier func(*types.UploadRowsRequest),
 ) *types.UploadRowsRequest {
+	return makeUploadRowsRequest(t, valSet, serverValidator, 256*1024, requestModifier)
+}
+
+// makeUploadRowsRequest creates a valid UploadRowsRequest with a customizable blob size for benchmarking and tests.
+func makeUploadRowsRequest(
+	t testing.TB,
+	valSet validator.Set,
+	serverValidator *core.Validator,
+	blobSizeBytes int,
+	requestModifier func(*types.UploadRowsRequest),
+) *types.UploadRowsRequest {
 	t.Helper()
 
-	blob := makeTestBlobV0(t, 256*1024)
+	require.Greater(t, blobSizeBytes, 0, "blob size must be positive")
+
+	blob := makeTestBlobV0(t, blobSizeBytes)
 	blobCfg := fibre.DefaultBlobConfigV0()
 	namespace := share.MustNewV0Namespace([]byte("testns"))
 

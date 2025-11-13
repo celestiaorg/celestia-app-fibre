@@ -206,7 +206,7 @@ func testClientUploadAllValidatorsReceiveData(t *testing.T) {
 	}
 }
 
-func makeTestBlobV0(t *testing.T, sizeBytes int) *fibre.Blob {
+func makeTestBlobV0(t testing.TB, sizeBytes int) *fibre.Blob {
 	t.Helper()
 	data := make([]byte, sizeBytes)
 	_, err := rand.Read(data)
@@ -269,7 +269,7 @@ func makeTestClientWithFailures(t *testing.T, numValidators, numFailures int, cu
 	return client
 }
 
-func makeTestValidators(t *testing.T, n int) ([]*core.Validator, []cmted25519.PrivKey) {
+func makeTestValidators(t testing.TB, n int) ([]*core.Validator, []cmted25519.PrivKey) {
 	t.Helper()
 	validators := make([]*core.Validator, n)
 	privKeys := make([]cmted25519.PrivKey, n)
@@ -285,7 +285,7 @@ func makeTestValidators(t *testing.T, n int) ([]*core.Validator, []cmted25519.Pr
 	return validators, privKeys
 }
 
-func makeTestKeyring(t *testing.T) keyring.Keyring {
+func makeTestKeyring(t testing.TB) keyring.Keyring {
 	t.Helper()
 	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
 	kr := keyring.NewInMemory(encCfg.Codec)

@@ -129,9 +129,9 @@ func NewBlob(data []byte, cfg BlobConfig) (d *Blob, err error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("data cannot be empty")
 	}
-	if len(data) > cfg.MaxBlobSize {
-		return nil, fmt.Errorf("%w: data size %d exceeds maximum %d", ErrBlobTooLarge, len(data), cfg.MaxBlobSize)
-	}
+	// if len(data) > cfg.MaxBlobSize {
+	// 	return nil, fmt.Errorf("%w: data size %d exceeds maximum %d", ErrBlobTooLarge, len(data), cfg.MaxBlobSize)
+	// }
 
 	d = &Blob{
 		cfg:    cfg,

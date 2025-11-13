@@ -15,14 +15,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	sdkmath "cosmossdk.io/math"
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
-	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+
 	"github.com/celestiaorg/go-square/v3/share"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
@@ -126,6 +125,9 @@ func init() {
 }
 
 func main() {
+	// Enable FIBREMAXXXING mode to avoid storing data
+	os.Setenv("FIBREMAXXXING", "true")
+
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -277,9 +279,9 @@ func runLoad(
 
 	// Fund escrow account upfront with enough for many transactions
 	// Estimate: 10_000_000 transactions worth of escrow funding
-	if err := fundEscrowUpfront(ctx, txClient, payloadSize, 10000000); err != nil {
-		return fmt.Errorf("failed to fund escrow: %w", err)
-	}
+	// if err := fundEscrowUpfront(ctx, txClient, payloadSize, 10000000); err != nil {
+	// 	return fmt.Errorf("failed to fund escrow: %w", err)
+	// }
 
 	// Set up metrics writer
 	metricsWriter, err := newMetricsWriter(tracesDir)
@@ -355,7 +357,6 @@ func runLoad(
 			}
 
 			latency := endTime.Sub(startTime)
-			fmt.Printf("[%d] Transaction %s confirmed at height %d (latency: %v)\n", txNum, resp.TxHash, resp.Height, latency)
 
 			metricsWriter.WriteMetric(TxMetric{
 				TxNum:       txNum,
@@ -571,43 +572,43 @@ func (r *staticHostRegistry) GetHost(ctx context.Context, val *core.Validator) (
 
 // fundEscrowUpfront deposits funds to the escrow account upfront for multiple transactions.
 // This prevents the need to check and fund escrow on every Put operation.
-func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize int, numTxs int) error {
-	// Query fibre params to get gas per byte
-	grpcConn := txClient.GRPCConn()
-	queryClient := types.NewQueryClient(grpcConn)
+// func fundEscrowUpfront(ctx context.Context, txClient *user.TxClient, payloadSize int, numTxs int) error {
+// 	// Query fibre params to get gas per byte
+// 	grpcConn := txClient.GRPCConn()
+// 	queryClient := types.NewQueryClient(grpcConn)
 
-	paramsResp, err := queryClient.Params(ctx, &types.QueryParamsRequest{})
-	if err != nil {
-		return fmt.Errorf("querying fibre params: %w", err)
-	}
+// 	paramsResp, err := queryClient.Params(ctx, &types.QueryParamsRequest{})
+// 	if err != nil {
+// 		return fmt.Errorf("querying fibre params: %w", err)
+// 	}
 
-	// Calculate required amount for numTxs transactions
-	gasPerByte := paramsResp.Params.GasPerBlobByte
-	totalGas := uint64(payloadSize) * uint64(gasPerByte) * uint64(numTxs)
+// 	// Calculate required amount for numTxs transactions
+// 	gasPerByte := paramsResp.Params.GasPerBlobByte
+// 	totalGas := uint64(payloadSize) * uint64(gasPerByte) * uint64(numTxs)
 
-	denom := "utia"
-	amount := sdk.NewCoin(denom, sdkmath.NewIntFromUint64(totalGas))
+// 	denom := "utia"
+// 	amount := sdk.NewCoin(denom, sdkmath.NewIntFromUint64(totalGas))
 
-	fmt.Printf("Funding escrow account with %s (enough for ~%d transactions)...\n", amount.String(), numTxs)
+// 	fmt.Printf("Funding escrow account with %s (enough for ~%d transactions)...\n", amount.String(), numTxs)
 
-	signer := txClient.DefaultAddress().String()
-	msg := &types.MsgDepositToEscrow{
-		Signer: signer,
-		Amount: amount,
-	}
+// 	signer := txClient.DefaultAddress().String()
+// 	msg := &types.MsgDepositToEscrow{
+// 		Signer: signer,
+// 		Amount: amount,
+// 	}
 
-	txResp, err := txClient.BroadcastTx(ctx, []sdk.Msg{msg})
-	if err != nil {
-		return fmt.Errorf("broadcasting deposit transaction: %w", err)
-	}
+// 	txResp, err := txClient.BroadcastTx(ctx, []sdk.Msg{msg})
+// 	if err != nil {
+// 		return fmt.Errorf("broadcasting deposit transaction: %w", err)
+// 	}
 
-	if _, err := txClient.ConfirmTx(ctx, txResp.TxHash); err != nil {
-		return fmt.Errorf("confirming deposit transaction: %w", err)
-	}
+// 	if _, err := txClient.ConfirmTx(ctx, txResp.TxHash); err != nil {
+// 		return fmt.Errorf("confirming deposit transaction: %w", err)
+// 	}
 
-	fmt.Printf("Escrow account funded successfully (tx: %s)\n\n", txResp.TxHash)
-	return nil
-}
+// 	fmt.Printf("Escrow account funded successfully (tx: %s)\n\n", txResp.TxHash)
+// 	return nil
+// }
 
 // setupTracing configures OpenTelemetry tracing with OTLP gRPC exporter.
 // The endpoint should be in the format "host:port" (e.g., "localhost:4317").
