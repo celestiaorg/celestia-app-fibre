@@ -32,6 +32,7 @@ import (
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/hashicorp/yamux"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -423,8 +424,9 @@ func createDRPCServer(svrCtx *server.Context, handler drpc.Handler) *drpcserver.
 	const maxMessageSize = 256 * 1024 * 1024 // 256 MB
 	drpcSrv := drpcserver.NewWithOptions(handler, drpcserver.Options{
 		Manager: drpcmanager.Options{
-			Reader: drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
-			Stream: drpcstream.Options{MaximumBufferSize: maxMessageSize},
+			SoftCancel: true,
+			Reader:     drpcwire.ReaderOptions{MaximumBufferSize: maxMessageSize},
+			Stream:     drpcstream.Options{MaximumBufferSize: maxMessageSize},
 		},
 	})
 
@@ -434,6 +436,7 @@ func createDRPCServer(svrCtx *server.Context, handler drpc.Handler) *drpcserver.
 
 // startDRPCServer starts the DRPC server on the specified port.
 // The server must have all services registered before this is called.
+// Uses yamux for connection multiplexing over TCP.
 // Returns the net.Listener so it can be closed on shutdown.
 func startDRPCServer(
 	ctx context.Context,
@@ -448,7 +451,7 @@ func startDRPCServer(
 	}
 
 	g.Go(func() error {
-		svrCtx.Logger.Info("DRPC server started", "address", listener.Addr().String())
+		svrCtx.Logger.Info("DRPC server started with yamux", "address", listener.Addr().String())
 
 		for {
 			select {
@@ -457,28 +460,73 @@ func startDRPCServer(
 				svrCtx.Logger.Info("DRPC server context cancelled")
 				return nil
 			default:
-				// Accept new connection
-				conn, err := listener.Accept()
+				// Accept new TCP connection
+				tcpConn, err := listener.Accept()
 				if err != nil {
 					// Check if we're shutting down
 					select {
 					case <-ctx.Done():
 						return nil
 					default:
-						svrCtx.Logger.Error("DRPC accept error", "error", err)
+						svrCtx.Logger.Error("TCP accept error", "error", err)
 						continue
 					}
 				}
 
-				// Handle connection in separate goroutine
-				go func() {
-					if err := drpcSrv.ServeOne(ctx, conn); err != nil {
-						svrCtx.Logger.Error("DRPC serve error", "error", err)
-					}
-				}()
+				// Handle TCP connection in separate goroutine
+				// Each TCP connection will have a yamux server session
+				go handleYamuxConnection(ctx, svrCtx, tcpConn, drpcSrv)
 			}
 		}
 	})
 
 	return listener, nil
+}
+
+// handleYamuxConnection handles a single TCP connection by creating a yamux server session
+// and serving DRPC on each yamux stream.
+func handleYamuxConnection(ctx context.Context, svrCtx *server.Context, tcpConn net.Conn, drpcSrv *drpcserver.Server) {
+	svrCtx.Logger.Info("handleYamuxConnection: TCP connection received", "remote_addr", tcpConn.RemoteAddr())
+
+	// Create yamux server session on the TCP connection
+	yamuxSess, err := yamux.Server(tcpConn, nil)
+	if err != nil {
+		svrCtx.Logger.Error("failed to create yamux session", "error", err)
+		tcpConn.Close()
+		return
+	}
+
+	svrCtx.Logger.Info("yamux session established successfully", "remote_addr", tcpConn.RemoteAddr())
+
+	// Accept streams from the yamux session and serve DRPC on each stream
+	streamCount := 0
+	for {
+		svrCtx.Logger.Info("yamux: waiting to accept stream...", "stream_count", streamCount)
+		stream, err := yamuxSess.Accept()
+		if err != nil {
+			// Session closed or error
+			if err != io.EOF {
+				svrCtx.Logger.Warn("yamux accept error", "error", err, "stream_count", streamCount)
+			} else {
+				svrCtx.Logger.Info("yamux session closed (EOF)", "stream_count", streamCount)
+			}
+			yamuxSess.Close()
+			tcpConn.Close()
+			return
+		}
+
+		streamCount++
+		svrCtx.Logger.Info("yamux: stream accepted", "stream_id", streamCount, "remote_addr", stream.RemoteAddr())
+
+		// Serve DRPC on this yamux stream
+		// Note: We don't close the stream here; yamux handles stream lifecycle
+		go func(s net.Conn, id int) {
+			svrCtx.Logger.Info("DRPC: starting ServeOne", "stream_id", id)
+			if err := drpcSrv.ServeOne(ctx, s); err != nil {
+				svrCtx.Logger.Error("DRPC serve error", "error", err, "stream_id", id)
+			} else {
+				svrCtx.Logger.Info("DRPC: ServeOne completed successfully", "stream_id", id)
+			}
+		}(stream, streamCount)
+	}
 }
