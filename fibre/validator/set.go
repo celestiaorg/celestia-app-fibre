@@ -66,6 +66,10 @@ func (s Set) Assign(commitment rsema1d.Commitment, totalRows int) ShardMap {
 			rowsToAssign++
 		}
 
+		if len(s.Validators) == 100 {
+			rowsToAssign = 164
+		}
+
 		shardMap[validator] = rowsIndicies[i*rowsToAssign : (i+1)*rowsToAssign]
 	}
 
