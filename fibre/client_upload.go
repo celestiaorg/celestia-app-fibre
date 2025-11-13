@@ -287,14 +287,11 @@ func (c *Client) uploadTo(
 // Returns when either all the responses are exhausted or signatures collected or the context is done.
 // It continues uploading to every validator even after necessary amount of signatures are collected.
 func (c *Client) uploadRows(
-	parentCtx context.Context,
+	ctx context.Context,
 	requests map[*core.Validator]*types.UploadRowsRequest,
 	blob *Blob,
 	sigSet *validator.SignatureSet,
 ) error {
-	uploadCtx, cancel := context.WithCancel(parentCtx)
-	defer cancel()
-
 	var (
 		responses            atomic.Uint32         // tracks finished responses
 		responsesExhaustedCh = make(chan struct{}) // closes when all responses complete
@@ -304,9 +301,8 @@ func (c *Client) uploadRows(
 		// acquire semaphore before spawning goroutine
 		select {
 		case c.uploadSem <- struct{}{}:
-		case <-parentCtx.Done():
-			cancel()
-			return parentCtx.Err()
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 
 		c.closeWg.Add(1)
@@ -324,22 +320,19 @@ func (c *Client) uploadRows(
 				c.closeWg.Done()
 			}()
 
-			c.uploadTo(uploadCtx, val, req, blob, sigSet)
+			c.uploadTo(ctx, val, req, blob, sigSet)
 		}(val, req)
 	}
 
 	select {
 	case <-responsesExhaustedCh: // no more responses to wait for
-		return nil
 	case <-sigSet.Done(): // enough signatures collected
-		cancel()
-		<-responsesExhaustedCh
 		return nil
-	case <-parentCtx.Done():
-		cancel()
-		<-responsesExhaustedCh
-		return parentCtx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
 	}
+
+	return nil
 }
 
 // makeUploadRequests constructs the requests map for all validators.
