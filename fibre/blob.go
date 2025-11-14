@@ -74,7 +74,7 @@ func DefaultBlobConfigV0() BlobConfig {
 		RowSizeMin:     64,
 		MaxBlobSize:    128 * 1024 * 1024,
 		BlobVersion:    0,
-		CodingWorkers:  runtime.GOMAXPROCS(0),
+		CodingWorkers:  runtime.GOMAXPROCS(0) - 1,
 		ShardingFactor: 100, // Expected number of validators
 	}
 }

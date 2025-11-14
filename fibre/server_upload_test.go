@@ -1,6 +1,7 @@
 package fibre_test
 
 import (
+	"context"
 	"crypto/ed25519"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	txsigning "github.com/cosmos/cosmos-sdk/types/tx/signing"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 // TestServerUploadRows unit tests the [Server.UploadRows].
@@ -170,16 +172,16 @@ func makeTestServer(t *testing.T) (*fibre.Server, validator.Set, *core.Validator
 	)
 	require.NoError(t, err)
 
-	// Create server with gRPC infrastructure - this registers the Fibre service
-	server, err := fibre.NewServerFromGRPC(privVal, grpcServer, conn, cfg)
-	require.NoError(t, err)
+	// // Create server with gRPC infrastructure - this registers the Fibre service
+	// server, err := fibre.NewServerFromGRPC(privVal, grpcServer, conn, cfg)
+	// require.NoError(t, err)
 
-	// Start gRPC server after all services are registered
-	go func() {
-		if err := grpcServer.Serve(listener); err != nil {
-			t.Logf("gRPC server error: %v", err)
-		}
-	}()
+	// // Start gRPC server after all services are registered
+	// go func() {
+	// 	if err := grpcServer.Serve(listener); err != nil {
+	// 		t.Logf("gRPC server error: %v", err)
+	// 	}
+	// }()
 
 	return server, valSet, serverValidator
 }
@@ -292,6 +294,30 @@ func makeUploadRowsRequest(
 	}
 
 	return req
+}
+
+// mockQueryClient is a mock implementation of types.QueryClient for testing.
+type mockQueryClient struct{}
+
+func (m *mockQueryClient) Params(ctx context.Context, in *types.QueryParamsRequest, opts ...grpc.CallOption) (*types.QueryParamsResponse, error) {
+	return &types.QueryParamsResponse{}, nil
+}
+
+func (m *mockQueryClient) EscrowAccount(ctx context.Context, in *types.QueryEscrowAccountRequest, opts ...grpc.CallOption) (*types.QueryEscrowAccountResponse, error) {
+	return &types.QueryEscrowAccountResponse{}, nil
+}
+
+func (m *mockQueryClient) Withdrawals(ctx context.Context, in *types.QueryWithdrawalsRequest, opts ...grpc.CallOption) (*types.QueryWithdrawalsResponse, error) {
+	return &types.QueryWithdrawalsResponse{}, nil
+}
+
+func (m *mockQueryClient) IsPaymentProcessed(ctx context.Context, in *types.QueryIsPaymentProcessedRequest, opts ...grpc.CallOption) (*types.QueryIsPaymentProcessedResponse, error) {
+	return &types.QueryIsPaymentProcessedResponse{}, nil
+}
+
+func (m *mockQueryClient) ValidatePaymentPromise(ctx context.Context, in *types.QueryValidatePaymentPromiseRequest, opts ...grpc.CallOption) (*types.QueryValidatePaymentPromiseResponse, error) {
+	// Always return valid for testing
+	return &types.QueryValidatePaymentPromiseResponse{IsValid: true}, nil
 }
 
 // testPrivValidator is a simple mock PrivValidator for testing.

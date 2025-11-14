@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 	grpccodes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -200,59 +199,37 @@ func (s *Server) verifyAssignment(ctx context.Context, promise *PaymentPromise, 
 // verifyRows verifies the row data and proofs using [rsema1d.VerificationContext].
 // Essentially checks correctness of blob data by only sampling some of the rows.
 // Sets the RLC root on the rows and clears the coefficients after verification.
+// This function delegates the CPU-heavy work to the persistent worker pool.
 func (s *Server) verifyRows(ctx context.Context, promise *PaymentPromise, rows *types.Rows) error {
-	rowSize, err := parseRowSize(rows.Rows)
-	if err != nil {
-		return err
+	// create result channel for this verification task
+	resultChan := make(chan verifyRowsResult, 1)
+
+	// package work for the worker pool
+	work := verifyRowsWork{
+		rows:       rows,
+		promise:    promise,
+		cfg:        s.cfg.BlobConfig,
+		resultChan: resultChan,
 	}
 
-	// validate upload size matches the row size
-	expectedUploadSize := rowSize * s.cfg.OriginalRows
-	if int(promise.UploadSize) != expectedUploadSize {
-		return fmt.Errorf("upload size mismatch: promise has %d, but row size %d * %d original rows = %d",
-			promise.UploadSize, rowSize, s.cfg.OriginalRows, expectedUploadSize)
-	}
-
-	rlcCoeffs, err := parseRLCCoeffs(rows.GetCoefficients(), s.cfg.OriginalRows)
-	if err != nil {
-		return err
-	}
-
-	verificationCtx, rlcRoot, err := rsema1d.CreateVerificationContext(rlcCoeffs, &rsema1d.Config{
-		K:           s.cfg.OriginalRows,
-		N:           s.cfg.ParityRows,
-		RowSize:     rowSize,
-		WorkerCount: s.cfg.CodingWorkers, // not actually used
-	})
-	if err != nil {
-		return fmt.Errorf("creating verification context: %w", err)
-	}
-
-	totalRows := s.cfg.OriginalRows + s.cfg.ParityRows
-	errgrp, ctx := errgroup.WithContext(ctx)
-	errgrp.SetLimit(s.cfg.CodingWorkers)
-	for _, rowPb := range rows.Rows {
-		errgrp.Go(func() error {
-			row, err := parseRow(rowPb, totalRows)
-			if err != nil {
-				return err
+	// submit work to a worker
+	select {
+	case s.verifyWorkChan <- work:
+		// work submitted, wait for result
+		select {
+		case result := <-resultChan:
+			if result.err != nil {
+				return result.err
 			}
-
-			if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(promise.Commitment), verificationCtx); err != nil {
-				return fmt.Errorf("verification failed for row %d: %w", row.Index, err)
-			}
-
+			// set RLC root and clear coefficients
+			rows.Rlc = &types.Rows_Root{Root: result.rlcRoot[:]}
 			return nil
-		})
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-
-	if err := errgrp.Wait(); err != nil {
-		return err
-	}
-
-	// set RLC root and clear coefficients
-	rows.Rlc = &types.Rows_Root{Root: rlcRoot[:]}
-	return nil
 }
 
 // signPromise signs the [PaymentPromise] using the validator's private key and returns the signature.

@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
+	"sync"
 	"time"
 
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/rsema1d"
 	"github.com/cometbft/cometbft/crypto"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	core "github.com/cometbft/cometbft/types"
@@ -46,6 +49,20 @@ func DefaultServerConfig() ServerConfig {
 	}
 }
 
+// verifyRowsResult contains the result of row verification including the RLC root.
+type verifyRowsResult struct {
+	rlcRoot [32]byte
+	err     error
+}
+
+// verifyRowsWork represents a complete row verification task submitted to the worker pool.
+type verifyRowsWork struct {
+	rows       *types.Rows
+	promise    *PaymentPromise
+	cfg        BlobConfig
+	resultChan chan<- verifyRowsResult
+}
+
 // Server implements the Fibre gRPC service for validators.
 // It handles upload and download requests from clients.
 type Server struct {
@@ -63,6 +80,12 @@ type Server struct {
 	log            *slog.Logger
 	tracer         trace.Tracer
 	tracerShutdown func(context.Context) error
+
+	// worker pool for row verification
+	verifyWorkChan chan verifyRowsWork
+	workerWg       sync.WaitGroup
+	workerCtx      context.Context
+	workerCancel   context.CancelFunc
 }
 
 // NewServer creates a new Fibre [Server] with the provided dependencies.
@@ -105,6 +128,8 @@ func NewServer(
 		return nil, fmt.Errorf("failed to create Fibre store: %w", err)
 	}
 
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+
 	server := &Server{
 		cfg:            cfg,
 		privVal:        privVal,
@@ -115,7 +140,13 @@ func NewServer(
 		log:            cfg.Log,
 		tracer:         tracer,
 		tracerShutdown: tracerShutdown,
+		verifyWorkChan: make(chan verifyRowsWork, cfg.CodingWorkers), // buffer one work item per worker
+		workerCtx:      workerCtx,
+		workerCancel:   workerCancel,
 	}
+
+	// start worker pool
+	server.startVerificationWorkers()
 
 	return server, nil
 }
@@ -139,6 +170,22 @@ func NewServerFromGRPC(
 	return server, nil
 }
 
+// NewInMemoryServer creates a new Fibre [Server] with an in-memory store backend.
+func NewInMemoryServer(
+	privVal core.PrivValidator,
+	queryClient types.QueryClient,
+	valGet validator.SetGetter,
+	cfg ServerConfig,
+) (*Server, error) {
+	memStore := NewMemoryStore(cfg.StoreConfig)
+	srv, err := NewServer(privVal, queryClient, valGet, cfg)
+	if err != nil {
+		return nil, err
+	}
+	srv.store = memStore
+	return srv, err
+}
+
 func (s *Server) Config() ServerConfig {
 	return s.cfg
 }
@@ -148,10 +195,90 @@ func (s *Server) Store() *Store {
 	return s.store
 }
 
+// startVerificationWorkers starts the persistent worker pool for row verification.
+func (s *Server) startVerificationWorkers() {
+	for i := 0; i < s.cfg.CodingWorkers; i++ {
+		s.workerWg.Add(1)
+		go s.verificationWorker()
+	}
+}
+
+// verificationWorker is the worker goroutine that processes row verification tasks.
+func (s *Server) verificationWorker() {
+	defer s.workerWg.Done()
+
+	for {
+		select {
+		case <-s.workerCtx.Done():
+			return
+		case work := <-s.verifyWorkChan:
+			result := s.executeRowVerification(work)
+			work.resultChan <- result
+		}
+	}
+}
+
+// executeRowVerification performs the CPU-heavy verification work including context creation.
+func (s *Server) executeRowVerification(work verifyRowsWork) verifyRowsResult {
+	rowSize, err := parseRowSize(work.rows.Rows)
+	if err != nil {
+		return verifyRowsResult{err: err}
+	}
+
+	// validate upload size matches the row size
+	expectedUploadSize := rowSize * work.cfg.OriginalRows
+	if int(work.promise.UploadSize) != expectedUploadSize {
+		return verifyRowsResult{err: fmt.Errorf("upload size mismatch: promise has %d, but row size %d * %d original rows = %d",
+			work.promise.UploadSize, rowSize, work.cfg.OriginalRows, expectedUploadSize)}
+	}
+
+	rlcCoeffs, err := parseRLCCoeffs(work.rows.GetCoefficients(), work.cfg.OriginalRows)
+	if err != nil {
+		return verifyRowsResult{err: err}
+	}
+
+	// CPU-heavy operation: create verification context
+	verificationCtx, rlcRoot, err := rsema1d.CreateVerificationContext(rlcCoeffs, &rsema1d.Config{
+		K:           work.cfg.OriginalRows,
+		N:           work.cfg.ParityRows,
+		RowSize:     rowSize,
+		WorkerCount: 1, // single-threaded within each worker
+	})
+	if err != nil {
+		return verifyRowsResult{err: fmt.Errorf("creating verification context: %w", err)}
+	}
+
+	totalRows := work.cfg.OriginalRows + work.cfg.ParityRows
+
+	// verify each row
+	for _, rowPb := range work.rows.Rows {
+		row, err := parseRow(rowPb, totalRows)
+		if err != nil {
+			return verifyRowsResult{err: err}
+		}
+
+		if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(work.promise.Commitment), verificationCtx); err != nil {
+			return verifyRowsResult{err: fmt.Errorf("verification failed for row %d: %w", row.Index, err)}
+		}
+
+		runtime.Gosched()
+	}
+
+	return verifyRowsResult{rlcRoot: rlcRoot}
+}
+
 // Stop stops the server.
 // NOTE: It is not a graceful shutdown as it doesn't await for pending requests to complete.
 func (s *Server) Stop() error {
 	var err error
+
+	// signal workers to stop
+	s.workerCancel()
+	// close work channel to unblock any workers waiting on it
+	close(s.verifyWorkChan)
+	// wait for all workers to finish
+	s.workerWg.Wait()
+
 	if s.tracerShutdown != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
