@@ -63,7 +63,7 @@ var (
 		"us-central1":     {"us-central1-a", "us-central1-b", "us-central1-c"},
 		"us-east1":        {"us-east1-b", "us-east1-c", "us-east1-d"},
 		"us-east4":        {"us-east4-a", "us-east4-b", "us-east4-c"},
-		"asia-southeast1": {"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c"},
+		"asia-southeast1": {"asia-southeast1-a"},
 		"europe-west1":    {"europe-west1-b", "europe-west1-c", "europe-west1-d"},
 		"asia-east1":      {"asia-east1-a", "asia-east1-b", "asia-east1-c"},
 	}
@@ -570,6 +570,9 @@ func createGCInstance(ctx context.Context, project string, inst Instance, zone s
 						Value: &sshKeyMetadata,
 					},
 				},
+			},
+			Scheduling: &computepb.Scheduling{
+				OnHostMaintenance: ptr(computepb.Scheduling_TERMINATE.String()),
 			},
 		},
 	}
