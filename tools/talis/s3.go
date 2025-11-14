@@ -172,5 +172,13 @@ func createS3Client(ctx context.Context, cfg Config) (*s3.Client, error) {
 		return nil, fmt.Errorf("failed to build AWS config: %w", err)
 	}
 
-	return s3.NewFromConfig(awsCfg), nil
+	// For DigitalOcean Spaces and other S3-compatible services, configure client options
+	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		// Use path-style addressing for better compatibility with non-AWS S3 services
+		if cfg.S3Config.Endpoint != "" {
+			o.UsePathStyle = true
+		}
+	})
+
+	return client, nil
 }
