@@ -26,6 +26,7 @@ func main() {
 		downCmd(),
 		deployCmd(),
 		addCmd(),
+		bumpCmd(),
 		startTxsimCmd(),
 		startFibreLoadCmd(),
 		uploadDataCmd(),

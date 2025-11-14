@@ -13,6 +13,7 @@ import (
 
 type Client interface {
 	Up(ctx context.Context, workers int) error
+	Bump(ctx context.Context, workers int) error
 	Down(ctx context.Context, workers int) error
 	List(ctx context.Context) error
 	GetConfig() Config
@@ -105,53 +106,28 @@ func NewDOClient(cfg Config) (*DOClient, error) {
 }
 
 func (c *DOClient) Up(ctx context.Context, workers int) error {
-	insts := make([]Instance, 0)
-	for _, v := range c.cfg.Validators {
-		if v.Provider != DigitalOcean {
-			log.Println("unexpectedly skipping instance since only DO is supported", v.Name, "in region", v.Region)
-			continue
-		}
-
-		if v.Region == "" || v.Region == RandomRegion {
-			v.Region = RandomDORegion()
-		}
-
-		insts = append(insts, v)
-	}
-
+	insts := c.selectDOValidators(nil)
 	if len(insts) == 0 {
 		return fmt.Errorf("no instances to create")
 	}
 
-	insts, err := CreateDroplets(ctx, c.do, insts, c.doSSHKey, workers)
-	if err != nil {
-		return fmt.Errorf("failed to create droplets: %w", err)
+	return c.provisionDroplets(ctx, insts, workers)
+}
+
+func (c *DOClient) Bump(ctx context.Context, workers int) error {
+	insts := c.selectDOValidators(func(inst Instance) bool {
+		return inst.NeedsProvision()
+	})
+	if len(insts) == 0 {
+		log.Println("No pending DigitalOcean instances to bump")
+		return nil
 	}
 
-	for _, inst := range insts {
-		cfg, err := c.cfg.UpdateInstance(inst.Name, inst.PublicIP, inst.PrivateIP)
-		if err != nil {
-			return fmt.Errorf("failed to update config with instance %s: %w", inst.Name, err)
-		}
-		c.cfg = cfg
-	}
-
-	return err
+	return c.provisionDroplets(ctx, insts, workers)
 }
 
 func (c *DOClient) Down(ctx context.Context, workers int) error {
-	insts := make([]Instance, 0)
-	for _, v := range c.cfg.Validators {
-		if v.Provider != DigitalOcean {
-			log.Println("unexpectedly skipping instance since only DO is supported", v.Name, "in region", v.Region)
-			continue
-		}
-		if v.Region == "" || v.Region == RandomRegion {
-			v.Region = RandomDORegion()
-		}
-		insts = append(insts, v)
-	}
-
+	insts := c.selectDOValidators(nil)
 	if len(insts) == 0 {
 		return fmt.Errorf("no instances to destroy")
 	}
@@ -216,4 +192,39 @@ func (c *DOClient) List(ctx context.Context) error {
 
 func (c *DOClient) GetConfig() Config {
 	return c.cfg
+}
+
+func (c *DOClient) selectDOValidators(filter func(Instance) bool) []Instance {
+	insts := make([]Instance, 0, len(c.cfg.Validators))
+	for _, v := range c.cfg.Validators {
+		if v.Provider != DigitalOcean {
+			log.Println("unexpectedly skipping instance since only DO is supported", v.Name, "in region", v.Region)
+			continue
+		}
+		if v.Region == "" || v.Region == RandomRegion {
+			v.Region = RandomDORegion()
+		}
+		if filter != nil && !filter(v) {
+			continue
+		}
+		insts = append(insts, v)
+	}
+	return insts
+}
+
+func (c *DOClient) provisionDroplets(ctx context.Context, insts []Instance, workers int) error {
+	created, err := CreateDroplets(ctx, c.do, insts, c.doSSHKey, workers)
+	if err != nil {
+		return fmt.Errorf("failed to create droplets: %w", err)
+	}
+
+	for _, inst := range created {
+		cfg, err := c.cfg.UpdateInstance(inst.Name, inst.PublicIP, inst.PrivateIP)
+		if err != nil {
+			return fmt.Errorf("failed to update config with instance %s: %w", inst.Name, err)
+		}
+		c.cfg = cfg
+	}
+
+	return nil
 }

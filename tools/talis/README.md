@@ -156,6 +156,20 @@ we will see the config updated to:
 }
 ```
 
+You can re-run `talis add` later to append more nodes to an existing experiment. Newly added nodes will show `"TBD"` IP values, which keeps them in a "pending" state until you explicitly provision them.
+
+### bump
+
+```sh
+# provisions only the nodes that are still pending (IPs marked as TBD)
+talis bump
+
+# bump with more parallelism when scaling by many nodes
+talis bump --workers 20
+```
+
+Run `bump` after `talis add` when you want to scale a running network. It looks for nodes whose IPs are still `TBD` and spins up just those instances, leaving already-running nodes unchanged.
+
 ### Export env vars
 
 ```sh

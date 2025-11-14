@@ -27,6 +27,8 @@ var (
 	lightCount = atomic.Uint32{}
 )
 
+const pendingIPPlaceholder = "TBD"
+
 // NodeName returns the name of the node based on its type and index. The
 // name is in the format "<node_type>-<index>". For example, "validator-0" or
 // "bridge-1". Index is a global counter that is incremented for each node created.
@@ -86,11 +88,17 @@ func NewBaseInstance(nodeType NodeType) Instance {
 	name := NodeName(nodeType)
 	return Instance{
 		NodeType:  nodeType,
-		PublicIP:  "TBD",
-		PrivateIP: "TBD",
+		PublicIP:  pendingIPPlaceholder,
+		PrivateIP: pendingIPPlaceholder,
 		Name:      name,
 		Tags:      []string{"talis"},
 	}
+}
+
+// NeedsProvision returns true if the instance has not yet been assigned
+// network details by the cloud provider (i.e. it has not been created).
+func (i Instance) NeedsProvision() bool {
+	return i.PublicIP == "" || i.PublicIP == pendingIPPlaceholder
 }
 
 func (i Instance) WithExperiment(experimentID, chainID string) Instance {
@@ -251,6 +259,8 @@ func LoadConfig(rootDir string) (Config, error) {
 		return Config{}, err
 	}
 
+	syncNodeCounters(cfg)
+
 	return cfg, nil
 }
 
@@ -281,4 +291,27 @@ func (c Config) UpdateInstance(name, publicIP, privateIP string) (Config, error)
 		}
 	}
 	return c, fmt.Errorf("instance %s not found", name)
+}
+
+func syncNodeCounters(cfg Config) {
+	valCount.Store(nextIndex(cfg.Validators))
+	nodeCount.Store(nextIndex(cfg.Bridges))
+	lightCount.Store(nextIndex(cfg.Lights))
+}
+
+func nextIndex(instances []Instance) uint32 {
+	maxIdx := -1
+	for _, inst := range instances {
+		idx := extractIndexFromName(inst.Name)
+		if idx > maxIdx {
+			maxIdx = idx
+		}
+	}
+	return uint32(maxIdx + 1)
+}
+
+func resetNodeCounters() {
+	valCount.Store(0)
+	nodeCount.Store(0)
+	lightCount.Store(0)
 }

@@ -28,7 +28,7 @@ func pruneCmd() *cobra.Command {
 			var prunedLights []Instance
 
 			for _, v := range cfg.Validators {
-				if v.PublicIP == "TBD" || v.PrivateIP == "TBD" {
+				if v.PublicIP == pendingIPPlaceholder || v.PrivateIP == pendingIPPlaceholder {
 					log.Printf("🗑️  Removing validator %s (IPs not assigned)\n", v.Name)
 				} else {
 					prunedValidators = append(prunedValidators, v)
@@ -36,7 +36,7 @@ func pruneCmd() *cobra.Command {
 			}
 
 			for _, b := range cfg.Bridges {
-				if b.PublicIP == "TBD" || b.PrivateIP == "TBD" {
+				if b.PublicIP == pendingIPPlaceholder || b.PrivateIP == pendingIPPlaceholder {
 					log.Printf("🗑️  Removing bridge %s (IPs not assigned)\n", b.Name)
 				} else {
 					prunedBridges = append(prunedBridges, b)
@@ -44,7 +44,7 @@ func pruneCmd() *cobra.Command {
 			}
 
 			for _, l := range cfg.Lights {
-				if l.PublicIP == "TBD" || l.PrivateIP == "TBD" {
+				if l.PublicIP == pendingIPPlaceholder || l.PrivateIP == pendingIPPlaceholder {
 					log.Printf("🗑️  Removing light node %s (IPs not assigned)\n", l.Name)
 				} else {
 					prunedLights = append(prunedLights, l)

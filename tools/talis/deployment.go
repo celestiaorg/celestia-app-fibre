@@ -325,17 +325,26 @@ func uploadToS3(ctx context.Context, client *s3.Client, cfg S3Config, localPath 
 	filename := filepath.Base(localPath)
 	uploader := manager.NewUploader(client)
 
-	result, err := uploader.Upload(ctx, &s3.PutObjectInput{
+	_, err = uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: &cfg.BucketName,
 		Key:    &filename,
-		ACL:    "public-read",
 		Body:   file,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file: %w", err)
 	}
 
-	return result.Location, nil
+	// Generate a pre-signed URL that expires in 1 hour for downloads
+	presignClient := s3.NewPresignClient(client)
+	presignedReq, err := presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: &cfg.BucketName,
+		Key:    &filename,
+	}, s3.WithPresignExpires(time.Hour))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate pre-signed URL: %w", err)
+	}
+
+	return presignedReq.URL, nil
 }
 
 func downCmd() *cobra.Command {

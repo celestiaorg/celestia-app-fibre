@@ -94,56 +94,28 @@ func NewGCClient(cfg Config) (*GCClient, error) {
 }
 
 func (c *GCClient) Up(ctx context.Context, workers int) error {
-	insts := make([]Instance, 0)
-	for _, v := range c.cfg.Validators {
-		if v.Provider != GoogleCloud {
-			continue
-		}
-
-		if v.Region == "" || v.Region == RandomRegion {
-			v.Region = RandomGCRegion()
-		}
-
-		insts = append(insts, v)
-	}
-
+	insts := c.selectGCValidators(nil)
 	if len(insts) == 0 {
 		return fmt.Errorf("no instances to create")
 	}
 
-	opts, err := gcClientOptions(c.cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create client options: %w", err)
+	return c.provisionGCInstances(ctx, insts, workers)
+}
+
+func (c *GCClient) Bump(ctx context.Context, workers int) error {
+	insts := c.selectGCValidators(func(inst Instance) bool {
+		return inst.NeedsProvision()
+	})
+	if len(insts) == 0 {
+		log.Println("No pending Google Cloud instances to bump")
+		return nil
 	}
 
-	insts, err = CreateGCInstances(ctx, c.project, insts, string(c.sshKey), opts, workers)
-	if err != nil {
-		return fmt.Errorf("failed to create instances: %w", err)
-	}
-
-	for _, inst := range insts {
-		cfg, err := c.cfg.UpdateInstance(inst.Name, inst.PublicIP, inst.PrivateIP)
-		if err != nil {
-			return fmt.Errorf("failed to update config with instance %s: %w", inst.Name, err)
-		}
-		c.cfg = cfg
-	}
-
-	return nil
+	return c.provisionGCInstances(ctx, insts, workers)
 }
 
 func (c *GCClient) Down(ctx context.Context, workers int) error {
-	insts := make([]Instance, 0)
-	for _, v := range c.cfg.Validators {
-		if v.Provider != GoogleCloud {
-			continue
-		}
-		if v.Region == "" || v.Region == RandomRegion {
-			v.Region = RandomGCRegion()
-		}
-		insts = append(insts, v)
-	}
-
+	insts := c.selectGCValidators(nil)
 	if len(insts) == 0 {
 		return fmt.Errorf("no instances to destroy")
 	}
@@ -234,6 +206,45 @@ func (c *GCClient) List(ctx context.Context) error {
 
 func (c *GCClient) GetConfig() Config {
 	return c.cfg
+}
+
+func (c *GCClient) selectGCValidators(filter func(Instance) bool) []Instance {
+	insts := make([]Instance, 0, len(c.cfg.Validators))
+	for _, v := range c.cfg.Validators {
+		if v.Provider != GoogleCloud {
+			continue
+		}
+		if v.Region == "" || v.Region == RandomRegion {
+			v.Region = RandomGCRegion()
+		}
+		if filter != nil && !filter(v) {
+			continue
+		}
+		insts = append(insts, v)
+	}
+	return insts
+}
+
+func (c *GCClient) provisionGCInstances(ctx context.Context, insts []Instance, workers int) error {
+	opts, err := gcClientOptions(c.cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create client options: %w", err)
+	}
+
+	created, err := CreateGCInstances(ctx, c.project, insts, string(c.sshKey), opts, workers)
+	if err != nil {
+		return fmt.Errorf("failed to create instances: %w", err)
+	}
+
+	for _, inst := range created {
+		cfg, err := c.cfg.UpdateInstance(inst.Name, inst.PublicIP, inst.PrivateIP)
+		if err != nil {
+			return fmt.Errorf("failed to update config with instance %s: %w", inst.Name, err)
+		}
+		c.cfg = cfg
+	}
+
+	return nil
 }
 
 func NewGoogleCloudValidator(region string) Instance {
