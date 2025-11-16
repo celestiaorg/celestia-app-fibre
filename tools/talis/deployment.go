@@ -506,7 +506,7 @@ func checkForRunningExperiments(ctx context.Context, cfg Config) error {
 		}
 	}
 
-	awsConfigured := cfg.AWSAccessKeyID != "" || cfg.AWSSecretAccessKey != "" || cfg.AWSDefaultRegion != "" || providers[AWS]
+	awsConfigured := providers[AWS]
 	if awsConfigured {
 		running, err := checkForRunningAWSExperiments(ctx, cfg, cfg.Experiment, cfg.ChainID)
 		if err != nil {
@@ -558,7 +558,7 @@ func destroyAllInstances(ctx context.Context, cfg Config, workers int) error {
 		}()
 	}
 
-	awsConfigured := cfg.AWSAccessKeyID != "" || cfg.AWSSecretAccessKey != "" || cfg.AWSDefaultRegion != "" || providers[AWS]
+	awsConfigured := providers[AWS]
 	if awsConfigured {
 		wg.Add(1)
 		go func() {

@@ -108,7 +108,7 @@ func newClientWithFilter(cfg Config, allowed map[Provider]bool) (Client, error) 
 		order = append(order, GoogleCloud)
 	}
 
-	if include(AWS) && (providers[AWS] || cfg.AWSAccessKeyID != "" || cfg.AWSSecretAccessKey != "" || cfg.AWSDefaultRegion != "" || allowed != nil && allowed[AWS]) {
+	if include(AWS) && (providers[AWS] || allowed != nil && allowed[AWS]) {
 		awsClient, err := NewAWSClient(cfgPtr)
 		if err != nil {
 			return nil, err
