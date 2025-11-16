@@ -90,12 +90,6 @@ func upCmd() *cobra.Command {
 	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
 	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
 	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
-	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
-	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
-	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
-	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
-	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
-	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
 	cmd.Flags().IntVarP(&workers, "workers", "w", 10, "number of concurrent workers for parallel operations (should be > 0)")
 
 	return cmd
