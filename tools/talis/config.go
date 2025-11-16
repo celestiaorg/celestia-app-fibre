@@ -53,6 +53,7 @@ type Provider string
 const (
 	DigitalOcean Provider = "digitalocean"
 	GoogleCloud  Provider = "googlecloud"
+	AWS          Provider = "aws"
 )
 
 // Instance represents a single instance in the network. It contains
@@ -157,16 +158,22 @@ type Config struct {
 	DigitalOceanToken      string   `json:"digitalocean_token"`
 	GoogleCloudProject     string   `json:"google_cloud_project"`
 	GoogleCloudKeyJSONPath string   `json:"google_cloud_key_json_path"`
+	AWSAccessKeyID         string   `json:"aws_access_key_id"`
+	AWSSecretAccessKey     string   `json:"aws_secret_access_key"`
+	AWSDefaultRegion       string   `json:"aws_default_region"`
 	S3Config               S3Config `json:"s3_config"`
 }
 
 func NewConfig(experiment, chainID string) Config {
 	return Config{
-		Validators: []Instance{},
-		Bridges:    []Instance{},
-		Lights:     []Instance{},
-		Experiment: experiment,
-		ChainID:    TalisChainID(chainID),
+		Validators:         []Instance{},
+		Bridges:            []Instance{},
+		Lights:             []Instance{},
+		Experiment:         experiment,
+		ChainID:            TalisChainID(chainID),
+		AWSAccessKeyID:     os.Getenv(EnvVarAWSAccessKeyID),
+		AWSSecretAccessKey: os.Getenv(EnvVarAWSSecretAccessKey),
+		AWSDefaultRegion:   os.Getenv(EnvVarAWSRegion),
 		S3Config: S3Config{
 			AccessKeyID:     os.Getenv(EnvVarAWSAccessKeyID),
 			SecretAccessKey: os.Getenv(EnvVarAWSSecretAccessKey),
@@ -202,6 +209,17 @@ func (cfg Config) WithGoogleCloudKeyJSONPath(keyJSONPath string) Config {
 	return cfg
 }
 
+func (cfg Config) WithAWSAccess(accessKey, secret string) Config {
+	cfg.AWSAccessKeyID = accessKey
+	cfg.AWSSecretAccessKey = secret
+	return cfg
+}
+
+func (cfg Config) WithAWSRegion(region string) Config {
+	cfg.AWSDefaultRegion = region
+	return cfg
+}
+
 func (cfg Config) WithS3Config(s3 S3Config) Config {
 	cfg.S3Config = s3
 	return cfg
@@ -215,6 +233,12 @@ func (cfg Config) WithDigitalOceanValidator(region string) Config {
 
 func (cfg Config) WithGoogleCloudValidator(region string) Config {
 	i := NewGoogleCloudValidator(region).WithExperiment(cfg.Experiment, cfg.ChainID)
+	cfg.Validators = append(cfg.Validators, i)
+	return cfg
+}
+
+func (cfg Config) WithAWSValidator(region string) Config {
+	i := NewAWSValidator(region).WithExperiment(cfg.Experiment, cfg.ChainID)
 	cfg.Validators = append(cfg.Validators, i)
 	return cfg
 }

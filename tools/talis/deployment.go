@@ -29,6 +29,9 @@ func upCmd() *cobra.Command {
 	var DOAPIToken string
 	var GCProject string
 	var GCKeyJSONPath string
+	var AWSAccessKeyID string
+	var AWSSecretAccessKey string
+	var AWSRegion string
 	var workers int
 
 	cmd := &cobra.Command{
@@ -52,6 +55,9 @@ func upCmd() *cobra.Command {
 			cfg.DigitalOceanToken = resolveValue(DOAPIToken, EnvVarDigitalOceanToken, cfg.DigitalOceanToken)
 			cfg.GoogleCloudProject = resolveValue(GCProject, EnvVarGoogleCloudProject, cfg.GoogleCloudProject)
 			cfg.GoogleCloudKeyJSONPath = resolveValue(GCKeyJSONPath, EnvVarGoogleCloudKeyJSONPath, cfg.GoogleCloudKeyJSONPath)
+			cfg.AWSAccessKeyID = resolveValue(AWSAccessKeyID, EnvVarAWSAccessKeyID, cfg.AWSAccessKeyID)
+			cfg.AWSSecretAccessKey = resolveValue(AWSSecretAccessKey, EnvVarAWSSecretAccessKey, cfg.AWSSecretAccessKey)
+			cfg.AWSDefaultRegion = resolveValue(AWSRegion, EnvVarAWSRegion, cfg.AWSDefaultRegion)
 
 			if err := checkForRunningExperiments(cmd.Context(), cfg); err != nil {
 				return err
@@ -81,6 +87,15 @@ func upCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&DOAPIToken, "do-api-token", "t", "", "digital ocean api token (defaults to config or env)")
 	cmd.Flags().StringVar(&GCProject, "gc-project", "", "google cloud project (defaults to config or env)")
 	cmd.Flags().StringVar(&GCKeyJSONPath, "gc-key-json-path", "", "path to google cloud service account key JSON file (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
 	cmd.Flags().IntVarP(&workers, "workers", "w", 10, "number of concurrent workers for parallel operations (should be > 0)")
 
 	return cmd
@@ -467,6 +482,7 @@ func listCmd() *cobra.Command {
 }
 
 func checkForRunningExperiments(ctx context.Context, cfg Config) error {
+	providers := providersInConfig(cfg)
 	var hasRunningExperiments bool
 
 	if cfg.DigitalOceanToken != "" {
@@ -496,6 +512,17 @@ func checkForRunningExperiments(ctx context.Context, cfg Config) error {
 		}
 	}
 
+	awsConfigured := cfg.AWSAccessKeyID != "" || cfg.AWSSecretAccessKey != "" || cfg.AWSDefaultRegion != "" || providers[AWS]
+	if awsConfigured {
+		running, err := checkForRunningAWSExperiments(ctx, cfg, cfg.Experiment, cfg.ChainID)
+		if err != nil {
+			log.Printf("⚠️  Warning: failed to check AWS for running experiments: %v", err)
+		} else if running {
+			hasRunningExperiments = true
+			log.Printf("⚠️  Found experiment '%s' with chainID '%s' already running in AWS", cfg.Experiment, cfg.ChainID)
+		}
+	}
+
 	if hasRunningExperiments {
 		return fmt.Errorf("experiment '%s' with chainID '%s' is already running", cfg.Experiment, cfg.ChainID)
 	}
@@ -504,8 +531,9 @@ func checkForRunningExperiments(ctx context.Context, cfg Config) error {
 }
 
 func destroyAllInstances(ctx context.Context, cfg Config, workers int) error {
+	providers := providersInConfig(cfg)
 	var wg sync.WaitGroup
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
 
 	if cfg.DigitalOceanToken != "" {
 		wg.Add(1)
@@ -532,6 +560,18 @@ func destroyAllInstances(ctx context.Context, cfg Config, workers int) error {
 			}
 			if _, err := destroyAllTalisGCInstances(ctx, cfg.GoogleCloudProject, opts, workers); err != nil {
 				errCh <- fmt.Errorf("google Cloud: %w", err)
+			}
+		}()
+	}
+
+	awsConfigured := cfg.AWSAccessKeyID != "" || cfg.AWSSecretAccessKey != "" || cfg.AWSDefaultRegion != "" || providers[AWS]
+	if awsConfigured {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			log.Println("Destroying all AWS instances...")
+			if _, err := destroyAllTalisAWSInstances(ctx, cfg, workers); err != nil {
+				errCh <- fmt.Errorf("AWS: %w", err)
 			}
 		}()
 	}

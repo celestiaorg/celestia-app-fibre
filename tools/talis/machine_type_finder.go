@@ -34,12 +34,15 @@ func findMachineTypesCmd() *cobra.Command {
 		prefix       bool
 		providerFlag string
 		doToken      string
+		awsAccessKey string
+		awsSecretKey string
+		awsRegion    string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "find-machine-type",
 		Short: "Find all locations that support a specific machine type or family",
-		Long:  "Query Google Cloud or DigitalOcean to find all regions/zones where a specific machine type is available. Use --prefix to search by machine family (e.g., c4d, c4, n2).",
+		Long:  "Query Google Cloud, DigitalOcean, or AWS to find all regions/zones where a specific machine type is available. Use --prefix to search by machine family (e.g., c4d, c4, n2).",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, _, err := loadOptionalConfig(rootDir)
 			if err != nil {
@@ -52,6 +55,9 @@ func findMachineTypesCmd() *cobra.Command {
 			if cfg.GoogleCloudKeyJSONPath == "" {
 				cfg.GoogleCloudKeyJSONPath = os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")
 			}
+			cfg.AWSAccessKeyID = resolveValue(awsAccessKey, EnvVarAWSAccessKeyID, cfg.AWSAccessKeyID)
+			cfg.AWSSecretAccessKey = resolveValue(awsSecretKey, EnvVarAWSSecretAccessKey, cfg.AWSSecretAccessKey)
+			cfg.AWSDefaultRegion = resolveValue(awsRegion, EnvVarAWSRegion, cfg.AWSDefaultRegion)
 
 			provider := Provider(strings.ToLower(providerFlag))
 			switch provider {
@@ -60,8 +66,12 @@ func findMachineTypesCmd() *cobra.Command {
 				cfg.GoogleCloudKeyJSONPath = ""
 			case GoogleCloud:
 				cfg.DigitalOceanToken = ""
+			case AWS:
+				cfg.DigitalOceanToken = ""
+				cfg.GoogleCloudProject = ""
+				cfg.GoogleCloudKeyJSONPath = ""
 			default:
-				return fmt.Errorf("unknown provider %q (supported: digitalocean, googlecloud)", providerFlag)
+				return fmt.Errorf("unknown provider %q (supported: digitalocean, googlecloud, aws)", providerFlag)
 			}
 
 			client, err := NewClientForProviders(cfg, provider)
@@ -76,7 +86,7 @@ func findMachineTypesCmd() *cobra.Command {
 
 			if len(locations) == 0 {
 				scope := "regions"
-				if provider == GoogleCloud {
+				if provider == GoogleCloud || provider == AWS {
 					scope = "zones"
 				}
 				printNoResults(machineType, prefix, scope)
@@ -84,7 +94,7 @@ func findMachineTypesCmd() *cobra.Command {
 			}
 
 			scope := "regions"
-			if provider == GoogleCloud {
+			if provider == GoogleCloud || provider == AWS {
 				scope = "zones"
 			}
 
@@ -115,8 +125,11 @@ func findMachineTypesCmd() *cobra.Command {
 	cmd.Flags().StringVar(&project, "project", "", "Google Cloud project ID (or set GOOGLE_CLOUD_PROJECT env)")
 	cmd.Flags().StringVarP(&keyJSONPath, "key-json", "k", "", "Path to Google Cloud service account key JSON (or set GOOGLE_APPLICATION_CREDENTIALS env)")
 	cmd.Flags().BoolVar(&prefix, "prefix", false, "Search by machine type prefix/family (e.g., -m c4d --prefix)")
-	cmd.Flags().StringVarP(&providerFlag, "provider", "p", string(GoogleCloud), "Cloud provider to query (digitalocean, googlecloud)")
+	cmd.Flags().StringVarP(&providerFlag, "provider", "p", string(GoogleCloud), "Cloud provider to query (digitalocean, googlecloud, aws)")
 	cmd.Flags().StringVar(&doToken, "do-api-token", "", "DigitalOcean API token (or set DIGITALOCEAN_TOKEN env)")
+	cmd.Flags().StringVar(&awsAccessKey, "aws-access-key-id", "", "AWS access key id (or set AWS_ACCESS_KEY_ID env)")
+	cmd.Flags().StringVar(&awsSecretKey, "aws-secret-access-key", "", "AWS secret access key (or set AWS_SECRET_ACCESS_KEY env)")
+	cmd.Flags().StringVar(&awsRegion, "aws-region", "", "Default AWS region (or set AWS_DEFAULT_REGION env)")
 
 	return cmd
 }

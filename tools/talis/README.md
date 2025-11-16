@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-Talis supports DigitalOcean and Google Cloud. **Use only one provider per experiment.**
+Talis supports DigitalOcean, Google Cloud, and AWS. **Use only one provider per experiment.**
 
 ### DigitalOcean Setup
 
@@ -23,6 +23,22 @@ Talis supports DigitalOcean and Google Cloud. **Use only one provider per experi
 #### Firewall
 
 Firewall rules are automatically created when spinning up instances. They allow all incoming and outgoing traffic.
+
+### AWS Setup
+
+#### Account
+
+- Create (or reuse) an AWS IAM user or role with the ability to manage EC2 instances, security groups, key pairs, and subnets in the regions you plan to target.
+- Record the access key ID, secret access key, and default region. These are read from the standard `AWS_*` environment variables or the corresponding talis flags and config fields.
+- Ensure each desired region has a default VPC and default subnets. The AWS client reuses those defaults when network resources are not specified explicitly.
+
+#### SSH Key
+
+- Import the SSH public key referenced by `talis` (or let the CLI import it automatically). The key pair must exist in every AWS region from which you plan to launch validators.
+
+#### Networking
+
+- The CLI automatically creates a `talis-allow-all` security group per region (if missing) and authorizes all inbound and outbound traffic to mimic the permissive setups used with the other providers.
 
 ### SSH Key
 
@@ -97,6 +113,9 @@ the celestia-app configs (config.toml and app.toml) can be manually edited here,
   "digitalocean_token": "pulled from env var if available",
   "google_cloud_project": "pulled from env var if available",
   "google_cloud_key_json_path": "pulled from env var if available",
+  "aws_access_key_id": "pulled from env var if available",
+  "aws_secret_access_key": "pulled from env var if available",
+  "aws_default_region": "pulled from env var if available",
   "s3_config": {
     "region": "pulled from AWS_DEFAULT_REGION env var if available",
     "access_key_id": "pulled from AWS_ACCESS_KEY_ID env var if available",
@@ -109,9 +128,9 @@ the celestia-app configs (config.toml and app.toml) can be manually edited here,
 
 Notes:
 
-- **Only use one cloud provider per experiment.** Fill out either DigitalOcean or Google Cloud fields, not both. Filling them both might end up ruining other experiments or having stuck experiments that need to be removed by hand.
-- The AWS config supports any S3-compatible bucket. So it can be used with Digital Ocean and other cloud providers.
-- Example: The S3 endpoint for Digital Ocean is: `https://<region>.digitaloceanspaces.com/`.
+- **Only use one cloud provider per experiment.** Fill out just the fields for the provider you plan to use (DigitalOcean, Google Cloud, or AWS). Mixing providers within a single experiment can leave stray resources running.
+- The `s3_config` supports any S3-compatible bucket (DigitalOcean Spaces, MinIO, etc.), so you can keep reusing the same artifact bucket regardless of which compute provider hosts the validators.
+- Example: The S3 endpoint for DigitalOcean is: `https://<region>.digitaloceanspaces.com/`.
 
 ### add
 
@@ -124,6 +143,12 @@ If we call:
 
 ```sh
 talis add -t validator -c 1
+```
+
+Or, to target AWS explicitly:
+
+```sh
+talis add -t validator -c 1 --provider aws --region us-west-2
 ```
 
 we will see the config updated to:

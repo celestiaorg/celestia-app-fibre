@@ -99,11 +99,13 @@ func TestProvidersInConfig(t *testing.T) {
 		Validators: []Instance{
 			{Provider: DigitalOcean},
 			{Provider: GoogleCloud},
+			{Provider: AWS},
 		},
 	}
 
 	got := providersInConfig(cfg)
 	require.True(t, got[DigitalOcean])
 	require.True(t, got[GoogleCloud])
-	require.Len(t, got, 2)
+	require.True(t, got[AWS])
+	require.Len(t, got, 3)
 }

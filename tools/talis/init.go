@@ -34,16 +34,19 @@ const (
 
 func initCmd() *cobra.Command {
 	var (
-		rootDir       string
-		srcRoot       string
-		chainID       string
-		experiment    string
-		SSHPubKeyPath string
-		SSHKeyName    string
-		tables        []string
-		DOAPIToken    string
-		GCProject     string
-		GCKeyJSONPath string
+		rootDir            string
+		srcRoot            string
+		chainID            string
+		experiment         string
+		SSHPubKeyPath      string
+		SSHKeyName         string
+		tables             []string
+		DOAPIToken         string
+		GCProject          string
+		GCKeyJSONPath      string
+		AWSAccessKeyID     string
+		AWSSecretAccessKey string
+		AWSRegion          string
 	)
 
 	cmd := &cobra.Command{
@@ -72,6 +75,16 @@ func initCmd() *cobra.Command {
 			}
 			if keyPath := resolveValue(GCKeyJSONPath, EnvVarGoogleCloudKeyJSONPath, ""); keyPath != "" {
 				cfg = cfg.WithGoogleCloudKeyJSONPath(keyPath)
+			}
+
+			if AWSAccessKeyID != "" || AWSSecretAccessKey != "" {
+				if AWSAccessKeyID == "" || AWSSecretAccessKey == "" {
+					return fmt.Errorf("both AWS access key id and secret access key must be provided")
+				}
+				cfg = cfg.WithAWSAccess(AWSAccessKeyID, AWSSecretAccessKey)
+			}
+			if AWSRegion != "" {
+				cfg = cfg.WithAWSRegion(AWSRegion)
 			}
 
 			if err := cfg.Save(rootDir); err != nil {
@@ -121,6 +134,9 @@ func initCmd() *cobra.Command {
 	cmd.Flags().StringVar(&DOAPIToken, "do-api-token", "", "digital ocean api token (defaults to DIGITALOCEAN_TOKEN env)")
 	cmd.Flags().StringVar(&GCProject, "gc-project", "", "google cloud project (defaults to GOOGLE_CLOUD_PROJECT env)")
 	cmd.Flags().StringVar(&GCKeyJSONPath, "gc-key-json-path", "", "path to google cloud service account key JSON file (defaults to GOOGLE_CLOUD_KEY_JSON_PATH env)")
+	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to AWS_ACCESS_KEY_ID env)")
+	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to AWS_SECRET_ACCESS_KEY env)")
+	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use (defaults to AWS_DEFAULT_REGION env)")
 
 	return cmd
 }

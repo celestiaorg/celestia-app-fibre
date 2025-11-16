@@ -8,14 +8,17 @@ import (
 
 func bumpCmd() *cobra.Command {
 	var (
-		rootDir       string
-		cfgPath       string
-		SSHPubKeyPath string
-		SSHKeyName    string
-		DOAPIToken    string
-		GCProject     string
-		GCKeyJSONPath string
-		workers       int
+		rootDir            string
+		cfgPath            string
+		SSHPubKeyPath      string
+		SSHKeyName         string
+		DOAPIToken         string
+		GCProject          string
+		GCKeyJSONPath      string
+		AWSAccessKeyID     string
+		AWSSecretAccessKey string
+		AWSRegion          string
+		workers            int
 	)
 
 	cmd := &cobra.Command{
@@ -33,6 +36,9 @@ func bumpCmd() *cobra.Command {
 			cfg.DigitalOceanToken = resolveValue(DOAPIToken, EnvVarDigitalOceanToken, cfg.DigitalOceanToken)
 			cfg.GoogleCloudProject = resolveValue(GCProject, EnvVarGoogleCloudProject, cfg.GoogleCloudProject)
 			cfg.GoogleCloudKeyJSONPath = resolveValue(GCKeyJSONPath, EnvVarGoogleCloudKeyJSONPath, cfg.GoogleCloudKeyJSONPath)
+			cfg.AWSAccessKeyID = resolveValue(AWSAccessKeyID, EnvVarAWSAccessKeyID, cfg.AWSAccessKeyID)
+			cfg.AWSSecretAccessKey = resolveValue(AWSSecretAccessKey, EnvVarAWSSecretAccessKey, cfg.AWSSecretAccessKey)
+			cfg.AWSDefaultRegion = resolveValue(AWSRegion, EnvVarAWSRegion, cfg.AWSDefaultRegion)
 
 			client, err := NewClient(cfg)
 			if err != nil {
@@ -58,6 +64,9 @@ func bumpCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&DOAPIToken, "do-api-token", "t", "", "digital ocean api token (defaults to config or env)")
 	cmd.Flags().StringVar(&GCProject, "gc-project", "", "google cloud project (defaults to config or env)")
 	cmd.Flags().StringVar(&GCKeyJSONPath, "gc-key-json-path", "", "path to google cloud service account key JSON file (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSAccessKeyID, "aws-access-key-id", "", "aws access key id (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSSecretAccessKey, "aws-secret-access-key", "", "aws secret access key (defaults to config or env)")
+	cmd.Flags().StringVar(&AWSRegion, "aws-region", "", "default aws region to use when unspecified (defaults to config or env)")
 	cmd.Flags().IntVarP(&workers, "workers", "w", 10, "number of concurrent workers for parallel operations (should be > 0)")
 
 	return cmd

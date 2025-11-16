@@ -108,6 +108,15 @@ func newClientWithFilter(cfg Config, allowed map[Provider]bool) (Client, error) 
 		order = append(order, GoogleCloud)
 	}
 
+	if include(AWS) && (providers[AWS] || cfg.AWSAccessKeyID != "" || cfg.AWSSecretAccessKey != "" || cfg.AWSDefaultRegion != "" || allowed != nil && allowed[AWS]) {
+		awsClient, err := NewAWSClient(cfgPtr)
+		if err != nil {
+			return nil, err
+		}
+		clients[AWS] = awsClient
+		order = append(order, AWS)
+	}
+
 	if len(clients) == 0 {
 		return nil, errors.New("no cloud provider credentials found")
 	}

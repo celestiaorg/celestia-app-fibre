@@ -37,8 +37,10 @@ func addCmd() *cobra.Command {
 						cfg = cfg.WithDigitalOceanValidator(region)
 					case "googlecloud":
 						cfg = cfg.WithGoogleCloudValidator(region)
+					case "aws":
+						cfg = cfg.WithAWSValidator(region)
 					default:
-						return fmt.Errorf("unknown provider %q (supported: digitalocean, googlecloud)", provider)
+						return fmt.Errorf("unknown provider %q (supported: digitalocean, googlecloud, aws)", provider)
 					}
 				}
 			case "bridge":
@@ -60,7 +62,7 @@ func addCmd() *cobra.Command {
 	_ = cmd.MarkFlagRequired("count")
 	cmd.Flags().StringVarP(&nodeType, "type", "t", "", "Type of the node (validator, bridge, light)")
 	_ = cmd.MarkFlagRequired("type")
-	cmd.Flags().StringVarP(&provider, "provider", "p", "digitalocean", "Provider for the node (digitalocean, googlecloud)")
+	cmd.Flags().StringVarP(&provider, "provider", "p", "digitalocean", "Provider for the node (digitalocean, googlecloud, aws)")
 	cmd.Flags().StringVarP(&region, "region", "r", "random", "the region to deploy the instance in (random if blank)")
 
 	return cmd
