@@ -170,11 +170,60 @@ talis bump --workers 20
 
 Run `bump` after `talis add` when you want to scale a running network. It looks for nodes whose IPs are still `TBD` and spins up just those instances, leaving already-running nodes unchanged.
 
-### Export env vars
+### Environment Variables
+
+Talis supports configuration through environment variables. You can set these in your shell or use them in your config file.
+
+#### SSH Configuration
 
 ```sh
-export DIGITALOCEAN_TOKEN="your_api_token_here"
-export TALIS_SSH_KEY_PATH="your_ssh_key_path_here"
+# SSH key name registered with your cloud provider (defaults to your system username)
+export TALIS_SSH_KEY_NAME="your-ssh-key-name"
+
+# Path to SSH public key (defaults to ~/.ssh/id_ed25519.pub)
+export TALIS_SSH_PUB_KEY_PATH="~/.ssh/id_ed25519_no_passphrase.pub"
+
+# Path to SSH private key (used for connecting to instances, defaults to ~/.ssh/id_ed25519)
+export TALIS_SSH_KEY_PATH="~/.ssh/id_ed25519_no_passphrase"
+```
+
+#### DigitalOcean Configuration
+
+```sh
+# DigitalOcean API token (required for DigitalOcean operations)
+export DIGITALOCEAN_TOKEN="your_digitalocean_api_token_here"
+```
+
+#### Google Cloud Configuration
+
+```sh
+# Google Cloud project ID (required for Google Cloud operations)
+export GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
+
+# Path to Google Cloud service account key JSON file (optional, uses default credentials if not provided)
+export GOOGLE_CLOUD_KEY_JSON_PATH="/path/to/your-service-account-key.json"
+```
+
+#### AWS S3 Configuration (for storing trace data)
+
+Talis supports any S3-compatible storage service, including AWS S3 and DigitalOcean Spaces.
+
+```sh
+# AWS access key ID (or compatible S3 service)
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+
+# AWS secret access key (or compatible S3 service)
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+
+# AWS region or S3-compatible service region
+export AWS_DEFAULT_REGION="us-east-1"
+
+# S3 bucket name for storing trace data
+export AWS_S3_BUCKET="your-bucket-name"
+
+# S3 endpoint URL (optional, required for non-AWS S3-compatible services)
+# Example for DigitalOcean Spaces: https://nyc3.digitaloceanspaces.com
+export AWS_S3_ENDPOINT="https://nyc3.digitaloceanspaces.com"
 ```
 
 ### up
@@ -358,11 +407,22 @@ make build-talis-bins
 go install ./tools/talis/
 ```
 
-Set env variables:
+Set environment variables:
 
 ```sh
+# DigitalOcean API token (required)
 export DIGITALOCEAN_TOKEN="your_api_token_here"
+
+# Path to SSH private key (required for connecting to instances)
 export TALIS_SSH_KEY_PATH="~/.ssh/id_ed25519_no_passphrase"
+
+# Optional: Configure S3 for trace data storage
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+export AWS_DEFAULT_REGION="us-east-1"
+export AWS_S3_BUCKET="your-bucket-name"
+# For DigitalOcean Spaces:
+export AWS_S3_ENDPOINT="https://nyc3.digitaloceanspaces.com"
 ```
 
 **Run Talis:**

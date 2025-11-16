@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,29 +15,18 @@ import (
 	"github.com/digitalocean/godo"
 )
 
+// DigitalOcean Environment Variables:
+// - DIGITALOCEAN_TOKEN: DigitalOcean API token (required for DigitalOcean operations)
+
 const (
-	DODefaultValidatorSlug = "c2-32vcpu-64gb"
+	DODefaultValidatorSlug = "c-48"
 	DODefaultImage         = "ubuntu-22-04-x64"
 	RandomRegion           = "random"
 )
 
-var (
-	DORegions = []string{
-		"nyc1", "nyc3", "tor1", "sfo2", "sfo3", "ams3", "sgp1", "lon1", "fra1", "syd1",
-	}
-
-	DOLargeRegions = map[string]int{
-		"nyc3": 6, "tor1": 6, "sfo2": 2, "sfo3": 6, "ams3": 8, "sgp1": 4, "lon1": 8, "fra1": 6, "syd1": 6,
-	}
-
-	DOMediumRegions = map[string]int{
-		"nyc3": 2, "tor1": 2, "sfo3": 2, "ams3": 2, "lon1": 2,
-	}
-
-	DOSmallRegions = map[string]int{
-		"ams3": 1, "tor1": 1, "nyc3": 1, "lon1": 1,
-	}
-)
+var DOMachineTypeRegions = map[string][]string{
+	"c-48": {"ams3", "blr1", "fra1", "lon1", "nyc2", "nyc3", "sfo2", "sfo3", "sgp1", "syd1"},
+}
 
 func NewDigitalOceanValidator(region string) Instance {
 	if region == "" || region == RandomRegion {
@@ -50,7 +40,61 @@ func NewDigitalOceanValidator(region string) Instance {
 }
 
 func RandomDORegion() string {
-	return DORegions[rand.Intn(len(DORegions))]
+	return RandomDORegionForMachineType(DODefaultValidatorSlug)
+}
+
+func RandomDORegionForMachineType(machineType string) string {
+	regions := GetDORegionsForMachineType(machineType)
+	return regions[rand.Intn(len(regions))]
+}
+
+func GetDORegionsForMachineType(machineType string) []string {
+	slug := strings.ToLower(machineType)
+	if slug == "" {
+		slug = strings.ToLower(DODefaultValidatorSlug)
+	}
+
+	if regions, ok := DOMachineTypeRegions[slug]; ok && len(regions) > 0 {
+		return uniqueSortedCopy(regions)
+	}
+
+	// Attempt to match by family prefix (before first dash)
+	if idx := strings.Index(slug, "-"); idx > 0 {
+		family := slug[:idx]
+		if regions, ok := DOMachineTypeRegions[family]; ok && len(regions) > 0 {
+			return uniqueSortedCopy(regions)
+		}
+	}
+
+	return allDORegions()
+}
+
+func allDORegions() []string {
+	set := make(map[string]struct{})
+	for _, regions := range DOMachineTypeRegions {
+		for _, region := range regions {
+			set[region] = struct{}{}
+		}
+	}
+	all := make([]string, 0, len(set))
+	for region := range set {
+		all = append(all, region)
+	}
+	sort.Strings(all)
+	return all
+}
+
+func uniqueSortedCopy(regions []string) []string {
+	set := make(map[string]struct{}, len(regions))
+	for _, region := range regions {
+		set[region] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for region := range set {
+		out = append(out, region)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // GetDOSSHKeyMeta checks if the provided raw SSH public key is registered in DigitalOcean

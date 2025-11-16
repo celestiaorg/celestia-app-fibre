@@ -17,6 +17,10 @@ import (
 	"google.golang.org/api/option"
 )
 
+// Google Cloud Environment Variables:
+// - GOOGLE_CLOUD_PROJECT: Google Cloud project ID (required for Google Cloud operations)
+// - GOOGLE_CLOUD_KEY_JSON_PATH: Path to Google Cloud service account key JSON file (optional, uses default credentials if not provided)
+
 const (
 	GCDefaultValidatorMachineType = "c4d-highcpu-64"
 	// GCDefaultImage points to the Ubuntu 22.04 LTS family, which ships the gVNIC driver out of the box.
@@ -25,47 +29,36 @@ const (
 )
 
 var (
-	C4D_GCRegions = []string{
-		"asia-northeast1",
-		"asia-south1",
-		"asia-southeast1",
-		"europe-west1",
-		"europe-west2",
-		"europe-west3",
-		"europe-west4",
-		"us-central1",
-		"us-east1",
-		"us-east4",
-		"us-west1",
-		"us-west4",
-	}
-	C4D_GCZones = map[string][]string{
-		"asia-northeast1": {"asia-northeast1-b", "asia-northeast1-c"},
-		"asia-south1":     {"asia-south1-b", "asia-south1-c"},
-		"asia-southeast1": {"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c"},
-		"europe-west1":    {"europe-west1-b"},
-		"europe-west2":    {"europe-west2-a", "europe-west2-b"},
-		"europe-west3":    {"europe-west3-a", "europe-west3-b", "europe-west3-c"},
-		"europe-west4":    {"europe-west4-a", "europe-west4-b", "europe-west4-c"},
-		"us-central1":     {"us-central1-a", "us-central1-b", "us-central1-c"},
-		"us-east1":        {"us-east1-b", "us-east1-c"},
-		"us-east4":        {"us-east4-a", "us-east4-b", "us-east4-c"},
-		"us-west1":        {"us-west1-a", "us-west1-b"},
-		"us-west4":        {"us-west4-a", "us-west4-b"},
-	}
-)
-
-var (
-	C3D_GCRegions = []string{
-		"us-central1", "us-east1", "us-east4", "asia-southeast1", "europe-west1", "asia-east1",
-	}
-	C3D_GCZones = map[string][]string{
-		"us-central1":     {"us-central1-a", "us-central1-b", "us-central1-c"},
-		"us-east1":        {"us-east1-b", "us-east1-c", "us-east1-d"},
-		"us-east4":        {"us-east4-a", "us-east4-b", "us-east4-c"},
-		"asia-southeast1": {"asia-southeast1-a"},
-		"europe-west1":    {"europe-west1-b", "europe-west1-c", "europe-west1-d"},
-		"asia-east1":      {"asia-east1-a", "asia-east1-b", "asia-east1-c"},
+	GCPMachineTypeRegions = map[string]map[string][]string{
+		"c4d-highcpu-64": {
+			"asia-northeast1": {"asia-northeast1-b", "asia-northeast1-c"},
+			"asia-south1":     {"asia-south1-b", "asia-south1-c"},
+			"asia-southeast1": {"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c"},
+			"europe-west1":    {"europe-west1-b"},
+			"europe-west2":    {"europe-west2-a", "europe-west2-b"},
+			"europe-west3":    {"europe-west3-a", "europe-west3-b", "europe-west3-c"},
+			"europe-west4":    {"europe-west4-a", "europe-west4-b", "europe-west4-c"},
+			"us-central1":     {"us-central1-a", "us-central1-b", "us-central1-c"},
+			"us-east1":        {"us-east1-b", "us-east1-c"},
+			"us-east4":        {"us-east4-a", "us-east4-b", "us-east4-c"},
+			"us-west1":        {"us-west1-a", "us-west1-b"},
+			"us-west4":        {"us-west4-a", "us-west4-b"},
+		},
+		"c3d-highcpu-60": {
+			"asia-east1":           {"asia-east1-a", "asia-east1-b", "asia-east1-c"},
+			"asia-south1":          {"asia-south1-a", "asia-south1-b", "asia-south1-c"},
+			"asia-southeast1":      {"asia-southeast1-a", "asia-southeast1-b", "asia-southeast1-c"},
+			"australia-southeast2": {"australia-southeast2-a"},
+			"europe-west1":         {"europe-west1-b", "europe-west1-c", "europe-west1-d"},
+			"europe-west3":         {"europe-west3-a", "europe-west3-b", "europe-west3-c"},
+			"europe-west4":         {"europe-west4-a", "europe-west4-b", "europe-west4-c"},
+			"northamerica-south1":  {"northamerica-south1-b", "northamerica-south1-c"},
+			"us-central1":          {"us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"},
+			"us-east1":             {"us-east1-b", "us-east1-c", "us-east1-d"},
+			"us-east4":             {"us-east4-a", "us-east4-b", "us-east4-c"},
+			"us-west1":             {"us-west1-a"},
+			"us-west2":             {"us-west2-a", "us-west2-c"},
+		},
 	}
 )
 
@@ -74,7 +67,7 @@ type GCClient struct {
 	project string
 }
 
-func NewGCClient(cfg Config) (*GCClient, error) {
+func NewGCClient(cfg *Config) (*GCClient, error) {
 	if cfg.GoogleCloudProject == "" {
 		return nil, errors.New("google cloud project is required")
 	}
@@ -120,7 +113,7 @@ func (c *GCClient) Down(ctx context.Context, workers int) error {
 		return fmt.Errorf("no instances to destroy")
 	}
 
-	opts, err := gcClientOptions(c.cfg)
+	opts, err := gcClientOptions(*c.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create client options: %w", err)
 	}
@@ -130,7 +123,7 @@ func (c *GCClient) Down(ctx context.Context, workers int) error {
 }
 
 func (c *GCClient) List(ctx context.Context) error {
-	opts, err := gcClientOptions(c.cfg)
+	opts, err := gcClientOptions(*c.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create client options: %w", err)
 	}
@@ -205,7 +198,31 @@ func (c *GCClient) List(ctx context.Context) error {
 }
 
 func (c *GCClient) GetConfig() Config {
-	return c.cfg
+	return *c.cfg
+}
+
+func (c *GCClient) FindMachineType(ctx context.Context, provider Provider, machineType string, prefix bool) ([]MachineTypeLocation, error) {
+	if provider != "" && provider != GoogleCloud {
+		return nil, fmt.Errorf("google cloud client cannot query provider %s", provider)
+	}
+
+	project := c.cfg.GoogleCloudProject
+	if project == "" && c.cfg.GoogleCloudKeyJSONPath != "" {
+		if extracted, err := extractProjectFromJSON(c.cfg.GoogleCloudKeyJSONPath); err == nil && extracted != "" {
+			project = extracted
+		}
+	}
+	if project == "" {
+		return nil, errors.New("google cloud project is required to find machine types")
+	}
+
+	opts, err := gcClientOptions(*c.cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client options: %w", err)
+	}
+
+	searchType := strings.ToLower(machineType)
+	return findZonesWithMachineType(ctx, project, searchType, prefix, opts)
 }
 
 func (c *GCClient) selectGCValidators(filter func(Instance) bool) []Instance {
@@ -226,7 +243,7 @@ func (c *GCClient) selectGCValidators(filter func(Instance) bool) []Instance {
 }
 
 func (c *GCClient) provisionGCInstances(ctx context.Context, insts []Instance, workers int) error {
-	opts, err := gcClientOptions(c.cfg)
+	opts, err := gcClientOptions(*c.cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create client options: %w", err)
 	}
@@ -237,11 +254,9 @@ func (c *GCClient) provisionGCInstances(ctx context.Context, insts []Instance, w
 	}
 
 	for _, inst := range created {
-		cfg, err := c.cfg.UpdateInstance(inst.Name, inst.PublicIP, inst.PrivateIP)
-		if err != nil {
+		if err := c.cfg.UpdateInstance(inst.Name, inst.PublicIP, inst.PrivateIP); err != nil {
 			return fmt.Errorf("failed to update config with instance %s: %w", inst.Name, err)
 		}
-		c.cfg = cfg
 	}
 
 	return nil
@@ -265,65 +280,58 @@ func RandomGCRegion() string {
 // RandomGCRegionForMachineType returns a random region that supports the given machine type
 func RandomGCRegionForMachineType(machineType string) string {
 	regions := GetRegionsForMachineType(machineType)
-	if len(regions) == 0 {
-		// Fallback to C3D regions if machine type not recognized
-		regions = C3D_GCRegions
-	}
 	return regions[rand.Intn(len(regions))]
 }
 
 // GetRegionsForMachineType returns the list of regions that support a given machine type
 func GetRegionsForMachineType(machineType string) []string {
-	machineType = strings.ToLower(machineType)
-
-	// Check by prefix
-	if strings.HasPrefix(machineType, "c4d-") {
-		return C4D_GCRegions
+	zones := GetZonesForMachineType(machineType)
+	regions := make([]string, 0, len(zones))
+	for region := range zones {
+		regions = append(regions, region)
 	}
-	if strings.HasPrefix(machineType, "c3d-") {
-		return C3D_GCRegions
-	}
-
-	// Default to C3D regions for backwards compatibility
-	return C3D_GCRegions
+	sort.Strings(regions)
+	return regions
 }
 
 // GetZonesForMachineType returns the zone map for a given machine type
 func GetZonesForMachineType(machineType string) map[string][]string {
-	machineType = strings.ToLower(machineType)
-
-	// Check by prefix
-	if strings.HasPrefix(machineType, "c4d-") {
-		return C4D_GCZones
+	zones := getMachineTypeZones(machineType)
+	if zones == nil {
+		return getMachineTypeZones(GCDefaultValidatorMachineType)
 	}
-	if strings.HasPrefix(machineType, "c3d-") {
-		return C3D_GCZones
-	}
+	return zones
+}
 
-	// Default to C3D zones for backwards compatibility
-	return C3D_GCZones
+func getMachineTypeZones(machineType string) map[string][]string {
+	slug := strings.ToLower(machineType)
+	if slug == "" {
+		slug = strings.ToLower(GCDefaultValidatorMachineType)
+	}
+	if zones, ok := GCPMachineTypeRegions[slug]; ok {
+		return zones
+	}
+	if idx := strings.Index(slug, "-"); idx > 0 {
+		family := slug[:idx]
+		if zones, ok := GCPMachineTypeRegions[family]; ok {
+			return zones
+		}
+	}
+	return nil
 }
 
 // GetAllRegionsAndZones returns all unique regions and zones across all machine type families
 func GetAllRegionsAndZones() ([]string, map[string][]string) {
 	allZones := make(map[string]map[string]bool)
 
-	// Collect zones from all machine type families
-	for region, zones := range C4D_GCZones {
-		if allZones[region] == nil {
-			allZones[region] = make(map[string]bool)
-		}
-		for _, zone := range zones {
-			allZones[region][zone] = true
-		}
-	}
-
-	for region, zones := range C3D_GCZones {
-		if allZones[region] == nil {
-			allZones[region] = make(map[string]bool)
-		}
-		for _, zone := range zones {
-			allZones[region][zone] = true
+	for _, zones := range GCPMachineTypeRegions {
+		for region, zoneList := range zones {
+			if allZones[region] == nil {
+				allZones[region] = make(map[string]bool)
+			}
+			for _, zone := range zoneList {
+				allZones[region][zone] = true
+			}
 		}
 	}
 

@@ -268,29 +268,29 @@ func TalisChainID(chainID string) string {
 	return "talis-" + chainID
 }
 
-func (c Config) UpdateInstance(name, publicIP, privateIP string) (Config, error) {
+func (c *Config) UpdateInstance(name, publicIP, privateIP string) error {
 	for i := range c.Validators {
 		if c.Validators[i].Name == name {
 			c.Validators[i].PublicIP = publicIP
 			c.Validators[i].PrivateIP = privateIP
-			return c, nil
+			return nil
 		}
 	}
 	for i := range c.Bridges {
 		if c.Bridges[i].Name == name {
 			c.Bridges[i].PublicIP = publicIP
 			c.Bridges[i].PrivateIP = privateIP
-			return c, nil
+			return nil
 		}
 	}
 	for i := range c.Lights {
 		if c.Lights[i].Name == name {
 			c.Lights[i].PublicIP = publicIP
 			c.Lights[i].PrivateIP = privateIP
-			return c, nil
+			return nil
 		}
 	}
-	return c, fmt.Errorf("instance %s not found", name)
+	return fmt.Errorf("instance %s not found", name)
 }
 
 func syncNodeCounters(cfg Config) {

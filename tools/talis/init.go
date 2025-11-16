@@ -41,6 +41,9 @@ func initCmd() *cobra.Command {
 		SSHPubKeyPath string
 		SSHKeyName    string
 		tables        []string
+		DOAPIToken    string
+		GCProject     string
+		GCKeyJSONPath string
 	)
 
 	cmd := &cobra.Command{
@@ -60,6 +63,16 @@ func initCmd() *cobra.Command {
 			cfg := NewConfig(experiment, chainID).
 				WithSSHPubKeyPath(SSHPubKeyPath).
 				WithSSHKeyName(SSHKeyName)
+
+			if token := resolveValue(DOAPIToken, EnvVarDigitalOceanToken, ""); token != "" {
+				cfg = cfg.WithDigitalOceanToken(token)
+			}
+			if project := resolveValue(GCProject, EnvVarGoogleCloudProject, ""); project != "" {
+				cfg = cfg.WithGoogleCloudProject(project)
+			}
+			if keyPath := resolveValue(GCKeyJSONPath, EnvVarGoogleCloudKeyJSONPath, ""); keyPath != "" {
+				cfg = cfg.WithGoogleCloudKeyJSONPath(keyPath)
+			}
 
 			if err := cfg.Save(rootDir); err != nil {
 				return fmt.Errorf("failed to save init config: %w", err)
@@ -105,6 +118,9 @@ func initCmd() *cobra.Command {
 	}
 	defaultKeyName := user.Username
 	cmd.Flags().StringVarP(&SSHKeyName, "ssh-key-name", "n", defaultKeyName, "name for the SSH key")
+	cmd.Flags().StringVar(&DOAPIToken, "do-api-token", "", "digital ocean api token (defaults to DIGITALOCEAN_TOKEN env)")
+	cmd.Flags().StringVar(&GCProject, "gc-project", "", "google cloud project (defaults to GOOGLE_CLOUD_PROJECT env)")
+	cmd.Flags().StringVar(&GCKeyJSONPath, "gc-key-json-path", "", "path to google cloud service account key JSON file (defaults to GOOGLE_CLOUD_KEY_JSON_PATH env)")
 
 	return cmd
 }
