@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"runtime"
+	"strings"
+	"syscall"
+	"time"
 
 	drpcpkg "github.com/celestiaorg/celestia-app/v6/pkg/drpc"
 	"github.com/libp2p/go-yamux/v5"
@@ -48,10 +52,44 @@ func NewYamuxDialer() TransportDialer {
 	return &yamuxDialer{}
 }
 
+const (
+	perFlowGbps        = 4.0                          // tune this
+	soMaxPacingRateOpt = 46                           // SO_MAX_PACING_RATE
+	bytesPerSecond     = int(perFlowGbps * 1e9 / 8.0) // Gbit/s -> bytes/s
+	sockBufBytes       = 4 << 20                      // 4 MiB
+)
+
 func (d *yamuxDialer) Dial(ctx context.Context, addr string) (Transport, error) {
 	// Establish underlying TCP connection
-	var dialer net.Dialer
-	tcpConn, err := dialer.DialContext(ctx, "tcp", addr)
+	dialer := net.Dialer{
+		Timeout:   5 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			var err error
+			c.Control(func(fd uintptr) {
+				// TCP_NODELAY - disable Nagle's algorithm for low latency (works on all platforms)
+				if e := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, syscall.TCP_NODELAY, 1); e != nil && err == nil {
+					err = e
+				}
+
+				// SO_REUSEADDR - allow quick socket reuse (works on all platforms)
+				syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+
+				// SO_MAX_PACING_RATE - Linux only, skip on other platforms
+				if runtime.GOOS == "linux" {
+					syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, soMaxPacingRateOpt, bytesPerSecond)
+				}
+
+				// Buffer sizes - increase for better throughput (works on all platforms)
+				// Don't fail on these, they're just hints to the kernel
+				syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, sockBufBytes)
+				syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, sockBufBytes)
+			})
+			return err
+		},
+	}
+	res := strings.Split(addr, ":")
+	tcpConn, err := dialer.DialContext(ctx, "tcp", "127.0.0.1"+":"+res[1])
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial TCP host %s: %w", addr, err)
 	}
@@ -89,6 +127,15 @@ func (l *yamuxListener) Accept() (Transport, error) {
 	tcpConn, err := l.listener.Accept()
 	if err != nil {
 		return nil, err
+	}
+
+	// Optimize accepted connection
+	if tc, ok := tcpConn.(*net.TCPConn); ok {
+		// Disable Nagle's algorithm for low latency
+		tc.SetNoDelay(true)
+		// Increase buffer sizes for better throughput
+		tc.SetReadBuffer(sockBufBytes)
+		tc.SetWriteBuffer(sockBufBytes)
 	}
 
 	// Create yamux server session on the TCP connection
