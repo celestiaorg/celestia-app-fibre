@@ -563,6 +563,9 @@ func createGCInstance(ctx context.Context, project string, inst Instance, zone s
 					},
 				},
 			},
+			NetworkPerformanceConfig: &computepb.NetworkPerformanceConfig{
+				TotalEgressBandwidthTier: ptr("TIER_1"),
+			},
 			Metadata: &computepb.Metadata{
 				Items: []*computepb.Items{
 					{
