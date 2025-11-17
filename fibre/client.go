@@ -72,9 +72,10 @@ type ClientConfig struct {
 	// DownloadConcurrency is the maximum number of concurrent read requests to validators.
 	DownloadConcurrency int
 
-	// NewClientFn is the constructor function for creating DRPC clients.
-	// If nil, [fibredrpc.DefaultNewClientFn] will be used.
-	NewClientFn fibredrpc.NewClientFn
+	// NewClientFn is the constructor function for creating Fibre clients.
+	// If nil, [NewDRPCClientFn] with [fibredrpc.DefaultNewClientFn] will be used (DRPC transport).
+	// Use [NewGRPCClientFn] or [NewDRPCClientFn] to wrap transport-specific constructors.
+	NewClientFn TransportClientFn
 	// Log is the logger for the client.
 	// If nil, [slog.Default] will be used.
 	Log *slog.Logger
@@ -120,7 +121,7 @@ type Client struct {
 	tracerShutdown func(context.Context) error
 	clock          clock.Clock
 
-	clientCache *fibredrpc.ClientCache
+	clientCache *TransportClientCache
 	uploadSem   chan struct{}
 	downloadSem chan struct{}
 
@@ -144,7 +145,7 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	}
 
 	if cfg.NewClientFn == nil {
-		cfg.NewClientFn = fibredrpc.DefaultNewClientFn(hostReg)
+		cfg.NewClientFn = NewDRPCClientFn(fibredrpc.DefaultNewClientFn(hostReg))
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-client")
@@ -207,7 +208,7 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 		tracer:         cfg.Tracer,
 		tracerShutdown: tracerShutdown,
 		clock:          cfg.Clock,
-		clientCache:    fibredrpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
+		clientCache:    NewTransportClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
 		uploadSem:      make(chan struct{}, cfg.UploadConcurrency),
 		downloadSem:    make(chan struct{}, cfg.DownloadConcurrency),
 		pyroscope:      pyroHandle,

@@ -29,6 +29,9 @@ type LocalConfig struct {
 
 	// BasePortDRPC is the starting port for DRPC (default 26658)
 	BasePortDRPC int `json:"base_port_drpc"`
+
+	// FibreTransport specifies which transport to use for Fibre service ("grpc" or "drpc")
+	FibreTransport string `json:"fibre_transport"`
 }
 
 // LocalValidator represents a validator in the local network
@@ -60,13 +63,14 @@ type LocalValidatorPorts struct {
 // DefaultLocalConfig returns a LocalConfig with default port values
 func DefaultLocalConfig(chainID, binaryPath string) *LocalConfig {
 	return &LocalConfig{
-		ChainID:      chainID,
-		BinaryPath:   binaryPath,
-		Validators:   []LocalValidator{},
-		BasePortP2P:  26656,
-		BasePortRPC:  26657,
-		BasePortGRPC: 9090,
-		BasePortDRPC: 26658,
+		ChainID:        chainID,
+		BinaryPath:     binaryPath,
+		Validators:     []LocalValidator{},
+		BasePortP2P:    26656,
+		BasePortRPC:    26657,
+		BasePortGRPC:   9090,
+		BasePortDRPC:   26658,
+		FibreTransport: "drpc", // Default to DRPC
 	}
 }
 

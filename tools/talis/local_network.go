@@ -69,6 +69,9 @@ func (ln *LocalNetwork) ConfigureValidatorPorts(validator *LocalValidator) error
 	appConfig.DRPC.Enable = true
 	appConfig.DRPC.Address = fmt.Sprintf("0.0.0.0:%d", validator.Ports.DRPC)
 
+	// Set Fibre transport from config
+	appConfig.DRPC.FibreTransport = ln.Config.FibreTransport
+
 	// Set the custom config template
 	serverconfig.SetConfigTemplate(app.CustomConfigTemplate)
 

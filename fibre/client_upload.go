@@ -17,7 +17,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"storj.io/drpc"
 )
 
 // Upload uploads the given [Blob] to the Fibre network.
@@ -220,9 +219,9 @@ func (c *Client) uploadTo(
 		if checkCtx() {
 			return
 		}
-		log.WarnContext(ctx, "can't get DRPC FibreClient", "error", err)
+		log.WarnContext(ctx, "can't get Fibre client", "error", err)
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "can't get DRPC FibreClient")
+		span.SetStatus(codes.Error, "can't get Fibre client")
 		return
 	}
 	span.AddEvent("client_acquired")
@@ -249,13 +248,7 @@ func (c *Client) uploadTo(
 	}
 
 	// actually push the data to the validator
-	var resp *types.UploadRowsResponse
-	err = client.DoDrpc(ctx, func(conn drpc.Conn) error {
-		fibreClient := types.NewDRPCFibreClient(conn)
-		var err error
-		resp, err = fibreClient.UploadRows(ctx, req)
-		return err
-	})
+	resp, err := client.UploadRows(ctx, req)
 	if err != nil {
 		if checkCtx() {
 			return

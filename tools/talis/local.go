@@ -33,9 +33,10 @@ func localCmd() *cobra.Command {
 
 func localInitCmd() *cobra.Command {
 	var (
-		rootDir    string
-		chainID    string
-		binaryPath string
+		rootDir        string
+		chainID        string
+		binaryPath     string
+		fibreTransport string
 	)
 
 	cmd := &cobra.Command{
@@ -46,6 +47,11 @@ func localInitCmd() *cobra.Command {
 			// Validate that binary path is provided
 			if binaryPath == "" {
 				return fmt.Errorf("--binary-path is required")
+			}
+
+			// Validate fibre transport
+			if fibreTransport != "grpc" && fibreTransport != "drpc" {
+				return fmt.Errorf("--fibre-transport must be 'grpc' or 'drpc', got: %s", fibreTransport)
 			}
 
 			// Convert to absolute path if relative
@@ -66,6 +72,7 @@ func localInitCmd() *cobra.Command {
 
 			// Create the local config
 			config := DefaultLocalConfig(chainID, absBinaryPath)
+			config.FibreTransport = fibreTransport
 
 			// Save the config
 			if err := config.Save(rootDir); err != nil {
@@ -75,6 +82,7 @@ func localInitCmd() *cobra.Command {
 			fmt.Printf("Initialized local network configuration:\n")
 			fmt.Printf("  Chain ID: %s\n", config.ChainID)
 			fmt.Printf("  Binary: %s\n", config.BinaryPath)
+			fmt.Printf("  Fibre Transport: %s\n", config.FibreTransport)
 			fmt.Printf("  Config file: %s\n", filepath.Join(rootDir, "local_config.json"))
 			fmt.Printf("\nNext steps:\n")
 			fmt.Printf("  1. Add validators with: talis local add --moniker <name>\n")
@@ -88,6 +96,7 @@ func localInitCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&rootDir, "directory", "d", ".", "root directory for local network")
 	cmd.Flags().StringVarP(&chainID, "chain-id", "c", "local-testnet", "chain ID for the local network")
 	cmd.Flags().StringVarP(&binaryPath, "binary-path", "b", "", "path to celestia-appd binary (required)")
+	cmd.Flags().StringVarP(&fibreTransport, "fibre-transport", "f", "drpc", "transport for Fibre service: 'grpc' or 'drpc' (default: drpc)")
 	cmd.MarkFlagRequired("binary-path")
 
 	return cmd
@@ -320,6 +329,7 @@ func localGenesisCmd() *cobra.Command {
 			fmt.Printf("\nNetwork details:\n")
 			fmt.Printf("  Chain ID: %s\n", config.ChainID)
 			fmt.Printf("  Validators: %d\n", len(config.Validators))
+			fmt.Printf("  Fibre Transport: %s\n", config.FibreTransport)
 			fmt.Printf("  Funded accounts created: 'txsim' key in each validator's keyring (balance: 9999999999999999 utia)\n")
 			fmt.Printf("\nNext steps:\n")
 			fmt.Printf("  1. Start the network: talis local start\n")
@@ -571,9 +581,15 @@ func saveLocalValidatorHostMapping(config *LocalConfig, filename string) error {
 			return fmt.Errorf("failed to parse priv_validator_key.json for %s: %w", val.Moniker, err)
 		}
 
-		// Map consensus address to localhost:DRPC_PORT
+		// Map consensus address to localhost with the appropriate port based on transport
 		consensusAddr := strings.ToUpper(privKey.Address)
-		host := fmt.Sprintf("localhost:%d", val.Ports.DRPC)
+		var port int
+		if config.FibreTransport == "grpc" {
+			port = val.Ports.GRPC
+		} else {
+			port = val.Ports.DRPC
+		}
+		host := fmt.Sprintf("localhost:%d", port)
 		hostMapping[consensusAddr] = host
 	}
 

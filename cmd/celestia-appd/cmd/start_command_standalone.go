@@ -115,44 +115,81 @@ func startCommandHandler(
 			return fmt.Errorf("failed to create gRPC server: %w", err)
 		}
 
-		// Create Fibre DRPC server BEFORE starting the gRPC server
+		// Create Fibre server with the configured transport
 		serverConfig := fibre.DefaultServerConfig()
 		// Get chain ID from genesis (the source of truth) instead of CLI flag
 		serverConfig.ChainID = cmtNode.GenesisDoc().ChainID
 		serverConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
 
-		// Use DRPC for Fibre service
-		var drpcHandler drpc.Handler
-		fibreServer, drpcHandler, err = fibre.NewServerFromDRPC(
-			cmtNode.PrivValidator(),
-			clientCtx.GRPCClient, // Still use gRPC client for queries
-			serverConfig,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create Fibre DRPC server: %w", err)
+		// Check which transport to use for Fibre service
+		fibreTransport := customCfg.DRPC.FibreTransport
+		if fibreTransport == "" {
+			fibreTransport = "drpc" // Default to DRPC if not specified
 		}
 
-		// Add graceful shutdown for Fibre server
-		g.Go(func() error {
-			<-ctx.Done()
-			svrCtx.Logger.Info("Stopping Fibre DRPC server")
-			if err := fibreServer.Stop(); err != nil {
-				svrCtx.Logger.Error("Error stopping Fibre DRPC server", "error", err)
-				return err
+		switch fibreTransport {
+		case "grpc":
+			// Use gRPC for Fibre service - register on the gRPC server
+			svrCtx.Logger.Info("Creating Fibre server with gRPC transport")
+			fibreServer, err = fibre.NewServerFromGRPC(
+				cmtNode.PrivValidator(),
+				grpcServer,
+				clientCtx.GRPCClient,
+				serverConfig,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create Fibre gRPC server: %w", err)
 			}
-			return nil
-		})
 
-		// Create and configure DRPC server with the handler
-		drpcServer := createDRPCServer(svrCtx, drpcHandler)
+			// Add graceful shutdown for Fibre server
+			g.Go(func() error {
+				<-ctx.Done()
+				svrCtx.Logger.Info("Stopping Fibre gRPC server")
+				if err := fibreServer.Stop(); err != nil {
+					svrCtx.Logger.Error("Error stopping Fibre gRPC server", "error", err)
+					return err
+				}
+				return nil
+			})
 
-		// Start DRPC server on port 26658
-		drpcAddress := getDrpcAddress(svrCtx)
-		drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcAddress)
-		if err != nil {
-			return fmt.Errorf("failed to start DRPC server: %w", err)
+		case "drpc":
+			// Use DRPC for Fibre service
+			svrCtx.Logger.Info("Creating Fibre server with DRPC transport")
+			var drpcHandler drpc.Handler
+			fibreServer, drpcHandler, err = fibre.NewServerFromDRPC(
+				cmtNode.PrivValidator(),
+				clientCtx.GRPCClient, // Still use gRPC client for queries
+				serverConfig,
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create Fibre DRPC server: %w", err)
+			}
+
+			// Add graceful shutdown for Fibre server
+			g.Go(func() error {
+				<-ctx.Done()
+				svrCtx.Logger.Info("Stopping Fibre DRPC server")
+				if err := fibreServer.Stop(); err != nil {
+					svrCtx.Logger.Error("Error stopping Fibre DRPC server", "error", err)
+					return err
+				}
+				return nil
+			})
+
+			// Create and configure DRPC server with the handler
+			drpcServer := createDRPCServer(svrCtx, drpcHandler)
+
+			// Start DRPC server
+			drpcAddress := getDrpcAddress(svrCtx)
+			drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcAddress)
+			if err != nil {
+				return fmt.Errorf("failed to start DRPC server: %w", err)
+			}
+			svrCtx.Logger.Info("DRPC server started", "address", drpcAddress)
+
+		default:
+			return fmt.Errorf("invalid fibre-transport value: %s (must be 'grpc' or 'drpc')", fibreTransport)
 		}
-		svrCtx.Logger.Info("DRPC server started", "address", drpcAddress)
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, *svrCfg, grpcServer, cmtNode); err != nil {

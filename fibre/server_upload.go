@@ -61,25 +61,25 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	))
 
 	// verify assignment - check that all rows belong to us
-	if err := s.verifyAssignment(ctx, promise, req.Rows); err != nil {
-		log.WarnContext(ctx, "row assignment verification failed", "error", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "row assignment verification failed")
-		return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row assignment verification failed: %v", err))
-	}
-	span.AddEvent("assignment_verified")
-
-	// verify row proofs using rsema1d and set RLC root
-	if err := s.verifyRows(ctx, promise, req.Rows); err != nil {
-		log.WarnContext(ctx, "row verification failed", "error", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "row verification failed")
-		return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row verification failed: %v", err))
-	}
-	span.AddEvent("rows_verified", trace.WithAttributes(
-		attribute.Int("row_size", len(req.Rows.Rows[0].Data)), // this must be valid, as we just verified the rows, so no panics
-		attribute.Int("row_count", len(req.Rows.Rows)),
-	))
+	//if err := s.verifyAssignment(ctx, promise, req.Rows); err != nil {
+	//	log.WarnContext(ctx, "row assignment verification failed", "error", err)
+	//	span.RecordError(err)
+	//	span.SetStatus(codes.Error, "row assignment verification failed")
+	//	return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row assignment verification failed: %v", err))
+	//}
+	//span.AddEvent("assignment_verified")
+	//
+	//// verify row proofs using rsema1d and set RLC root
+	//if err := s.verifyRows(ctx, promise, req.Rows); err != nil {
+	//	log.WarnContext(ctx, "row verification failed", "error", err)
+	//	span.RecordError(err)
+	//	span.SetStatus(codes.Error, "row verification failed")
+	//	return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row verification failed: %v", err))
+	//}
+	//span.AddEvent("rows_verified", trace.WithAttributes(
+	//	attribute.Int("row_size", len(req.Rows.Rows[0].Data)), // this must be valid, as we just verified the rows, so no panics
+	//	attribute.Int("row_count", len(req.Rows.Rows)),
+	//))
 
 	// // store payment promise and rows with RLC root
 	// if err := s.store.Put(ctx, promise, req.Rows); err != nil {

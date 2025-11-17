@@ -19,6 +19,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
+	fibredrpc "github.com/celestiaorg/celestia-app/v6/fibre/drpc"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
@@ -65,6 +66,7 @@ var (
 	pyroscopeURL      string
 	pyroscopeTrace    bool
 	pyroscopeProfiles []string
+	fibreTransport    string
 )
 
 var rootCmd = &cobra.Command{
@@ -96,7 +98,7 @@ and submits transactions at a configurable rate.`,
 			cancel()
 		}()
 
-		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles)
+		return runLoad(ctx, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles, fibreTransport)
 	},
 }
 
@@ -114,6 +116,7 @@ func init() {
 	rootCmd.Flags().StringVar(&pyroscopeURL, "pyroscope-url", "", "URL of the Pyroscope server used for continuous profiling (disabled when empty)")
 	rootCmd.Flags().BoolVar(&pyroscopeTrace, "pyroscope-trace", false, "attach active spans to Pyroscope samples (requires --pyroscope-url)")
 	rootCmd.Flags().StringSliceVar(&pyroscopeProfiles, "pyroscope-profile", nil, "Pyroscope profile types to enable (repeat flag, defaults to standard CPU/memory profiles)")
+	rootCmd.Flags().StringVar(&fibreTransport, "fibre-transport", "drpc", "transport for Fibre service: 'grpc' or 'drpc'")
 	rootCmd.MarkFlagRequired("validator-hosts")
 
 	// Support CHAIN_ID environment variable - check after flags are parsed
@@ -141,6 +144,7 @@ func runLoad(
 	pyroURL string,
 	pyroTrace bool,
 	pyroProfiles []string,
+	fibreTransport string,
 ) error {
 	// Set default traces directory if not specified
 	if tracesDir == "" {
@@ -151,11 +155,17 @@ func runLoad(
 		tracesDir = filepath.Join(homeDir, defaultTracesDir)
 	}
 
+	// Validate fibre transport
+	if fibreTransport != "grpc" && fibreTransport != "drpc" {
+		return fmt.Errorf("invalid fibre-transport: %s (must be 'grpc' or 'drpc')", fibreTransport)
+	}
+
 	fmt.Printf("Fibre Load Generator\n")
 	fmt.Printf("====================\n")
 	fmt.Printf("gRPC Endpoint: %s\n", endpoint)
 	fmt.Printf("Keyring Directory: %s\n", keyringDir)
 	fmt.Printf("Chain ID: %s\n", chainID)
+	fmt.Printf("Fibre Transport: %s\n", fibreTransport)
 	fmt.Printf("Interval: %s\n", interval)
 	fmt.Printf("Payload Size: %d bytes\n", payloadSize)
 	fmt.Printf("Namespace: %s\n", namespaceStr)
@@ -234,6 +244,19 @@ func runLoad(
 	fibreCfg := fibre.DefaultClientConfig()
 	fibreCfg.DefaultKeyName = keyName
 	fibreCfg.ChainID = chainID
+
+	// Set the appropriate client function based on transport
+	switch fibreTransport {
+	case "grpc":
+		fmt.Println("Using gRPC transport for Fibre client")
+		fibreCfg.NewClientFn = fibre.NewGRPCClientFn(fibregrpc.DefaultNewClientFn(hostRegistry))
+	case "drpc":
+		fmt.Println("Using DRPC transport for Fibre client")
+		fibreCfg.NewClientFn = fibre.NewDRPCClientFn(fibredrpc.DefaultNewClientFn(hostRegistry))
+	default:
+		return fmt.Errorf("invalid fibre transport: %s", fibreTransport)
+	}
+
 	if pyroURL != "" {
 		labels := map[string]string{
 			"component": "fibre-load",

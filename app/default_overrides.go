@@ -72,6 +72,10 @@ max-recv-msg-size = "{{ .DRPC.MaxRecvMsgSize }}"
 # MaxSendMsgSize defines the max message size in bytes the server can send.
 # The default value is 256MB.
 max-send-msg-size = "{{ .DRPC.MaxSendMsgSize }}"
+
+# FibreTransport defines which transport to use for the Fibre service.
+# Valid values: "grpc" or "drpc". Default is "drpc".
+fibre-transport = "{{ .DRPC.FibreTransport }}"
 `
 
 var (

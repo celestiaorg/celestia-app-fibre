@@ -18,6 +18,10 @@ type DRPCConfig struct {
 	// MaxSendMsgSize defines the max message size in bytes the server can send.
 	// The default value is 256MB, which is suitable for large blob data transfers.
 	MaxSendMsgSize int `mapstructure:"max-send-msg-size"`
+
+	// FibreTransport defines which transport to use for the Fibre service.
+	// Valid values: "grpc" or "drpc" (default: "drpc")
+	FibreTransport string `mapstructure:"fibre-transport"`
 }
 
 // DefaultDRPCConfig returns the default DRPC server configuration.
@@ -27,5 +31,6 @@ func DefaultDRPCConfig() DRPCConfig {
 		Address:        "0.0.0.0:26658",
 		MaxRecvMsgSize: 256 * 1024 * 1024, // 256MB
 		MaxSendMsgSize: 256 * 1024 * 1024, // 256MB
+		FibreTransport: "drpc",            // Default to DRPC for Fibre service
 	}
 }
