@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
-	drpcpkg "github.com/celestiaorg/celestia-app/v6/pkg/drpc"
+	"github.com/celestiaorg/celestia-app/v6/pkg/drpc/transport"
 	core "github.com/cometbft/cometbft/types"
-	"github.com/libp2p/go-yamux/v5"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcconn"
 	"storj.io/drpc/drpcmanager"
@@ -17,11 +15,11 @@ import (
 	"storj.io/drpc/drpcwire"
 )
 
-// Client manages a yamux session and provides a DoDrpc method for executing
-// DRPC calls over on-demand yamux streams.
+// Client manages a multiplexed transport (yamux or QUIC) and provides a DoDrpc method
+// for executing DRPC calls over on-demand streams.
 type Client interface {
 	io.Closer
-	// DoDrpc opens a new yamux stream, creates a DRPC connection on it,
+	// DoDrpc opens a new stream on the transport, creates a DRPC connection on it,
 	// executes the provided function, and closes the stream.
 	DoDrpc(ctx context.Context, do func(conn drpc.Conn) error) error
 }
@@ -30,38 +28,31 @@ type Client interface {
 // for a given validator. It should handle host resolution and connection establishment.
 type NewClientFn func(ctx context.Context, val *core.Validator) (Client, error)
 
-// fibreClientCloser implements [Client] with yamux-based connection multiplexing.
-// It holds the yamux session and underlying TCP connection for proper cleanup.
-// Each RPC call opens a new yamux stream on demand.
+// fibreClientCloser implements [Client] with transport-based connection multiplexing.
+// It holds the transport session (yamux, QUIC, etc.) for proper cleanup.
+// Each RPC call opens a new stream on demand.
 type fibreClientCloser struct {
-	yamuxSess  *yamux.Session
-	underlying net.Conn
+	transport transport.Transport
 }
 
 func (f *fibreClientCloser) Close() error {
-	var err error
-	if f.yamuxSess != nil {
-		err = f.yamuxSess.Close()
+	if f.transport != nil {
+		return f.transport.Close()
 	}
-	if f.underlying != nil {
-		if connErr := f.underlying.Close(); connErr != nil && err == nil {
-			err = connErr
-		}
-	}
-	return err
+	return nil
 }
 
-// DoDrpc opens a new yamux stream, creates a DRPC connection on it,
+// DoDrpc opens a new stream on the transport, creates a DRPC connection on it,
 // executes the provided function, and closes the stream.
 func (f *fibreClientCloser) DoDrpc(ctx context.Context, do func(conn drpc.Conn) error) error {
-	// Open a new yamux stream for this RPC
-	stream, err := f.yamuxSess.Open(ctx)
+	// Open a new stream for this RPC
+	stream, err := f.transport.OpenStream(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to open yamux stream: %w", err)
+		return fmt.Errorf("failed to open stream: %w", err)
 	}
 	defer stream.Close()
 
-	// Wrap the yamux stream in a DRPC connection with large message size limits (256 MB)
+	// Wrap the stream in a DRPC connection with large message size limits (256 MB)
 	const maxMessageSize = 256 * 1024 * 1024 // 256 MB
 	conn := drpcconn.NewWithOptions(stream, drpcconn.Options{
 		Manager: drpcmanager.Options{
@@ -76,32 +67,30 @@ func (f *fibreClientCloser) DoDrpc(ctx context.Context, do func(conn drpc.Conn) 
 }
 
 // DefaultNewClientFn returns the default [NewClientFn] that uses the provided
-// [validator.HostRegistry] to resolve validator hosts and establishes yamux sessions
-// over TCP connections. Each RPC will open a new yamux stream on demand.
-func DefaultNewClientFn(hostReg validator.HostRegistry) NewClientFn {
+// [validator.HostRegistry] to resolve validator hosts and establishes transport sessions.
+// Each RPC will open a new stream on demand.
+// The transportType parameter determines which transport to use (yamux or quic).
+func DefaultNewClientFn(hostReg validator.HostRegistry, transportType transport.TransportType) NewClientFn {
 	return func(ctx context.Context, val *core.Validator) (Client, error) {
 		host, err := hostReg.GetHost(ctx, val)
 		if err != nil {
 			return nil, err
 		}
 
-		// Establish underlying TCP connection
-		tcpConn, err := net.Dial("tcp", host.String())
+		// Create the appropriate transport dialer
+		dialer, err := transport.NewDialer(transportType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to dial TCP host %s: %w", host.String(), err)
+			return nil, fmt.Errorf("failed to create transport dialer: %w", err)
 		}
 
-		// Create yamux client session on top of TCP connection
-		// Yamux streams will be opened on demand for each RPC call
-		yamuxSess, err := yamux.Client(tcpConn, drpcpkg.YamuxCfg, nil)
+		// Dial the host using the transport
+		tr, err := dialer.Dial(ctx, host.String())
 		if err != nil {
-			tcpConn.Close()
-			return nil, fmt.Errorf("failed to create yamux session: %w", err)
+			return nil, fmt.Errorf("failed to dial host %s: %w", host.String(), err)
 		}
 
 		return &fibreClientCloser{
-			yamuxSess:  yamuxSess,
-			underlying: tcpConn,
+			transport: tr,
 		}, nil
 	}
 }

@@ -91,7 +91,7 @@ func makeTestEnv(
 	clients := make([]*fibre.Client, numClients)
 	for i := range numClients {
 		clientCfg := fibre.DefaultClientConfig()
-		clientCfg.NewClientFn = grpcfibre.DefaultNewClientFn(&testHostRegistry{addresses: addresses})
+		clientCfg.NewClientFn = fibre.NewGRPCClientFn(grpcfibre.DefaultNewClientFn(&testHostRegistry{addresses: addresses}))
 
 		// create logger with unique client identifier
 		clientCfg.Log = slog.Default().With("client_idx", i)

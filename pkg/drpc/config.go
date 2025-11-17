@@ -28,16 +28,22 @@ type DRPCConfig struct {
 	// FibreTransport defines which transport to use for the Fibre service.
 	// Valid values: "grpc" or "drpc" (default: "drpc")
 	FibreTransport string `mapstructure:"fibre-transport"`
+
+	// MultiplexTransport defines which multiplexing transport to use for DRPC.
+	// Valid values: "yamux" (default) or "quic"
+	// This only applies when FibreTransport is "drpc".
+	MultiplexTransport string `mapstructure:"multiplex-transport"`
 }
 
 // DefaultDRPCConfig returns the default DRPC server configuration.
 func DefaultDRPCConfig() DRPCConfig {
 	return DRPCConfig{
-		Enable:         true,
-		Address:        "0.0.0.0:26658",
-		MaxRecvMsgSize: 256 * 1024 * 1024, // 256MB
-		MaxSendMsgSize: 256 * 1024 * 1024, // 256MB
-		FibreTransport: "drpc",            // Default to DRPC for Fibre service
+		Enable:             true,
+		Address:            "0.0.0.0:26658",
+		MaxRecvMsgSize:     256 * 1024 * 1024, // 256MB
+		MaxSendMsgSize:     256 * 1024 * 1024, // 256MB
+		FibreTransport:     "drpc",            // Default to DRPC for Fibre service
+		MultiplexTransport: "yamux",           // Default to yamux for backward compatibility
 	}
 }
 

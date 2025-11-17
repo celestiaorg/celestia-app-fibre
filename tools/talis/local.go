@@ -33,10 +33,11 @@ func localCmd() *cobra.Command {
 
 func localInitCmd() *cobra.Command {
 	var (
-		rootDir        string
-		chainID        string
-		binaryPath     string
-		fibreTransport string
+		rootDir            string
+		chainID            string
+		binaryPath         string
+		fibreTransport     string
+		multiplexTransport string
 	)
 
 	cmd := &cobra.Command{
@@ -52,6 +53,11 @@ func localInitCmd() *cobra.Command {
 			// Validate fibre transport
 			if fibreTransport != "grpc" && fibreTransport != "drpc" {
 				return fmt.Errorf("--fibre-transport must be 'grpc' or 'drpc', got: %s", fibreTransport)
+			}
+
+			// Validate multiplex transport
+			if multiplexTransport != "yamux" && multiplexTransport != "quic" {
+				return fmt.Errorf("--multiplex-transport must be 'yamux' or 'quic', got: %s", multiplexTransport)
 			}
 
 			// Convert to absolute path if relative
@@ -73,6 +79,7 @@ func localInitCmd() *cobra.Command {
 			// Create the local config
 			config := DefaultLocalConfig(chainID, absBinaryPath)
 			config.FibreTransport = fibreTransport
+			config.MultiplexTransport = multiplexTransport
 
 			// Save the config
 			if err := config.Save(rootDir); err != nil {
@@ -83,6 +90,7 @@ func localInitCmd() *cobra.Command {
 			fmt.Printf("  Chain ID: %s\n", config.ChainID)
 			fmt.Printf("  Binary: %s\n", config.BinaryPath)
 			fmt.Printf("  Fibre Transport: %s\n", config.FibreTransport)
+			fmt.Printf("  Multiplex Transport: %s\n", config.MultiplexTransport)
 			fmt.Printf("  Config file: %s\n", filepath.Join(rootDir, "local_config.json"))
 			fmt.Printf("\nNext steps:\n")
 			fmt.Printf("  1. Add validators with: talis local add --moniker <name>\n")
@@ -97,6 +105,7 @@ func localInitCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&chainID, "chain-id", "c", "local-testnet", "chain ID for the local network")
 	cmd.Flags().StringVarP(&binaryPath, "binary-path", "b", "", "path to celestia-appd binary (required)")
 	cmd.Flags().StringVarP(&fibreTransport, "fibre-transport", "f", "drpc", "transport for Fibre service: 'grpc' or 'drpc' (default: drpc)")
+	cmd.Flags().StringVarP(&multiplexTransport, "multiplex-transport", "m", "yamux", "multiplex transport for DRPC: 'yamux' or 'quic' (default: yamux, only applies when fibre-transport is 'drpc')")
 	cmd.MarkFlagRequired("binary-path")
 
 	return cmd
@@ -330,6 +339,7 @@ func localGenesisCmd() *cobra.Command {
 			fmt.Printf("  Chain ID: %s\n", config.ChainID)
 			fmt.Printf("  Validators: %d\n", len(config.Validators))
 			fmt.Printf("  Fibre Transport: %s\n", config.FibreTransport)
+			fmt.Printf("  Multiplex Transport: %s\n", config.MultiplexTransport)
 			fmt.Printf("  Funded accounts created: 'txsim' key in each validator's keyring (balance: 9999999999999999 utia)\n")
 			fmt.Printf("\nNext steps:\n")
 			fmt.Printf("  1. Start the network: talis local start\n")

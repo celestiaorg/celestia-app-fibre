@@ -184,7 +184,7 @@ func testClientUploadAllValidatorsReceiveData(t *testing.T) {
 	mockClientFn := makeMockClientFn(validators, privKeys, tracker)
 
 	cfg := fibre.DefaultClientConfig()
-	cfg.NewClientFn = mockClientFn
+	cfg.NewClientFn = fibre.NewGRPCClientFn(mockClientFn)
 
 	valSet := validator.Set{ValidatorSet: core.NewValidatorSet(validators), Height: 100}
 	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
@@ -223,7 +223,7 @@ func makeTestClient(t *testing.T, numValidators int, customCfg func(*fibre.Clien
 	mockClientFn := makeMockClientFn(validators, privKeys, nil)
 
 	cfg := fibre.DefaultClientConfig()
-	cfg.NewClientFn = mockClientFn
+	cfg.NewClientFn = fibre.NewGRPCClientFn(mockClientFn)
 	if customCfg != nil {
 		customCfg(&cfg)
 	}
@@ -255,7 +255,7 @@ func makeTestClientWithFailures(t *testing.T, numValidators, numFailures int, cu
 	}
 
 	cfg := fibre.DefaultClientConfig()
-	cfg.NewClientFn = mockClientFn
+	cfg.NewClientFn = fibre.NewGRPCClientFn(mockClientFn)
 	cfg.UploadConcurrency = 10 // Set lower than numValidators to ensure semaphore limits concurrency
 	cfg.UploadTargetVotingPower = cmtmath.Fraction{Numerator: 2, Denominator: 3}
 	cfg.UploadTargetSignaturesCount = cmtmath.Fraction{Numerator: 0, Denominator: 1}

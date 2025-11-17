@@ -22,6 +22,7 @@ import (
 	fibredrpc "github.com/celestiaorg/celestia-app/v6/fibre/drpc"
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app/v6/pkg/drpc/transport"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3/share"
@@ -53,20 +54,21 @@ const (
 )
 
 var (
-	endpoint          string
-	keyringDir        string
-	interval          time.Duration
-	payloadSize       int
-	maxConcurrency    int
-	reuseBlob         bool
-	namespaceStr      string
-	validatorHostFile string
-	chainID           string
-	tracesDir         string
-	pyroscopeURL      string
-	pyroscopeTrace    bool
-	pyroscopeProfiles []string
-	fibreTransport    string
+	endpoint           string
+	keyringDir         string
+	interval           time.Duration
+	payloadSize        int
+	maxConcurrency     int
+	reuseBlob          bool
+	namespaceStr       string
+	validatorHostFile  string
+	chainID            string
+	tracesDir          string
+	pyroscopeURL       string
+	pyroscopeTrace     bool
+	pyroscopeProfiles  []string
+	fibreTransport     string
+	multiplexTransport string
 )
 
 var rootCmd = &cobra.Command{
@@ -117,6 +119,7 @@ func init() {
 	rootCmd.Flags().BoolVar(&pyroscopeTrace, "pyroscope-trace", false, "attach active spans to Pyroscope samples (requires --pyroscope-url)")
 	rootCmd.Flags().StringSliceVar(&pyroscopeProfiles, "pyroscope-profile", nil, "Pyroscope profile types to enable (repeat flag, defaults to standard CPU/memory profiles)")
 	rootCmd.Flags().StringVar(&fibreTransport, "fibre-transport", "drpc", "transport for Fibre service: 'grpc' or 'drpc'")
+	rootCmd.Flags().StringVar(&multiplexTransport, "multiplex-transport", "yamux", "multiplex transport for DRPC: 'yamux' or 'quic' (only applies when fibre-transport is 'drpc')")
 	rootCmd.MarkFlagRequired("validator-hosts")
 
 	// Support CHAIN_ID environment variable - check after flags are parsed
@@ -251,8 +254,9 @@ func runLoad(
 		fmt.Println("Using gRPC transport for Fibre client")
 		fibreCfg.NewClientFn = fibre.NewGRPCClientFn(fibregrpc.DefaultNewClientFn(hostRegistry))
 	case "drpc":
-		fmt.Println("Using DRPC transport for Fibre client")
-		fibreCfg.NewClientFn = fibre.NewDRPCClientFn(fibredrpc.DefaultNewClientFn(hostRegistry))
+		fmt.Printf("Using DRPC transport for Fibre client (multiplex: %s)\n", multiplexTransport)
+		transportType := transport.TransportType(multiplexTransport)
+		fibreCfg.NewClientFn = fibre.NewDRPCClientFn(fibredrpc.DefaultNewClientFn(hostRegistry, transportType))
 	default:
 		return fmt.Errorf("invalid fibre transport: %s", fibreTransport)
 	}

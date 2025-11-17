@@ -14,7 +14,7 @@ import (
 	"cosmossdk.io/log"
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
-	drpcpkg "github.com/celestiaorg/celestia-app/v6/pkg/drpc"
+	"github.com/celestiaorg/celestia-app/v6/pkg/drpc/transport"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/p2p"
@@ -35,7 +35,6 @@ import (
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/libp2p/go-yamux/v5"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -180,13 +179,17 @@ func startCommandHandler(
 			// Create and configure DRPC server with the handler
 			drpcServer := createDRPCServer(svrCtx, drpcHandler)
 
-			// Start DRPC server
+			// Determine which transport to use for DRPC
+			transportType := getMultiplexTransport(svrCtx)
+			svrCtx.Logger.Info("Using multiplex transport for DRPC", "transport", transportType)
+
+			// Start DRPC server with the specified transport
 			drpcAddress := getDrpcAddress(svrCtx)
-			drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcAddress)
+			drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcAddress, transportType)
 			if err != nil {
 				return fmt.Errorf("failed to start DRPC server: %w", err)
 			}
-			svrCtx.Logger.Info("DRPC server started", "address", drpcAddress)
+			svrCtx.Logger.Info("DRPC server started", "address", drpcAddress, "transport", transportType)
 
 		default:
 			return fmt.Errorf("invalid fibre-transport value: %s (must be 'grpc' or 'drpc')", fibreTransport)
@@ -459,6 +462,16 @@ func getDrpcAddress(svrCtx *server.Context) string {
 	return appCfg.DRPC.Address
 }
 
+// getMultiplexTransport returns the multiplex transport type from the app config.
+// Defaults to "yamux" if not specified.
+func getMultiplexTransport(svrCtx *server.Context) transport.TransportType {
+	appCfg, err := GetCustomAppConfig(svrCtx)
+	if err != nil || appCfg.DRPC.MultiplexTransport == "" {
+		return transport.TransportYamux // Default to yamux
+	}
+	return transport.TransportType(appCfg.DRPC.MultiplexTransport)
+}
+
 // openTraceWriter opens a trace writer for the given file.
 // If the file is empty, it returns no writer and no error.
 func openTraceWriter(traceWriterFile string) (io.WriteCloser, error) {
@@ -497,22 +510,24 @@ func createDRPCServer(svrCtx *server.Context, handler drpc.Handler) *drpcserver.
 
 // startDRPCServer starts the DRPC server on the specified port.
 // The server must have all services registered before this is called.
-// Uses yamux for connection multiplexing over TCP.
-// Returns the net.Listener so it can be closed on shutdown.
+// Uses the specified transport (yamux or QUIC) for connection multiplexing.
+// Returns a closer function that can be used to shut down the transport listener.
 func startDRPCServer(
 	ctx context.Context,
 	g *errgroup.Group,
 	svrCtx *server.Context,
 	drpcSrv *drpcserver.Server,
 	addr string,
+	transportType transport.TransportType,
 ) (net.Listener, error) {
-	listener, err := net.Listen("tcp", addr)
+	// Create transport listener
+	transportListener, err := transport.NewListener(transportType, addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create DRPC listener on address %s: %w", addr, err)
+		return nil, fmt.Errorf("failed to create %s listener on address %s: %w", transportType, addr, err)
 	}
 
 	g.Go(func() error {
-		svrCtx.Logger.Info("DRPC server started with yamux", "address", listener.Addr().String())
+		svrCtx.Logger.Info("DRPC server started", "address", transportListener.Addr().String(), "transport", transportType)
 
 		for {
 			select {
@@ -521,66 +536,53 @@ func startDRPCServer(
 				svrCtx.Logger.Info("DRPC server context cancelled")
 				return nil
 			default:
-				// Accept new TCP connection
-				tcpConn, err := listener.Accept()
+				// Accept new transport connection
+				tr, err := transportListener.Accept()
 				if err != nil {
 					// Check if we're shutting down
 					select {
 					case <-ctx.Done():
 						return nil
 					default:
-						svrCtx.Logger.Error("TCP accept error", "error", err)
+						svrCtx.Logger.Error("Transport accept error", "error", err)
 						continue
 					}
 				}
 
-				// Handle TCP connection in separate goroutine
-				// Each TCP connection will have a yamux server session
-				go handleYamuxConnection(ctx, svrCtx, tcpConn, drpcSrv)
+				// Handle transport connection in separate goroutine
+				go handleTransportConnection(ctx, svrCtx, tr, drpcSrv)
 			}
 		}
 	})
 
-	return listener, nil
+	// Return a dummy listener that wraps the transport listener for compatibility
+	return &transportListenerAdapter{transportListener}, nil
 }
 
-// handleYamuxConnection handles a single TCP connection by creating a yamux server session
-// and serving DRPC on each yamux stream.
-func handleYamuxConnection(ctx context.Context, svrCtx *server.Context, tcpConn net.Conn, drpcSrv *drpcserver.Server) {
-	svrCtx.Logger.Info("handleYamuxConnection: TCP connection received", "remote_addr", tcpConn.RemoteAddr())
+// handleTransportConnection handles a single transport connection by accepting streams
+// and serving DRPC on each stream.
+func handleTransportConnection(ctx context.Context, svrCtx *server.Context, tr transport.Transport, drpcSrv *drpcserver.Server) {
+	svrCtx.Logger.Info("Transport connection received", "remote_addr", tr.RemoteAddr())
 
-	// Create yamux server session on the TCP connection
-	yamuxSess, err := yamux.Server(tcpConn, drpcpkg.YamuxCfg, nil)
-	if err != nil {
-		svrCtx.Logger.Error("failed to create yamux session", "error", err)
-		tcpConn.Close()
-		return
-	}
-
-	svrCtx.Logger.Info("yamux session established successfully", "remote_addr", tcpConn.RemoteAddr())
-
-	// Accept streams from the yamux session and serve DRPC on each stream
+	// Accept streams from the transport and serve DRPC on each stream
 	streamCount := 0
 	for {
-		svrCtx.Logger.Info("yamux: waiting to accept stream...", "stream_count", streamCount)
-		stream, err := yamuxSess.Accept()
+		stream, err := tr.AcceptStream()
 		if err != nil {
-			// Session closed or error
+			// Transport closed or error
 			if err != io.EOF {
-				svrCtx.Logger.Warn("yamux accept error", "error", err, "stream_count", streamCount)
+				svrCtx.Logger.Warn("Transport accept stream error", "error", err, "stream_count", streamCount)
 			} else {
-				svrCtx.Logger.Info("yamux session closed (EOF)", "stream_count", streamCount)
+				svrCtx.Logger.Info("Transport closed (EOF)", "stream_count", streamCount)
 			}
-			yamuxSess.Close()
-			tcpConn.Close()
+			tr.Close()
 			return
 		}
 
 		streamCount++
-		svrCtx.Logger.Info("yamux: stream accepted", "stream_id", streamCount, "remote_addr", stream.RemoteAddr())
+		svrCtx.Logger.Info("Stream accepted", "stream_id", streamCount, "remote_addr", stream.RemoteAddr())
 
-		// Serve DRPC on this yamux stream
-		// Note: We don't close the stream here; yamux handles stream lifecycle
+		// Serve DRPC on this stream
 		go func(s net.Conn, id int) {
 			svrCtx.Logger.Info("DRPC: starting ServeOne", "stream_id", id)
 			if err := drpcSrv.ServeOne(ctx, s); err != nil && !errors.Is(err, io.EOF) {
@@ -590,4 +592,14 @@ func handleYamuxConnection(ctx context.Context, svrCtx *server.Context, tcpConn 
 			}
 		}(stream, streamCount)
 	}
+}
+
+// transportListenerAdapter adapts a transport.TransportListener to net.Listener interface.
+type transportListenerAdapter struct {
+	transport.TransportListener
+}
+
+func (t *transportListenerAdapter) Accept() (net.Conn, error) {
+	// This method should not be called since we handle accepts in startDRPCServer
+	return nil, errors.New("Accept() should not be called on transportListenerAdapter")
 }

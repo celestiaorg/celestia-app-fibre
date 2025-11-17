@@ -240,7 +240,7 @@ func makeBenchmarkClient(t *testing.T, numValidators int) *fibre.Client {
 	mockClientFn := makeBenchmarkMockClient(validators, privKeys)
 
 	cfg := fibre.DefaultClientConfig()
-	cfg.NewClientFn = mockClientFn
+	cfg.NewClientFn = fibre.NewGRPCClientFn(mockClientFn)
 	// Use mocked clock with fixed time to make all PaymentPromises identical
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC))

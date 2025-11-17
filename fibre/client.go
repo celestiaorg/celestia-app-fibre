@@ -11,6 +11,7 @@ import (
 
 	fibredrpc "github.com/celestiaorg/celestia-app/v6/fibre/drpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app/v6/pkg/drpc/transport"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
@@ -76,6 +77,9 @@ type ClientConfig struct {
 	// If nil, [NewDRPCClientFn] with [fibredrpc.DefaultNewClientFn] will be used (DRPC transport).
 	// Use [NewGRPCClientFn] or [NewDRPCClientFn] to wrap transport-specific constructors.
 	NewClientFn TransportClientFn
+	// MultiplexTransport specifies the multiplexing transport to use for DRPC connections.
+	// Valid values: "yamux" (default) or "quic". Only applies when using DRPC transport.
+	MultiplexTransport string
 	// Log is the logger for the client.
 	// If nil, [slog.Default] will be used.
 	Log *slog.Logger
@@ -103,6 +107,7 @@ func DefaultClientConfig() ClientConfig {
 		UploadConcurrency:           100, // matches expected number of validators to maximize throughput by default
 		DownloadConcurrency:         25,  // 1/4 of validators to match 1/3 erasure coding overhead and request the minimum number of samples to get the data
 		AutoFundEscrow:              true,
+		MultiplexTransport:          "yamux", // Default to yamux for backward compatibility
 	}
 }
 
@@ -145,7 +150,12 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	}
 
 	if cfg.NewClientFn == nil {
-		cfg.NewClientFn = NewDRPCClientFn(fibredrpc.DefaultNewClientFn(hostReg))
+		// Determine transport type from config
+		transportType := cfg.MultiplexTransport
+		if transportType == "" {
+			transportType = "yamux" // Default to yamux
+		}
+		cfg.NewClientFn = NewDRPCClientFn(fibredrpc.DefaultNewClientFn(hostReg, transport.TransportType(transportType)))
 	}
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-client")

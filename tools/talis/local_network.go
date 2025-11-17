@@ -72,6 +72,9 @@ func (ln *LocalNetwork) ConfigureValidatorPorts(validator *LocalValidator) error
 	// Set Fibre transport from config
 	appConfig.DRPC.FibreTransport = ln.Config.FibreTransport
 
+	// Set Multiplex transport from config
+	appConfig.DRPC.MultiplexTransport = ln.Config.MultiplexTransport
+
 	// Set the custom config template
 	serverconfig.SetConfigTemplate(app.CustomConfigTemplate)
 

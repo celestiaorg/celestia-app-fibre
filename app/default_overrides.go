@@ -76,6 +76,11 @@ max-send-msg-size = "{{ .DRPC.MaxSendMsgSize }}"
 # FibreTransport defines which transport to use for the Fibre service.
 # Valid values: "grpc" or "drpc". Default is "drpc".
 fibre-transport = "{{ .DRPC.FibreTransport }}"
+
+# MultiplexTransport defines which multiplexing transport to use for DRPC.
+# Valid values: "yamux" or "quic". Default is "yamux".
+# This only applies when fibre-transport is "drpc".
+multiplex-transport = "{{ .DRPC.MultiplexTransport }}"
 `
 
 var (
