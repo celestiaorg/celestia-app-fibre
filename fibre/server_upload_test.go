@@ -93,7 +93,7 @@ func TestServerUploadShard(t *testing.T) {
 			},
 			check: func(t *testing.T, resp *types.UploadShardResponse, err error) {
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "row assignment verification failed")
+				require.Contains(t, err.Error(), "shard assignment verification failed")
 			},
 		},
 		{
