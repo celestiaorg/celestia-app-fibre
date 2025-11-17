@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	perFlowGbps        = 4.0                          // tune this
+	perFlowGbps        = 1.0                          // tune this
 	soMaxPacingRateOpt = 46                           // SO_MAX_PACING_RATE
 	bytesPerSecond     = int(perFlowGbps * 1e9 / 8.0) // Gbit/s -> bytes/s
 	sockBufBytes       = 4 << 20                      // 4 MiB
