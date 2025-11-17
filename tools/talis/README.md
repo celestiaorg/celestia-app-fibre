@@ -226,6 +226,40 @@ To load the network we can use `talis` to start txsim on as many validator nodes
 talis txsim -i <count> -s <blob-sequences> --min-blob-size <size> --max-blob-size <size>
 ```
 
+### fibre-load
+
+To load the network using fibre-load, we can start it on validator nodes with customizable parameters.
+
+```sh
+# Start fibre-load on a number of validator instances
+talis fibre-load -i <count> -w <workers> -p <payload-size> -n <namespace>
+
+# Run multiple fibre-load instances per machine for higher throughput
+talis fibre-load -i 5 -m 4 -w 10 -p 134217728
+# This runs 4 instances on each of 5 machines (20 total fibre-load processes)
+```
+
+**Flags:**
+- `-i, --instances`: Number of validators to run fibre-load on (required)
+- `-m, --instances-per-machine`: Number of fibre-load instances per machine (default: 1)
+- `-w, --workers`: Number of concurrent workers per instance (default: 1)
+- `-p, --payload-size`: Size of blob payload in bytes (default: 128MB)
+- `-n, --namespace`: Namespace for blob submission (default: "fibre")
+
+**Stopping fibre-load:**
+
+To stop all running fibre-load sessions across all validators:
+
+```sh
+# Stop all fibre-load sessions (load, load-0, load-1, etc.)
+talis stop-fibre-load
+
+# Or use the alias
+talis stop-load
+```
+
+This command will automatically find and kill all tmux sessions matching the fibre-load pattern, regardless of how many instances per machine were started.
+
 ### status
 
 Often, it's useful to quickly check if all the nodes have caught up to the tip of the chain. This can be done via the status command, which simply prints the height of each validator after querying the `Status` endpoint.

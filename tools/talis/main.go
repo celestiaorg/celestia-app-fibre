@@ -29,11 +29,13 @@ func main() {
 		bumpCmd(),
 		startTxsimCmd(),
 		startFibreLoadCmd(),
+		stopFibreLoadCmd(),
 		uploadDataCmd(),
 		killTmuxSessionCmd(),
 		resetCmd(),
 		findMachineTypesCmd(),
 		pruneCmd(),
+		rebootCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	GCDefaultValidatorMachineType = "c4d-highcpu-64"
+	GCDefaultValidatorMachineType = "h4d-standard-192"
 	// GCDefaultImage points to the Ubuntu 22.04 LTS family, which ships the gVNIC driver out of the box.
 	GCDefaultImage      = "projects/ubuntu-os-cloud/global/images/family/ubuntu-2204-lts"
 	GCDefaultDiskSizeGB = 120

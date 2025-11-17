@@ -53,9 +53,8 @@ const (
 var (
 	endpoint          string
 	keyringDir        string
-	interval          time.Duration
 	payloadSize       int
-	maxConcurrency    int
+	workers           int
 	reuseBlob         bool
 	namespaceStr      string
 	validatorHostFile string
@@ -64,6 +63,7 @@ var (
 	pyroscopeURL      string
 	pyroscopeTrace    bool
 	pyroscopeProfiles []string
+	instanceID        int
 )
 
 var rootCmd = &cobra.Command{
@@ -98,16 +98,15 @@ and submits transactions at a configurable rate.`,
 			close(shutdown)
 		}()
 
-		return runLoad(ctx, shutdown, endpoint, keyringDir, interval, payloadSize, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles)
+		return runLoad(ctx, shutdown, endpoint, keyringDir, payloadSize, workers, namespaceStr, validatorHostFile, chainID, tracesDir, pyroscopeURL, pyroscopeTrace, pyroscopeProfiles, instanceID)
 	},
 }
 
 func init() {
 	rootCmd.Flags().StringVarP(&endpoint, "grpc-endpoint", "e", defaultEndpoint, "gRPC endpoint of the consensus node")
 	rootCmd.Flags().StringVarP(&keyringDir, "keyring-dir", "k", "", "directory containing the keyring (defaults to ~/.celestia-app)")
-	rootCmd.Flags().DurationVarP(&interval, "interval", "i", defaultInterval, "interval between transactions (e.g. 500ms, 2s)")
 	rootCmd.Flags().IntVarP(&payloadSize, "payload-size", "s", defaultPayloadSize, "size of payload data in bytes")
-	rootCmd.Flags().IntVarP(&maxConcurrency, "max-concurrency", "m", 1, "maximum number of concurrent transactions in flight")
+	rootCmd.Flags().IntVarP(&workers, "workers", "w", 1, "number of concurrent workers sending blobs continuously")
 	rootCmd.Flags().StringVarP(&namespaceStr, "namespace", "n", defaultNamespaceStr, "namespace for blob submission")
 	rootCmd.Flags().BoolVar(&reuseBlob, "reuse-blob", true, "reuse a single pre-encoded blob for all submissions to minimize encoding overhead")
 	rootCmd.Flags().StringVarP(&validatorHostFile, "validator-hosts", "v", "", "path to JSON file containing validator address to host mapping (required)")
@@ -116,6 +115,7 @@ func init() {
 	rootCmd.Flags().StringVar(&pyroscopeURL, "pyroscope-url", "", "URL of the Pyroscope server used for continuous profiling (disabled when empty)")
 	rootCmd.Flags().BoolVar(&pyroscopeTrace, "pyroscope-trace", false, "attach active spans to Pyroscope samples (requires --pyroscope-url)")
 	rootCmd.Flags().StringSliceVar(&pyroscopeProfiles, "pyroscope-profile", nil, "Pyroscope profile types to enable (repeat flag, defaults to standard CPU/memory profiles)")
+	rootCmd.Flags().IntVar(&instanceID, "instance-id", -1, "unique instance ID for this fibre-load process (used in metrics filenames when running multiple instances)")
 	rootCmd.MarkFlagRequired("validator-hosts")
 
 	// Support CHAIN_ID environment variable - check after flags are parsed
@@ -138,8 +138,8 @@ func runLoad(
 	shutdown <-chan struct{},
 	endpoint string,
 	keyringDir string,
-	interval time.Duration,
 	payloadSize int,
+	workers int,
 	namespaceStr string,
 	validatorHostFile string,
 	chainID string,
@@ -147,6 +147,7 @@ func runLoad(
 	pyroURL string,
 	pyroTrace bool,
 	pyroProfiles []string,
+	instanceID int,
 ) error {
 	// Set default traces directory if not specified
 	if tracesDir == "" {
@@ -162,7 +163,7 @@ func runLoad(
 	fmt.Printf("gRPC Endpoint: %s\n", endpoint)
 	fmt.Printf("Keyring Directory: %s\n", keyringDir)
 	fmt.Printf("Chain ID: %s\n", chainID)
-	fmt.Printf("Interval: %s\n", interval)
+	fmt.Printf("Workers: %d\n", workers)
 	fmt.Printf("Payload Size: %d bytes\n", payloadSize)
 	fmt.Printf("Namespace: %s\n", namespaceStr)
 	fmt.Printf("Traces Directory: %s\n\n", tracesDir)
@@ -265,20 +266,6 @@ func runLoad(
 		return fmt.Errorf("failed to create fibre client: %w", err)
 	}
 
-	var reusableBlob *fibre.Blob
-	if reuseBlob {
-		fmt.Println("Generating single reusable blob payload...")
-		blobData := make([]byte, payloadSize)
-		if _, err := rand.Read(blobData); err != nil {
-			return fmt.Errorf("failed to generate reusable blob data: %w", err)
-		}
-		reusableBlob, err = fibre.NewBlob(blobData, fibreClient.Config().BlobConfig)
-		if err != nil {
-			return fmt.Errorf("failed to encode reusable blob: %w", err)
-		}
-		fmt.Printf("Reusing blob commitment %s for all submissions\n\n", reusableBlob.Commitment().String())
-	}
-
 	// Fund escrow account upfront with enough for many transactions
 	// Estimate: 10_000_000 transactions worth of escrow funding
 	// if err := fundEscrowUpfront(ctx, txClient, payloadSize, 10000000); err != nil {
@@ -286,7 +273,7 @@ func runLoad(
 	// }
 
 	// Set up metrics writer
-	metricsWriter, err := newMetricsWriter(tracesDir)
+	metricsWriter, err := newMetricsWriter(tracesDir, instanceID)
 	if err != nil {
 		return fmt.Errorf("failed to create metrics writer: %w", err)
 	}
@@ -296,127 +283,126 @@ func runLoad(
 	fmt.Println("Press Ctrl+C to stop")
 	fmt.Println()
 
-	if maxConcurrency <= 0 {
-		return fmt.Errorf("max-concurrency must be greater than zero")
+	if workers <= 0 {
+		return fmt.Errorf("workers must be greater than zero")
 	}
-	if interval <= 0 {
-		return fmt.Errorf("interval must be greater than zero")
-	}
-
-	// Create ticker with the specified interval
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
 	var (
 		txCount atomic.Uint64
 		wg      sync.WaitGroup
-		sem     = make(chan struct{}, maxConcurrency)
 	)
 
-	startTx := func(count uint64) {
-		wg.Add(1)
-		go func(txNum uint64) {
-			defer wg.Done()
-			defer func() { <-sem }()
+	// Worker function that continuously sends blobs
+	worker := func(workerID int) {
+		defer wg.Done()
 
-			startTime := time.Now()
-			var (
-				resp fibre.PutResult
-				err  error
-			)
-			if reuseBlob {
-				resp, err = fibreClient.PutBlob(ctx, namespace, reusableBlob)
-			} else {
-				blobData := make([]byte, payloadSize)
-				if _, err = rand.Read(blobData); err != nil {
-					fmt.Printf("[%d] Failed to generate random data: %v\n", txNum, err)
+		// Create worker's own reusable blob if enabled
+		var workerBlob *fibre.Blob
+		if reuseBlob {
+			blobData := make([]byte, payloadSize)
+			if _, err := rand.Read(blobData); err != nil {
+				fmt.Printf("Worker %d: Failed to generate reusable blob data: %v\n", workerID, err)
+				return
+			}
+			workerBlob, err = fibre.NewBlob(blobData, fibreClient.Config().BlobConfig)
+			if err != nil {
+				fmt.Printf("Worker %d: Failed to encode reusable blob: %v\n", workerID, err)
+				return
+			}
+			fmt.Printf("Worker %d: created blob with commitment %s\n", workerID, workerBlob.Commitment().String())
+		}
+
+		for {
+			select {
+			case <-shutdown:
+				return
+			case <-ctx.Done():
+				return
+			default:
+				// Get transaction number
+				txNum := txCount.Add(1)
+
+				startTime := time.Now()
+				var (
+					resp fibre.PutResult
+					err  error
+				)
+
+				if reuseBlob {
+					resp, err = fibreClient.PutBlob(ctx, namespace, workerBlob)
+				} else {
+					blobData := make([]byte, payloadSize)
+					if _, err = rand.Read(blobData); err != nil {
+						fmt.Printf("[%d] Worker %d: Failed to generate random data: %v\n", txNum, workerID, err)
+						metricsWriter.WriteMetric(TxMetric{
+							TxNum:       txNum,
+							StartTime:   startTime,
+							EndTime:     time.Now(),
+							Success:     false,
+							Error:       err.Error(),
+							PayloadSize: payloadSize,
+						})
+						continue
+					}
+
+					resp, err = fibreClient.Put(ctx, namespace, blobData)
+				}
+				endTime := time.Now()
+
+				if err != nil {
+					fmt.Printf("[%d] Worker %d: Failed to submit tx: %v\n", txNum, workerID, err)
 					metricsWriter.WriteMetric(TxMetric{
 						TxNum:       txNum,
 						StartTime:   startTime,
-						EndTime:     time.Now(),
+						EndTime:     endTime,
 						Success:     false,
 						Error:       err.Error(),
 						PayloadSize: payloadSize,
 					})
-					return
+					continue
 				}
 
-				resp, err = fibreClient.Put(ctx, namespace, blobData)
-			}
-			endTime := time.Now()
+				latency := endTime.Sub(startTime)
 
-			if err != nil {
-				fmt.Printf("[%d] Failed to submit tx: %v\n", txNum, err)
 				metricsWriter.WriteMetric(TxMetric{
 					TxNum:       txNum,
 					StartTime:   startTime,
 					EndTime:     endTime,
-					Success:     false,
-					Error:       err.Error(),
+					Success:     true,
+					TxHash:      resp.TxHash,
+					Height:      resp.Height,
 					PayloadSize: payloadSize,
+					LatencyMs:   latency.Milliseconds(),
 				})
-				return
-			}
 
-			latency := endTime.Sub(startTime)
-
-			metricsWriter.WriteMetric(TxMetric{
-				TxNum:       txNum,
-				StartTime:   startTime,
-				EndTime:     endTime,
-				Success:     true,
-				TxHash:      resp.TxHash,
-				Height:      resp.Height,
-				PayloadSize: payloadSize,
-				LatencyMs:   latency.Milliseconds(),
-			})
-
-			// Track successful blob upload
-			metricsWriter.WriteBlobMetric(BlobMetric{
-				Size:        payloadSize,
-				SubmittedAt: endTime,
-				TxHash:      resp.TxHash,
-				Height:      resp.Height,
-			})
-		}(count)
-	}
-
-	// Main loop - stops accepting new work on shutdown, but keeps context alive for running operations
-	for {
-		select {
-		case <-shutdown:
-			// Graceful shutdown: stop accepting new work and wait for in-flight operations
-			ticker.Stop()
-			fmt.Println("Waiting for in-flight operations to complete...")
-			wg.Wait()
-			fmt.Printf("\nGraceful shutdown complete. Total transactions submitted: %d\n", txCount.Load())
-			return nil
-		case <-ctx.Done():
-			// Context cancelled (parent context done)
-			ticker.Stop()
-			wg.Wait()
-			fmt.Printf("\nTotal transactions submitted: %d\n", txCount.Load())
-			return nil
-		case <-ticker.C:
-			select {
-			case sem <- struct{}{}:
-				count := txCount.Add(1)
-				startTx(count)
-			case <-shutdown:
-				// Check shutdown again in case it happened while waiting for semaphore
-				ticker.Stop()
-				fmt.Println("Waiting for in-flight operations to complete...")
-				wg.Wait()
-				fmt.Printf("\nGraceful shutdown complete. Total transactions submitted: %d\n", txCount.Load())
-				return nil
-			case <-ctx.Done():
-				ticker.Stop()
-				wg.Wait()
-				fmt.Printf("\nTotal transactions submitted: %d\n", txCount.Load())
-				return nil
+				// Track successful blob upload
+				metricsWriter.WriteBlobMetric(BlobMetric{
+					Size:        payloadSize,
+					SubmittedAt: endTime,
+					TxHash:      resp.TxHash,
+					Height:      resp.Height,
+				})
 			}
 		}
 	}
+
+	// Start worker pool
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go worker(i)
+	}
+
+	// Wait for shutdown signal
+	select {
+	case <-shutdown:
+		fmt.Println("Waiting for workers to complete...")
+	case <-ctx.Done():
+	}
+
+	// Wait for all workers to finish
+	wg.Wait()
+	fmt.Printf("\nGraceful shutdown complete. Total transactions submitted: %d\n", txCount.Load())
+	return nil
 }
 
 // setupKeyring initializes the keyring and automatically selects the best key.
@@ -679,15 +665,20 @@ type metricsWriter struct {
 }
 
 // newMetricsWriter creates a new metrics writer that writes to a timestamped file
-// in the specified traces directory.
-func newMetricsWriter(tracesDir string) (*metricsWriter, error) {
+// in the specified traces directory. If instanceID >= 0, it will be included in the filename.
+func newMetricsWriter(tracesDir string, instanceID int) (*metricsWriter, error) {
 	// Ensure traces directory exists
 	if err := os.MkdirAll(tracesDir, 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create traces directory: %w", err)
 	}
 
 	// Create filename for transaction metrics
-	filename := filepath.Join(tracesDir, "fibre-load-metrics.jsonl")
+	var filename string
+	if instanceID >= 0 {
+		filename = filepath.Join(tracesDir, fmt.Sprintf("fibre-load-metrics-%d.jsonl", instanceID))
+	} else {
+		filename = filepath.Join(tracesDir, "fibre-load-metrics.jsonl")
+	}
 
 	// Open file for writing
 	file, err := os.Create(filename)
@@ -698,7 +689,12 @@ func newMetricsWriter(tracesDir string) (*metricsWriter, error) {
 	fmt.Printf("Writing metrics to: %s\n", filename)
 
 	// Create filename for blob tracking
-	blobFilename := filepath.Join(tracesDir, "blobs.jsonl")
+	var blobFilename string
+	if instanceID >= 0 {
+		blobFilename = filepath.Join(tracesDir, fmt.Sprintf("blobs-%d.jsonl", instanceID))
+	} else {
+		blobFilename = filepath.Join(tracesDir, "blobs.jsonl")
+	}
 
 	// Open blob file for appending (create if doesn't exist)
 	blobFile, err := os.OpenFile(blobFilename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)

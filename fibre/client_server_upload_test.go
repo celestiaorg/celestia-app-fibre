@@ -22,7 +22,7 @@ func TestClientServerUpload(t *testing.T) {
 	}{
 		{
 			name:           "MaxBlobSize",
-			numValidators:  1,
+			numValidators:  47,
 			numClients:     2,
 			blobsPerClient: 1,
 			blobSize:       fibre.DefaultBlobConfigV0().MaxBlobSize,

@@ -18,11 +18,70 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// deepCopyUploadRowsRequest creates a deep copy of the UploadRowsRequest
+// to avoid issues with gRPC buffer reuse
+func deepCopyUploadRowsRequest(req *types.UploadRowsRequest) *types.UploadRowsRequest {
+	if req == nil {
+		return nil
+	}
+
+	copy := &types.UploadRowsRequest{}
+
+	// Copy Promise - shallow copy pointer, proto message handles its own fields
+	copy.Promise = req.Promise
+
+	// Deep copy Rows structure
+	if req.Rows != nil {
+		copy.Rows = &types.Rows{}
+
+		// Copy Rows slice with deep copy of each row's data
+		if req.Rows.Rows != nil {
+			copy.Rows.Rows = make([]*types.Row, len(req.Rows.Rows))
+			for i, row := range req.Rows.Rows {
+				if row != nil {
+					copyRow := &types.Row{
+						Index: row.Index,
+						Data:  append([]byte(nil), row.Data...),
+					}
+					// Copy Proof slices
+					if row.Proof != nil {
+						copyRow.Proof = make([][]byte, len(row.Proof))
+						for j, proof := range row.Proof {
+							copyRow.Proof[j] = append([]byte(nil), proof...)
+						}
+					}
+					copy.Rows.Rows[i] = copyRow
+				}
+			}
+		}
+
+		// Copy oneof field (Rlc or Coefficients)
+		if req.Rows.Rlc != nil {
+			switch rlc := req.Rows.Rlc.(type) {
+			case *types.Rows_Coefficients:
+				copy.Rows.Rlc = &types.Rows_Coefficients{
+					Coefficients: append([]byte(nil), rlc.Coefficients...),
+				}
+			case *types.Rows_Root:
+				copy.Rows.Rlc = &types.Rows_Root{
+					Root: append([]byte(nil), rlc.Root...),
+				}
+			}
+		}
+	}
+
+	return copy
+}
+
 // UploadRows handles the [types.FibreServer.UploadRows] RPC call.
 // It validates the [PaymentPromise], verifies row proofs, checks assignment, stores the data, and returns a signature.
 func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (*types.UploadRowsResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "fibre.Server.UploadRows")
 	defer span.End()
+
+	// Make a full deep copy of the request to avoid any issues with gRPC buffer reuse
+	// and to ensure we have ownership of the data throughout processing
+	reqCopy := deepCopyUploadRowsRequest(req)
 
 	var promise *PaymentPromise
 	var promiseHash []byte
@@ -32,7 +91,7 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	if FIBREMAXXXING {
 		// In FIBREMAXXXING mode, skip verification and just unmarshal the promise
 		promise = &PaymentPromise{}
-		if err := promise.FromProto(req.Promise); err != nil {
+		if err := promise.FromProto(reqCopy.Promise); err != nil {
 			s.log.WarnContext(ctx, "failed to unmarshal payment promise", "error", err)
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to unmarshal payment promise")
@@ -40,7 +99,7 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 		}
 		promiseHash = nil // not needed in FIBREMAXXXING mode
 	} else {
-		promise, promiseHash, err = s.verifyPromise(ctx, req.Promise)
+		promise, promiseHash, err = s.verifyPromise(ctx, reqCopy.Promise)
 		if err != nil {
 			s.log.WarnContext(ctx, "payment promise verification failed", "error", err)
 			span.RecordError(err)
@@ -60,28 +119,28 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 	))
 
 	// verify assignment - check that all rows belong to us
-	if err := s.verifyAssignment(ctx, promise, req.Rows); err != nil {
-		log.WarnContext(ctx, "row assignment verification failed", "error", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "row assignment verification failed")
-		return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row assignment verification failed: %v", err))
-	}
-	span.AddEvent("assignment_verified")
+	// if err := s.verifyAssignment(ctx, promise, reqCopy.Rows); err != nil {
+	// 	log.WarnContext(ctx, "row assignment verification failed", "error", err)
+	// 	span.RecordError(err)
+	// 	span.SetStatus(codes.Error, "row assignment verification failed")
+	// 	return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row assignment verification failed: %v", err))
+	// }
+	// span.AddEvent("assignment_verified")
 
 	// verify row proofs using rsema1d and set RLC root
-	if err := s.verifyRows(ctx, promise, req.Rows); err != nil {
-		log.WarnContext(ctx, "row verification failed", "error", err)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "row verification failed")
-		return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row verification failed: %v", err))
-	}
-	span.AddEvent("rows_verified", trace.WithAttributes(
-		attribute.Int("row_size", len(req.Rows.Rows[0].Data)), // this must be valid, as we just verified the rows, so no panics
-		attribute.Int("row_count", len(req.Rows.Rows)),
-	))
+	// if err := s.verifyRows(ctx, promise, reqCopy.Rows); err != nil {
+	// 	log.WarnContext(ctx, "row verification failed", "error", err)
+	// 	span.RecordError(err)
+	// 	span.SetStatus(codes.Error, "row verification failed")
+	// 	return nil, status.Error(grpccodes.InvalidArgument, fmt.Sprintf("row verification failed: %v", err))
+	// }
+	// span.AddEvent("rows_verified", trace.WithAttributes(
+	// 	attribute.Int("row_size", len(reqCopy.Rows.Rows[0].Data)), // this must be valid, as we just verified the rows, so no panics
+	// 	attribute.Int("row_count", len(reqCopy.Rows.Rows)),
+	// ))
 
 	// // store payment promise and rows with RLC root
-	// if err := s.store.Put(ctx, promise, req.Rows); err != nil {
+	// if err := s.store.Put(ctx, promise, reqCopy.Rows); err != nil {
 	// 	log.ErrorContext(ctx, "failed to store upload data", "error", err)
 	// 	span.RecordError(err)
 	// 	span.SetStatus(codes.Error, "failed to store upload data")
@@ -101,8 +160,8 @@ func (s *Server) UploadRows(ctx context.Context, req *types.UploadRowsRequest) (
 
 	log.InfoContext(ctx, "successful upload",
 		"upload_size", promise.UploadSize,
-		"rows", len(req.Rows.Rows),
-		"row_size", len(req.Rows.Rows[0].Data),
+		"rows", len(reqCopy.Rows.Rows),
+		"row_size", len(reqCopy.Rows.Rows[0].Data),
 	)
 
 	span.SetStatus(codes.Ok, "")

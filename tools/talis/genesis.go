@@ -148,7 +148,7 @@ func createPayload(ips []Instance, chainID, ppath string, squareSize int, useMai
 		}
 		err = n.AddValidator(
 			info.Name,
-			info.PublicIP,
+			info.PrivateIP,
 			ppath,
 			info.Region,
 			stake,

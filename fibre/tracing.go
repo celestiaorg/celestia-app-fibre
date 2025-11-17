@@ -13,11 +13,11 @@ import (
 )
 
 const (
-	tracerEnvKey      = "OTEL_TRACING_ADDRESS"
-	serverTracerName  = "fibre-server"
-	clientTracerName  = "fibre-client"
-	tracerLogField    = "otel_endpoint"
-	tracerName        = serverTracerName // for backward compatibility
+	tracerEnvKey     = "OTEL_TRACING_ADDRESS"
+	serverTracerName = "fibre-server"
+	clientTracerName = "fibre-client"
+	tracerLogField   = "otel_endpoint"
+	tracerName       = serverTracerName // for backward compatibility
 )
 
 // newServerTracer configures an OTLP gRPC exporter-backed tracer when the OTEL_TRACING_ADDRESS

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"sync"
 	"time"
 
@@ -98,6 +97,12 @@ func NewServer(
 ) (*Server, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default().WithGroup("fibre-server")
+	}
+
+	// Configure aggressive GC for optimal memory usage
+	// This is especially important with our zero-allocation optimizations
+	if err := AutoConfigureGC(); err != nil {
+		cfg.Log.Warn("failed to configure GC", "error", err)
 	}
 
 	var (
@@ -207,19 +212,32 @@ func (s *Server) startVerificationWorkers() {
 func (s *Server) verificationWorker() {
 	defer s.workerWg.Done()
 
+	// Pre-allocate buffers for zero-allocation CreateVerificationContext
+	totalRows := s.cfg.OriginalRows + s.cfg.ParityRows
+
+	// ShardBuffer: (K+N) * 64 bytes for ExtendRLCResults
+	shardBuffer := make([]byte, totalRows*64)
+
+	// RLCLeavesBuffer: kPadded * 16 bytes for buildPaddedRLCTree
+	// kPadded is next power of 2 >= K
+	kPadded := nextPowerOfTwo(s.cfg.OriginalRows)
+	rlcLeavesBuffer := make([]byte, kPadded*16)
+
 	for {
 		select {
 		case <-s.workerCtx.Done():
 			return
 		case work := <-s.verifyWorkChan:
-			result := s.executeRowVerification(work)
+			result := s.executeRowVerification(work, shardBuffer, rlcLeavesBuffer)
 			work.resultChan <- result
 		}
 	}
 }
 
 // executeRowVerification performs the CPU-heavy verification work including context creation.
-func (s *Server) executeRowVerification(work verifyRowsWork) verifyRowsResult {
+// shardBuffer is a pre-allocated buffer used for zero-allocation ExtendRLCResults (K+N)*64 bytes.
+// rlcLeavesBuffer is a pre-allocated buffer used for zero-allocation buildPaddedRLCTree (kPadded*16 bytes).
+func (s *Server) executeRowVerification(work verifyRowsWork, shardBuffer, rlcLeavesBuffer []byte) verifyRowsResult {
 	rowSize, err := parseRowSize(work.rows.Rows)
 	if err != nil {
 		return verifyRowsResult{err: err}
@@ -238,11 +256,14 @@ func (s *Server) executeRowVerification(work verifyRowsWork) verifyRowsResult {
 	}
 
 	// CPU-heavy operation: create verification context
+	// Pre-allocated buffers provide zero-allocation when sizes match
 	verificationCtx, rlcRoot, err := rsema1d.CreateVerificationContext(rlcCoeffs, &rsema1d.Config{
-		K:           work.cfg.OriginalRows,
-		N:           work.cfg.ParityRows,
-		RowSize:     rowSize,
-		WorkerCount: 1, // single-threaded within each worker
+		K:               work.cfg.OriginalRows,
+		N:               work.cfg.ParityRows,
+		RowSize:         rowSize,
+		WorkerCount:     1,               // single-threaded within each worker
+		ShardBuffer:     shardBuffer,     // (K+N)*64 bytes for ExtendRLCResults
+		RLCLeavesBuffer: rlcLeavesBuffer, // kPadded*16 bytes for buildPaddedRLCTree
 	})
 	if err != nil {
 		return verifyRowsResult{err: fmt.Errorf("creating verification context: %w", err)}
@@ -260,11 +281,26 @@ func (s *Server) executeRowVerification(work verifyRowsWork) verifyRowsResult {
 		if err := rsema1d.VerifyRowWithContext(row, rsema1d.Commitment(work.promise.Commitment), verificationCtx); err != nil {
 			return verifyRowsResult{err: fmt.Errorf("verification failed for row %d: %w", row.Index, err)}
 		}
-
-		runtime.Gosched()
 	}
 
 	return verifyRowsResult{rlcRoot: rlcRoot}
+}
+
+// nextPowerOfTwo returns the smallest power of 2 >= n
+func nextPowerOfTwo(n int) int {
+	if n <= 1 {
+		return 1
+	}
+	// If already power of 2, return it
+	if n&(n-1) == 0 {
+		return n
+	}
+	// Find next power of 2
+	power := 1
+	for power < n {
+		power <<= 1
+	}
+	return power
 }
 
 // Stop stops the server.

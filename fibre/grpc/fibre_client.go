@@ -3,6 +3,9 @@ package grpc
 import (
 	"context"
 	"io"
+	"net"
+	"syscall"
+	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
@@ -11,6 +14,38 @@ import (
 	grpclib "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+const (
+	perFlowGbps        = 4.0                          // tune this
+	soMaxPacingRateOpt = 46                           // SO_MAX_PACING_RATE
+	bytesPerSecond     = int(perFlowGbps * 1e9 / 8.0) // Gbit/s -> bytes/s
+	sockBufBytes       = 4 << 20                      // 4 MiB
+)
+
+func pacedDialer(ctx context.Context, addr string) (net.Conn, error) {
+	d := net.Dialer{
+		Timeout:   5 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(network, address string, c syscall.RawConn) error {
+			var err error
+			c.Control(func(fd uintptr) {
+				// pacing
+				if e := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, soMaxPacingRateOpt, bytesPerSecond); e != nil && err == nil {
+					err = e
+				}
+				// caps for autotuning
+				if e := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_SNDBUF, sockBufBytes); e != nil && err == nil {
+					err = e
+				}
+				if e := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_RCVBUF, sockBufBytes); e != nil && err == nil {
+					err = e
+				}
+			})
+			return err
+		},
+	}
+	return d.DialContext(ctx, "tcp", addr)
+}
 
 // Client combines [FibreClient] with [io.Closer] to manage the lifecycle
 // of both the client and its underlying connection.
@@ -47,14 +82,15 @@ func DefaultNewClientFn(hostReg validator.HostRegistry, maxMsgSize int) NewClien
 		// TODO(@Wondertan): setup secure connection
 		conn, err := grpclib.NewClient(host.String(),
 			grpclib.WithTransportCredentials(insecure.NewCredentials()),
+			grpclib.WithContextDialer(pacedDialer),
 			grpclib.WithStatsHandler(otelgrpc.NewClientHandler()),
 			grpclib.WithDefaultCallOptions(
 				grpclib.MaxCallRecvMsgSize(maxMsgSize),
 				grpclib.MaxCallSendMsgSize(maxMsgSize),
 			),
 			grpclib.WithWriteBufferSize(2*1024*1024),
-			grpclib.WithInitialConnWindowSize(int32(maxMsgSize)),
-			grpclib.WithInitialWindowSize(int32(maxMsgSize)),
+			grpclib.WithInitialConnWindowSize(1024*1024*1024),
+			grpclib.WithInitialWindowSize(64*1024*1024),
 		)
 		if err != nil {
 			return nil, err

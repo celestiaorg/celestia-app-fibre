@@ -481,20 +481,20 @@ func checkForRunningExperiments(ctx context.Context, cfg Config) error {
 		}
 	}
 
-	if cfg.GoogleCloudProject != "" {
-		opts, err := gcClientOptions(cfg)
-		if err != nil {
-			log.Printf("⚠️  Warning: failed to create Google Cloud client options: %v", err)
-		} else {
-			running, err := checkForRunningGCExperiments(ctx, cfg.GoogleCloudProject, opts, cfg.Experiment, cfg.ChainID)
-			if err != nil {
-				log.Printf("⚠️  Warning: failed to check Google Cloud for running experiments: %v", err)
-			} else if running {
-				hasRunningExperiments = true
-				log.Printf("⚠️  Found experiment '%s' with chainID '%s' already running in Google Cloud", cfg.Experiment, cfg.ChainID)
-			}
-		}
-	}
+	// if cfg.GoogleCloudProject != "" {
+	// 	opts, err := gcClientOptions(cfg)
+	// 	if err != nil {S
+	// 		log.Printf("⚠️  Warning: failed to create Google Cloud client options: %v", err)
+	// 	} else {
+	// 		running, err := checkForRunningGCExperiments(ctx, cfg.GoogleCloudProject, opts, cfg.Experiment, cfg.ChainID)
+	// 		if err != nil {
+	// 			log.Printf("⚠️  Warning: failed to check Google Cloud for running experiments: %v", err)
+	// 		} else if running {
+	// 			hasRunningExperiments = true
+	// 			log.Printf("⚠️  Found experiment '%s' with chainID '%s' already running in Google Cloud", cfg.Experiment, cfg.ChainID)
+	// 		}
+	// 	}
+	// }
 
 	if hasRunningExperiments {
 		return fmt.Errorf("experiment '%s' with chainID '%s' is already running", cfg.Experiment, cfg.ChainID)

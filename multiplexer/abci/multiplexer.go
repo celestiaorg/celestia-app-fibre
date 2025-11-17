@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"cosmossdk.io/log"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
@@ -28,7 +29,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
-	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
 	"github.com/cosmos/cosmos-sdk/server/grpc/gogoreflection"
 	reflection "github.com/cosmos/cosmos-sdk/server/grpc/reflection/v2alpha1"
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
@@ -41,6 +41,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -371,6 +372,18 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	m.clientContext = m.clientContext.WithGRPCClient(grpcClient)
 	m.logger.Debug("gRPC client assigned to client context", "target", m.svrCfg.GRPC.Address)
 
+	ka := keepalive.ServerParameters{
+		Time:                  30 * time.Second,
+		Timeout:               10 * time.Second,
+		MaxConnectionIdle:     2 * time.Minute,
+		MaxConnectionAge:      10 * time.Minute,
+		MaxConnectionAgeGrace: 2 * time.Minute,
+	}
+	enf := keepalive.EnforcementPolicy{
+		MinTime:             10 * time.Second,
+		PermitWithoutStream: true,
+	}
+
 	// Create gRPC server with OpenTelemetry instrumentation
 	grpcSrv := grpc.NewServer(
 		grpc.ForceServerCodec(codec.NewProtoCodec(m.clientContext.InterfaceRegistry).GRPCCodec()),
@@ -378,8 +391,12 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 		grpc.ReadBufferSize(2*1024*1024),
-		grpc.InitialConnWindowSize(int32(maxRecvMsgSize)),
-		grpc.InitialWindowSize(int32(maxRecvMsgSize)),
+		grpc.InitialConnWindowSize(1024*1024*1024),
+		grpc.InitialWindowSize(64*1024*1024),
+
+		grpc.KeepaliveParams(ka),
+		grpc.KeepaliveEnforcementPolicy(enf),
+		grpc.MaxConcurrentStreams(512), // cap per-conn streams
 	)
 
 	// Register application gRPC services
@@ -433,13 +450,14 @@ func (m *Multiplexer) startGRPCServer(grpcSrv *grpc.Server) error {
 		return blockAPI.StartNewBlockEventListener(m.ctx)
 	})
 
-	// Start the gRPC server in a goroutine. Note, the provided ctx will ensure
-	// that the server is gracefully shut down.
+	// Start the gRPC server in a goroutine with paced listener
+	// Note, the provided ctx will ensure that the server is gracefully shut down.
 	m.g.Go(func() error {
-		return servergrpc.StartGRPCServer(m.ctx, m.logger.With(log.ModuleKey, "grpc-server"), m.svrCfg.GRPC, grpcSrv)
+		m.logger.Info("starting paced gRPC server", "address", m.svrCfg.GRPC.Address)
+		return fibre.StartPacedGRPCServer(m.ctx, m.svrCfg.GRPC.Address, grpcSrv)
 	})
 
-	m.logger.Info("gRPC server started", "address", m.svrCfg.GRPC.Address)
+	m.logger.Info("gRPC server started with pacing", "address", m.svrCfg.GRPC.Address)
 	return nil
 }
 

@@ -100,8 +100,8 @@ func DefaultClientConfig() ClientConfig {
 		BlobConfig:                  DefaultBlobConfigV0(),
 		UploadTargetVotingPower:     cmtmath.Fraction{Numerator: 2, Denominator: 3},
 		UploadTargetSignaturesCount: cmtmath.Fraction{Numerator: 2, Denominator: 3},
-		UploadConcurrency:           100, // matches expected number of validators to maximize throughput by default
-		DownloadConcurrency:         25,  // 1/4 of validators to match 1/3 erasure coding overhead and request the minimum number of samples to get the data
+		UploadConcurrency:           100000, // matches expected number of validators to maximize throughput by default
+		DownloadConcurrency:         25,     // 1/4 of validators to match 1/3 erasure coding overhead and request the minimum number of samples to get the data
 		AutoFundEscrow:              true,
 	}
 }
@@ -156,6 +156,12 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	if cfg.Clock == nil {
 		cfg.Clock = clock.New()
 	}
+
+	// Configure aggressive GC for optimal memory usage
+	if err := AutoConfigureGC(); err != nil {
+		cfg.Log.Warn("failed to configure GC", "error", err)
+	}
+
 	var (
 		pyroHandle *pyroscopeHandle
 	)

@@ -53,7 +53,7 @@ func resetCmd() *cobra.Command {
 			}
 
 			cleanupScript := `
-				tmux kill-session -t app && tmux kill-session -t txsim
+				tmux kill-session -t app
 				rm -rf .celestia-app logs payload payload.tar.gz /bin/celestia* /bin/txsim
 			`
 			// Run cleanup on each validator

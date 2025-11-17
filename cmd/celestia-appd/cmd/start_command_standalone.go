@@ -25,7 +25,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/server"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
-	servergrpc "github.com/cosmos/cosmos-sdk/server/grpc"
 	"github.com/cosmos/cosmos-sdk/server/grpc/gogoreflection"
 	reflection "github.com/cosmos/cosmos-sdk/server/grpc/reflection/v2alpha1"
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
@@ -241,8 +240,8 @@ func createGRPCServer(
 		grpc.MaxSendMsgSize(maxSendMsgSize),
 		grpc.MaxRecvMsgSize(maxRecvMsgSize),
 		grpc.ReadBufferSize(2*1024*1024),
-		grpc.InitialConnWindowSize(int32(maxRecvMsgSize)),
-		grpc.InitialWindowSize(int32(maxRecvMsgSize)),
+		grpc.InitialConnWindowSize(1024*1024*1024),
+		grpc.InitialWindowSize(64*1024*1024),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
 	)
 
@@ -306,18 +305,14 @@ func startGRPCServer(
 		return blockAPI.StartNewBlockEventListener(ctx)
 	})
 
-	// Start gRPC server using the cancellation context
+	// Start gRPC server using the cancellation context with paced listener
 	// This ensures it can be gracefully shut down when signals are received
 	g.Go(func() error {
-		return servergrpc.StartGRPCServer(
-			ctx,
-			svrCtx.Logger.With(log.ModuleKey, "grpc-server"),
-			svrCfg.GRPC,
-			grpcServer,
-		)
+		svrCtx.Logger.Info("starting paced gRPC server", "address", svrCfg.GRPC.Address)
+		return fibre.StartPacedGRPCServer(ctx, svrCfg.GRPC.Address, grpcServer)
 	})
 
-	svrCtx.Logger.Info("gRPC server started", "address", svrCfg.GRPC.Address)
+	svrCtx.Logger.Info("gRPC server started with pacing", "address", svrCfg.GRPC.Address)
 
 	return nil
 }

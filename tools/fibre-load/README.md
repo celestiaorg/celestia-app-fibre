@@ -33,6 +33,7 @@ go run tools/fibre-load/main.go [flags]
 - `--pyroscope-url` - URL of the Pyroscope server used for continuous profiling (disabled when empty)
 - `--pyroscope-trace` - Attach active spans to Pyroscope samples (requires `--pyroscope-url`)
 - `--pyroscope-profile` - Repeat to select custom Pyroscope profile types (defaults to CPU, memory, goroutines, and block profiles)
+- `--instance-id` - Unique instance ID for this fibre-load process (used in metrics filenames when running multiple instances, default: -1 for single instance)
 
 ### Examples
 
@@ -166,7 +167,23 @@ The tool automatically writes throughput metrics to a timestamped JSONL file in 
 - `payload_size`: Size of the blob payload in bytes
 - `latency_ms`: End-to-end latency in milliseconds (only on success)
 
-The metrics file is named `fibre-load-metrics-YYYYMMDD-HHMMSS.jsonl` and is automatically collected by the talis `upload-data` command when running on a talis network.
+The metrics file is named `fibre-load-metrics.jsonl` (or `fibre-load-metrics-<instance-id>.jsonl` when using `--instance-id`) and is automatically collected by the talis `upload-data` command when running on a talis network.
+
+Similarly, blob upload tracking is written to `blobs.jsonl` (or `blobs-<instance-id>.jsonl` when using `--instance-id`).
+
+**Running Multiple Instances:**
+
+When running multiple fibre-load instances on the same machine (e.g., via talis with `--instances-per-machine`), each instance should use a unique `--instance-id` to prevent file conflicts:
+
+```bash
+# Instance 0
+fibre-load --instance-id 0 ...
+
+# Instance 1
+fibre-load --instance-id 1 ...
+```
+
+This ensures metrics are written to separate files (`fibre-load-metrics-0.jsonl`, `fibre-load-metrics-1.jsonl`, etc.) that can be aggregated during analysis.
 
 Example output:
 ```

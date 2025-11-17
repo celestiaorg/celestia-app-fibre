@@ -186,6 +186,9 @@ func (c *Client) uploadTo(
 	blob *Blob,
 	sigSet *validator.SignatureSet,
 ) {
+	ctx, cancel := context.WithCancel(ctx) // grpc requires to cancel the context after RPC is complete
+	defer cancel()
+
 	log := c.log.With(
 		"validator", val.Address.String(),
 		"blob_commitment", blob.Commitment(),
@@ -327,7 +330,6 @@ func (c *Client) uploadRows(
 	select {
 	case <-responsesExhaustedCh: // no more responses to wait for
 	case <-sigSet.Done(): // enough signatures collected
-		return nil
 	case <-ctx.Done():
 		return ctx.Err()
 	}
