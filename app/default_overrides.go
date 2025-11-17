@@ -10,6 +10,7 @@ import (
 	upgradetypes "cosmossdk.io/x/upgrade/types"
 	"github.com/celestiaorg/celestia-app/v6/app/params"
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
+	"github.com/celestiaorg/celestia-app/v6/pkg/drpc"
 	"github.com/celestiaorg/celestia-app/v6/x/mint"
 	minttypes "github.com/celestiaorg/celestia-app/v6/x/mint/types"
 	tmcfg "github.com/cometbft/cometbft/config"
@@ -39,6 +40,39 @@ import (
 const (
 	mebibyte = 1048576
 )
+
+// CustomAppConfig extends the default Cosmos SDK app config with
+// Celestia-specific configurations.
+type CustomAppConfig struct {
+	serverconfig.Config `mapstructure:",squash"`
+
+	// DRPC contains the DRPC server configuration
+	DRPC drpc.DRPCConfig `mapstructure:"drpc"`
+}
+
+// CustomConfigTemplate extends the default Cosmos SDK config template
+// with DRPC configuration.
+const CustomConfigTemplate = serverconfig.DefaultConfigTemplate + `
+###############################################################################
+###                            DRPC Configuration                           ###
+###############################################################################
+
+[drpc]
+
+# Enable defines if the DRPC server should be enabled.
+enable = {{ .DRPC.Enable }}
+
+# Address defines the DRPC server address to bind to.
+address = "{{ .DRPC.Address }}"
+
+# MaxRecvMsgSize defines the max message size in bytes the server can receive.
+# The default value is 256MB.
+max-recv-msg-size = "{{ .DRPC.MaxRecvMsgSize }}"
+
+# MaxSendMsgSize defines the max message size in bytes the server can send.
+# The default value is 256MB.
+max-send-msg-size = "{{ .DRPC.MaxSendMsgSize }}"
+`
 
 var (
 	_ module.HasGenesisBasics = bankModule{}
@@ -288,7 +322,7 @@ func DefaultConsensusConfig() *tmcfg.Config {
 	return cfg
 }
 
-func DefaultAppConfig() *serverconfig.Config {
+func DefaultAppConfig() *CustomAppConfig {
 	cfg := serverconfig.DefaultConfig()
 	cfg.API.Enable = false
 	cfg.GRPC.Enable = false
@@ -306,5 +340,9 @@ func DefaultAppConfig() *serverconfig.Config {
 	cfg.MinGasPrices = ""
 	cfg.GRPC.MaxRecvMsgSize = appconsts.DefaultUpperBoundMaxBytes * 2
 	cfg.GRPC.MaxSendMsgSize = appconsts.DefaultUpperBoundMaxBytes * 2
-	return cfg
+
+	return &CustomAppConfig{
+		Config: *cfg,
+		DRPC:   drpc.DefaultDRPCConfig(),
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/multiplexer/abci"
 	"github.com/celestiaorg/celestia-app/v6/multiplexer/internal"
 	dbm "github.com/cometbft/cometbft-db"
@@ -12,14 +13,13 @@ import (
 	"github.com/cometbft/cometbft/node"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
-	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	"github.com/cosmos/cosmos-sdk/server/types"
 	tmnode "github.com/tendermint/tendermint/node"
 	tmtypes "github.com/tendermint/tendermint/types"
 )
 
 func start(versions abci.Versions, svrCtx *server.Context, clientCtx client.Context, appCreator types.AppCreator) error {
-	svrCfg, err := getAndValidateConfig(svrCtx)
+	customCfg, err := getAndValidateConfig(svrCtx)
 	if err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func start(versions abci.Versions, svrCtx *server.Context, clientCtx client.Cont
 
 	svrCtx.Logger.Info("initializing multiplexer", "app_version", appVersion, "chain_id", chainID)
 
-	multiplexer, err := abci.NewMultiplexer(svrCtx, svrCfg, clientCtx, appCreator, versions, chainID, appVersion)
+	multiplexer, err := abci.NewMultiplexer(svrCtx, customCfg.Config, clientCtx, appCreator, versions, chainID, appVersion)
 	if err != nil {
 		return err
 	}
@@ -97,21 +97,24 @@ func getState(cfg *cmtcfg.Config) (chainId string, appVersion uint64, err error)
 	return chainId, appVersion, nil
 }
 
-func getAndValidateConfig(svrCtx *server.Context) (serverconfig.Config, error) {
-	config, err := serverconfig.GetConfig(svrCtx.Viper)
-	if err != nil {
-		return config, err
+func getAndValidateConfig(svrCtx *server.Context) (*app.CustomAppConfig, error) {
+	// Get custom config which includes DRPC
+	customCfg := app.DefaultAppConfig()
+	if err := svrCtx.Viper.Unmarshal(customCfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal app config: %w", err)
 	}
 
+	config := customCfg.Config
+
 	if err := config.ValidateBasic(); err != nil {
-		return config, err
+		return nil, err
 	}
 
 	if strings.TrimSpace(svrCtx.Config.RPC.GRPCListenAddress) == "" {
-		return config, fmt.Errorf("must set the RPC GRPC listen address in config.toml (grpc_laddr) or by flag (--rpc.grpc_laddr)")
+		return nil, fmt.Errorf("must set the RPC GRPC listen address in config.toml (grpc_laddr) or by flag (--rpc.grpc_laddr)")
 	}
 
-	return config, nil
+	return customCfg, nil
 }
 
 func openDBM(cfg *cmtcfg.Config) (dbm.DB, error) {

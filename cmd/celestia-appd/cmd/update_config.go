@@ -16,7 +16,7 @@ import (
 )
 
 // ConfigUpdater defines a function type for applying version-specific updates
-type ConfigUpdater func(*config.Config, *serverconfig.Config) (*config.Config, *serverconfig.Config)
+type ConfigUpdater func(*config.Config, *app.CustomAppConfig) (*config.Config, *app.CustomAppConfig)
 
 // updateRegistry maps version strings to their corresponding update functions
 var updateRegistry = map[string]ConfigUpdater{
@@ -119,7 +119,7 @@ func loadCometBFTConfig(configPath, homeDir string) (*config.Config, error) {
 }
 
 // loadServerConfig loads the Cosmos SDK server configuration from app.toml
-func loadServerConfig(configPath string) (*serverconfig.Config, error) {
+func loadServerConfig(configPath string) (*app.CustomAppConfig, error) {
 	cfg := app.DefaultAppConfig()
 
 	v := viper.New()
@@ -190,7 +190,7 @@ func getSupportedVersions() []string {
 }
 
 // applyV6Config applies configuration changes needed for v6
-func applyV6Config(cmtCfg *config.Config, appCfg *serverconfig.Config) (*config.Config, *serverconfig.Config) {
+func applyV6Config(cmtCfg *config.Config, appCfg *app.CustomAppConfig) (*config.Config, *app.CustomAppConfig) {
 	fmt.Println("Applying v6 updates to configs...")
 
 	defaultCfg := app.DefaultConsensusConfig()

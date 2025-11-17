@@ -280,8 +280,8 @@ func WriteAddressBook(peers []string, file string) error {
 // SaveValidatorHostMapping generates and saves a JSON file mapping validator consensus
 // addresses to their fibre service hosts. This file is used by fibre-load to know where
 // to send fibre requests.
-// The format is: {"<consensus_address_hex>": "<ip>:9091", ...}
-// The port 9091 is the default app gRPC port where the Fibre service is registered.
+// The format is: {"<consensus_address_hex>": "<ip>:9092", ...}
+// The port 9092 is the default app drpc port where the Fibre service is registered.
 func (n *Network) SaveValidatorHostMapping(filename string) error {
 	vals := n.genesis.Validators()
 
@@ -297,8 +297,8 @@ func (n *Network) SaveValidatorHostMapping(filename string) error {
 			return fmt.Errorf("no IP found for validator %s", v.Name)
 		}
 
-		// Use port 9091 as the default app gRPC port where Fibre is served
-		host := fmt.Sprintf("%s:26658", nodeInfo.IP)
+		// Use port 9092 as the default app drpc port where Fibre is served
+		host := fmt.Sprintf("%s:9092", nodeInfo.IP)
 		hostMapping[consensusAddrHex] = host
 	}
 

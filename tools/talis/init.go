@@ -72,11 +72,12 @@ func initCmd() *cobra.Command {
 			cmtconfig.WriteConfigFile(filepath.Join(rootDir, "config.toml"), consConfig)
 
 			// the sdk requires a global template be set just to save a toml file without panicking
-			serverconfig.SetConfigTemplate(serverconfig.DefaultConfigTemplate)
+			serverconfig.SetConfigTemplate(app.CustomConfigTemplate)
 
 			appconfig := app.DefaultAppConfig()
 			appconfig.GRPC.Enable = true
 			appconfig.GRPC.Address = "0.0.0.0:9091"
+			// DRPC is enabled by default in DefaultAppConfig with address 0.0.0.0:26658
 			serverconfig.WriteConfigFile(filepath.Join(rootDir, "app.toml"), appconfig)
 
 			return nil

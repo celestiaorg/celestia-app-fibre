@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	"cosmossdk.io/log"
+	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/celestia-app/v6/multiplexer/internal"
 	cmtcfg "github.com/cometbft/cometbft/config"
@@ -239,12 +240,17 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 				return fmt.Errorf("failed to create DRPC server: %w", err)
 			}
 
-			// Start DRPC server on port 26658
-			drpcPort := "26658" // TODO: Make this configurable
+			// Start DRPC server with configured address
+			drpcAddress := m.getDRPCAddress()
+			// Extract port from address (format: "host:port")
+			_, drpcPort, err := net.SplitHostPort(drpcAddress)
+			if err != nil {
+				return fmt.Errorf("failed to parse DRPC address %s: %w", drpcAddress, err)
+			}
 			if err := m.startDRPCServer(drpcServer, drpcPort); err != nil {
 				return fmt.Errorf("failed to start DRPC server: %w", err)
 			}
-			m.logger.Info("DRPC server started", "port", drpcPort)
+			m.logger.Info("DRPC server started", "address", drpcAddress)
 		} else {
 			m.logger.Info("CometBFT node is not running, skipping Fibre DRPC server startup")
 		}
@@ -889,6 +895,26 @@ func emitServerInfoMetrics() {
 	}
 
 	telemetry.SetGaugeWithLabels([]string{"server", "info"}, 1, ls)
+}
+
+// getDRPCAddress returns the DRPC address from the app config.
+func (m *Multiplexer) getDRPCAddress() string {
+	appCfg, err := getCustomAppConfig(m.svrCtx)
+	if err != nil {
+		// Fall back to default if config unmarshal fails
+		m.logger.Warn("failed to get DRPC address from config, using default", "error", err)
+		return "0.0.0.0:26658"
+	}
+	return appCfg.DRPC.Address
+}
+
+// getCustomAppConfig retrieves the custom app configuration.
+func getCustomAppConfig(svrCtx *server.Context) (*app.CustomAppConfig, error) {
+	cfg := app.DefaultAppConfig()
+	if err := svrCtx.Viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal app config: %w", err)
+	}
+	return cfg, nil
 }
 
 func getCtx(svrCtx *server.Context, block bool) (*errgroup.Group, context.Context) {

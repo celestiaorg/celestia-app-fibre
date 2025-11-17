@@ -31,6 +31,7 @@ func main() {
 		uploadDataCmd(),
 		killTmuxSessionCmd(),
 		resetCmd(),
+		localCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

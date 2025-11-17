@@ -17,7 +17,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/keys"
 	"github.com/cosmos/cosmos-sdk/client/snapshot"
 	"github.com/cosmos/cosmos-sdk/server"
-	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
 	simtestutil "github.com/cosmos/cosmos-sdk/testutil/sims"
 	"github.com/cosmos/cosmos-sdk/x/auth/types"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
@@ -42,6 +41,8 @@ const (
 
 	// ChainIDKey is the viper key for the chain ID
 	ChainIDKey = "chain-id"
+
+	DrpcAddressKey = "drpc-address"
 )
 
 // NewRootCmd creates a new root command for celestia-appd.
@@ -81,7 +82,7 @@ func NewRootCmd() *cobra.Command {
 				return err
 			}
 
-			appTemplate := serverconfig.DefaultConfigTemplate
+			appTemplate := app.CustomConfigTemplate
 			appConfig := app.DefaultAppConfig()
 			tmConfig := app.DefaultConsensusConfig()
 
@@ -159,6 +160,7 @@ func addStartFlags(startCmd *cobra.Command) {
 	startCmd.Flags().Duration(DelayedPrecommitTimeoutFlag, 0, "Override the DelayedPrecommitTimeout to control block time. Note: only for testing purposes.")
 	startCmd.Flags().Bool(FlagForceNoBBR, false, "bypass the requirement to use bbr locally")
 	startCmd.Flags().Bool(bypassOverridesFlagKey, false, "bypass all config overrides (P2P rates, mempool config, etc.). WARNING: Only use if strictly required. Using this flag may prevent your node from staying at the tip of the chain.")
+	startCmd.Flags().String(DrpcAddressKey, "0.0.0.0:9092", "Address on which to listen for incoming drpc connections")
 }
 
 // replaceLogger optionally replaces the logger with a file logger if the flag

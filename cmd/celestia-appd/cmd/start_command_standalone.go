@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 
 	"cosmossdk.io/log"
+	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -64,11 +65,12 @@ func startCommandHandler(
 	g, ctx := errgroup.WithContext(ctx)
 	server.ListenForQuitSignals(g, true, cancelFn, svrCtx.Logger)
 
-	// Get server config
-	svrCfg, err := serverconfig.GetConfig(svrCtx.Viper)
+	// Get server config (includes DRPC config)
+	customCfg, err := GetCustomAppConfig(svrCtx)
 	if err != nil {
 		return fmt.Errorf("failed to get server config: %w", err)
 	}
+	svrCfg := &customCfg.Config // Extract the embedded Config for compatibility
 
 	// Create the application
 	// Get DB and trace writer similar to multiplexer pattern
@@ -98,7 +100,7 @@ func startCommandHandler(
 	if svrCfg.GRPC.Enable || svrCfg.API.Enable {
 		appInstance.RegisterTxService(clientCtx)
 		appInstance.RegisterTendermintService(clientCtx)
-		appInstance.RegisterNodeService(clientCtx, svrCfg)
+		appInstance.RegisterNodeService(clientCtx, *svrCfg)
 	}
 
 	// Start gRPC server if enabled
@@ -108,7 +110,7 @@ func startCommandHandler(
 	if svrCfg.GRPC.Enable {
 		// Create and configure gRPC server (but don't start serving yet)
 		var err error
-		grpcServer, clientCtx, err = createGRPCServer(svrCtx, clientCtx, appInstance, svrCfg, cmtNode)
+		grpcServer, clientCtx, err = createGRPCServer(svrCtx, clientCtx, appInstance, *svrCfg, cmtNode)
 		if err != nil {
 			return fmt.Errorf("failed to create gRPC server: %w", err)
 		}
@@ -145,15 +147,15 @@ func startCommandHandler(
 		drpcServer := createDRPCServer(svrCtx, drpcHandler)
 
 		// Start DRPC server on port 26658
-		drpcPort := "26658" // TODO: Make this configurable
-		drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcPort)
+		drpcAddress := getDrpcAddress(svrCtx)
+		drpcListener, err = startDRPCServer(ctx, g, svrCtx, drpcServer, drpcAddress)
 		if err != nil {
 			return fmt.Errorf("failed to start DRPC server: %w", err)
 		}
-		svrCtx.Logger.Info("DRPC server started", "port", drpcPort)
+		svrCtx.Logger.Info("DRPC server started", "address", drpcAddress)
 
 		// Now start the gRPC server (after all services are registered)
-		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
+		if err := startGRPCServer(ctx, g, svrCtx, *svrCfg, grpcServer, cmtNode); err != nil {
 			return fmt.Errorf("failed to start gRPC server: %w", err)
 		}
 	} else {
@@ -175,12 +177,12 @@ func startCommandHandler(
 
 	// Start API server if enabled
 	if svrCfg.API.Enable && grpcServer != nil {
-		metrics, err := startTelemetry(svrCfg)
+		metrics, err := startTelemetry(*svrCfg)
 		if err != nil {
 			return fmt.Errorf("failed to start telemetry: %w", err)
 		}
 
-		if err := startAPIServer(ctx, g, svrCtx, clientCtx, appInstance, svrCfg, grpcServer, metrics); err != nil {
+		if err := startAPIServer(ctx, g, svrCtx, clientCtx, appInstance, *svrCfg, grpcServer, metrics); err != nil {
 			return fmt.Errorf("failed to start API server: %w", err)
 		}
 	}
@@ -398,6 +400,27 @@ func getTraceWriter(svrCtx *server.Context) (io.WriteCloser, error) {
 	return openTraceWriter(traceWriterFile)
 }
 
+// GetCustomAppConfig unmarshals the CustomAppConfig from Viper.
+// This includes both the standard Cosmos SDK config and the DRPC config.
+func GetCustomAppConfig(svrCtx *server.Context) (*app.CustomAppConfig, error) {
+	cfg := app.DefaultAppConfig()
+	if err := svrCtx.Viper.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal app config: %w", err)
+	}
+	return cfg, nil
+}
+
+// getDrpcAddress returns the DRPC address from the app config.
+// Falls back to the flag value if the config is not available.
+func getDrpcAddress(svrCtx *server.Context) string {
+	appCfg, err := GetCustomAppConfig(svrCtx)
+	if err != nil {
+		// Fall back to flag value if config unmarshal fails
+		return svrCtx.Viper.GetString(DrpcAddressKey)
+	}
+	return appCfg.DRPC.Address
+}
+
 // openTraceWriter opens a trace writer for the given file.
 // If the file is empty, it returns no writer and no error.
 func openTraceWriter(traceWriterFile string) (io.WriteCloser, error) {
@@ -443,11 +466,11 @@ func startDRPCServer(
 	g *errgroup.Group,
 	svrCtx *server.Context,
 	drpcSrv *drpcserver.Server,
-	port string,
+	addr string,
 ) (net.Listener, error) {
-	listener, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", port))
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create DRPC listener on port %s: %w", port, err)
+		return nil, fmt.Errorf("failed to create DRPC listener on address %s: %w", addr, err)
 	}
 
 	g.Go(func() error {
