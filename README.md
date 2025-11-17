@@ -169,7 +169,7 @@ celestia-app and celestia-core start multiple servers to handle different types 
 
 | Server       | Default Address                | Configuration                 | Purpose                                                                                                                                      |
 |--------------|--------------------------------|-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| **gRPC**     | `localhost:9090`               | `app.toml` under `[grpc]`     | gRPC for application-specific queries. Provides access to Cosmos SDK modules (bank, governance, etc.) and Celestia-specific modules (blob).  |
+| **gRPC**     | `localhost:9090`               | `app.toml` under `[grpc]`     | gRPC for application-specific queries. Provides access to Cosmos SDK modules (bank, governance, etc.) and Celestia-specific modules (blob). The Fibre server is also registered on this gRPC server for validator nodes. |
 | **REST API** | `tcp://localhost:1317`         | `app.toml` under `[api]`      | RESTful HTTP API that proxies requests to the gRPC server via gRPC-gateway. Provides the same functionality as gRPC but over HTTP with JSON. |
 | **gRPC-Web** | *Uses REST API server address* | `app.toml` under `[grpc-web]` | Browser-compatible gRPC API that allows web applications to interact with the gRPC server.                                                   |
 
@@ -180,6 +180,39 @@ If you are a new contributor, please read [contributing to Celestia](https://git
 This repo attempts to conform to [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) so PR titles should ideally start with `fix:`, `feat:`, `build:`, `chore:`, `ci:`, `docs:`, `style:`, `refactor:`, `perf:`, or `test:` because this helps with semantic versioning and changelog generation. It is especially important to include an `!` (e.g. `feat!:`) if the PR includes a breaking change.
 
 This repo contains multiple go modules. When using it, rename `go.work.example` to `go.work` and run `go work sync`.
+
+### Prerequisites for Contributors
+
+This repository includes dependencies on private GitHub repositories. To build the project successfully, you need to configure authentication for accessing private repositories.
+
+#### Required Setup
+
+1. **Generate a GitHub Personal Access Token (PAT)**:
+   - Go to [GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)](https://github.com/settings/tokens)
+   - Click "Generate new token (classic)"
+   - Select the `repo` scope (Full control of private repositories)
+   - Copy the generated token
+
+2. **Configure Git authentication**:
+   Add the following line to your `$HOME/.netrc` file (create it if it doesn't exist):
+
+   ```ascii
+   machine github.com login <YOUR_GITHUB_USERNAME> password <YOUR_GITHUB_PAT_TOKEN>
+   ```
+
+   **Important**: Replace `<YOUR_GITHUB_USERNAME>` with your actual GitHub username and `<YOUR_GITHUB_PAT_TOKEN>` with the token you generated in step 1.
+
+   **Security Notes**:
+   - Ensure your `.netrc` file has appropriate permissions:
+
+     ```shell
+     chmod 600 ~/.netrc
+     ```
+
+   - Never commit your `.netrc` file to version control as it contains sensitive credentials
+   - Verify that `~/.netrc` is in your global `.gitignore` or the repository's `.gitignore`
+
+Without this setup, running `make build` will fail with authentication errors when trying to access private dependencies like `github.com/celestiaorg/rsema1d`.
 
 ### Tools
 
