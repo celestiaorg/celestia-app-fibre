@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -179,6 +180,14 @@ func localGenesisCmd() *cobra.Command {
 				return fmt.Errorf("failed to create network: %w", err)
 			}
 
+			// Define payload directory
+			payloadDir := filepath.Join(rootDir, "nodes")
+
+			// Create the payload directory if it doesn't exist
+			if err := os.MkdirAll(payloadDir, 0o755); err != nil {
+				return fmt.Errorf("failed to create payload directory: %w", err)
+			}
+
 			// Add validators to the genesis
 			fmt.Println("Adding validators to genesis...")
 			for i := range config.Validators {
@@ -191,8 +200,8 @@ func localGenesisCmd() *cobra.Command {
 				err = network.AddValidator(
 					validator.Moniker,
 					ip,
-					rootDir,
-					"local", // region
+					payloadDir, // This will create keyring at nodes/val0/keyring-test
+					"local",    // region
 					stakeAmount,
 				)
 				if err != nil {
@@ -202,13 +211,6 @@ func localGenesisCmd() *cobra.Command {
 
 			// Initialize nodes - this creates genesis.json and all validator files
 			fmt.Println("\nInitializing validator nodes...")
-			payloadDir := filepath.Join(rootDir, "nodes")
-
-			// Create the payload directory if it doesn't exist
-			if err := os.MkdirAll(payloadDir, 0o755); err != nil {
-				return fmt.Errorf("failed to create payload directory: %w", err)
-			}
-
 			if err := network.InitNodes(payloadDir); err != nil {
 				return fmt.Errorf("failed to initialize nodes: %w", err)
 			}
@@ -306,12 +308,25 @@ func localGenesisCmd() *cobra.Command {
 				}
 			}
 
+			// Generate validator_hosts.json for fibre-load
+			fmt.Println("\nGenerating validator_hosts.json for fibre-load...")
+			validatorHostsPath := filepath.Join(rootDir, "validator_hosts.json")
+			if err := saveLocalValidatorHostMapping(config, validatorHostsPath); err != nil {
+				return fmt.Errorf("failed to save validator host mapping: %w", err)
+			}
+			fmt.Printf("  Saved to: %s\n", validatorHostsPath)
+
 			fmt.Printf("\n✅ Genesis configuration completed successfully!\n")
 			fmt.Printf("\nNetwork details:\n")
 			fmt.Printf("  Chain ID: %s\n", config.ChainID)
 			fmt.Printf("  Validators: %d\n", len(config.Validators))
-			fmt.Printf("\nNext step:\n")
-			fmt.Printf("  Start the network with: talis local start\n")
+			fmt.Printf("  Funded accounts created: 'txsim' key in each validator's keyring (balance: 9999999999999999 utia)\n")
+			fmt.Printf("\nNext steps:\n")
+			fmt.Printf("  1. Start the network: talis local start\n")
+			fmt.Printf("\n  2. Run fibre-load:\n")
+			absPayloadDir, _ := filepath.Abs(payloadDir)
+			fmt.Printf("     fibre-load --grpc-endpoint localhost:%d --validator-hosts %s \\\n", config.Validators[0].Ports.CometGRPC, validatorHostsPath)
+			fmt.Printf("       --chain-id %s --keyring-dir %s/%s\n", config.ChainID, absPayloadDir, config.Validators[0].Moniker)
 
 			return nil
 		},
@@ -534,5 +549,46 @@ func checkTmuxInstalled() error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("tmux is not installed. Please install tmux first:\n  macOS: brew install tmux\n  Ubuntu/Debian: sudo apt-get install tmux\n  CentOS/RHEL: sudo yum install tmux")
 	}
+	return nil
+}
+
+// saveLocalValidatorHostMapping creates validator_hosts.json for fibre-load
+func saveLocalValidatorHostMapping(config *LocalConfig, filename string) error {
+	hostMapping := make(map[string]string)
+
+	for _, val := range config.Validators {
+		// Read the validator's priv_validator_key.json to get consensus address
+		privKeyPath := filepath.Join(val.HomeDir, "config", "priv_validator_key.json")
+		privKeyData, err := os.ReadFile(privKeyPath)
+		if err != nil {
+			return fmt.Errorf("failed to read priv_validator_key.json for %s: %w", val.Moniker, err)
+		}
+
+		var privKey struct {
+			Address string `json:"address"`
+		}
+		if err := json.Unmarshal(privKeyData, &privKey); err != nil {
+			return fmt.Errorf("failed to parse priv_validator_key.json for %s: %w", val.Moniker, err)
+		}
+
+		// Map consensus address to localhost:DRPC_PORT
+		consensusAddr := strings.ToUpper(privKey.Address)
+		host := fmt.Sprintf("localhost:%d", val.Ports.DRPC)
+		hostMapping[consensusAddr] = host
+	}
+
+	// Write to file
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(hostMapping); err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
 	return nil
 }
