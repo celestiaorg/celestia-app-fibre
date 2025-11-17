@@ -36,7 +36,7 @@ jobs:
 
       - name: Run tests in short mode
         run: make test-short
-        timeout-minutes: 25
+        timeout-minutes: 2
 
   go-test:
     runs-on: ubuntu-latest
