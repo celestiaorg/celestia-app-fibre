@@ -7,8 +7,9 @@ import (
 	"net"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	drpcpkg "github.com/celestiaorg/celestia-app/v6/pkg/drpc"
 	core "github.com/cometbft/cometbft/types"
-	"github.com/hashicorp/yamux"
+	"github.com/libp2p/go-yamux/v5"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcconn"
 	"storj.io/drpc/drpcmanager"
@@ -54,7 +55,7 @@ func (f *fibreClientCloser) Close() error {
 // executes the provided function, and closes the stream.
 func (f *fibreClientCloser) DoDrpc(ctx context.Context, do func(conn drpc.Conn) error) error {
 	// Open a new yamux stream for this RPC
-	stream, err := f.yamuxSess.Open()
+	stream, err := f.yamuxSess.Open(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to open yamux stream: %w", err)
 	}
@@ -92,7 +93,7 @@ func DefaultNewClientFn(hostReg validator.HostRegistry) NewClientFn {
 
 		// Create yamux client session on top of TCP connection
 		// Yamux streams will be opened on demand for each RPC call
-		yamuxSess, err := yamux.Client(tcpConn, nil)
+		yamuxSess, err := yamux.Client(tcpConn, drpcpkg.YamuxCfg, nil)
 		if err != nil {
 			tcpConn.Close()
 			return nil, fmt.Errorf("failed to create yamux session: %w", err)

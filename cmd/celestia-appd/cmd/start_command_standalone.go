@@ -14,6 +14,7 @@ import (
 	"cosmossdk.io/log"
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
+	drpcpkg "github.com/celestiaorg/celestia-app/v6/pkg/drpc"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/p2p"
@@ -34,7 +35,7 @@ import (
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/hashicorp/yamux"
+	"github.com/libp2p/go-yamux/v5"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -549,7 +550,7 @@ func handleYamuxConnection(ctx context.Context, svrCtx *server.Context, tcpConn 
 	svrCtx.Logger.Info("handleYamuxConnection: TCP connection received", "remote_addr", tcpConn.RemoteAddr())
 
 	// Create yamux server session on the TCP connection
-	yamuxSess, err := yamux.Server(tcpConn, nil)
+	yamuxSess, err := yamux.Server(tcpConn, drpcpkg.YamuxCfg, nil)
 	if err != nil {
 		svrCtx.Logger.Error("failed to create yamux session", "error", err)
 		tcpConn.Close()

@@ -50,6 +50,7 @@ require (
 	github.com/hashicorp/yamux v0.1.2
 	github.com/ipfs/go-datastore v0.9.0
 	github.com/ipfs/go-ds-badger4 v0.1.8
+	github.com/libp2p/go-yamux/v5 v5.1.0
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.10.1
