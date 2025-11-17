@@ -1,11 +1,12 @@
 name: ci-release
 
-# Run this workflow on push events (i.e. PR merge) to main or release branches,
+# Run this workflow on push events (i.e. PR merge) to main, feature/fibre, or release branches,
 # push events for new semantic version tags, and all PRs.
 on:
   push:
     branches:
       - main
+      - feature/fibre
       - "v*"
     tags:
       - "v*"
