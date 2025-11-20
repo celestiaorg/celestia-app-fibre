@@ -357,7 +357,7 @@ func buildSquareFromSeparatedTxs(
 	blobTxs []*tx.BlobTx,
 	payForFibreTxs [][]byte,
 	txConfig client.TxConfig,
-	maxSquareSize, int,
+	maxSquareSize int,
 	subtreeRootThreshold int,
 	opts PayForFibreOptions,
 ) (square.Square, error) {
