@@ -12,7 +12,6 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/pkg/da"
 	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
-	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	square "github.com/celestiaorg/go-square/v3"
 	"github.com/celestiaorg/go-square/v3/share"
 	blobtx "github.com/celestiaorg/go-square/v3/tx"
@@ -218,7 +217,6 @@ func accept() *abci.ResponseProcessProposal {
 func buildSquare(txs [][]byte, txConfig client.TxConfig, maxSquareSize, subtreeRootThreshold int) (square.Square, error) {
 	// Validate transaction ordering: normal txs must come before blob txs
 	// This matches the validation in square.Construct
-	// TODO: evaluate if PayForFibre transactions should be ordered after blob transactions
 	if err := validateTxOrdering(txs, txConfig); err != nil {
 		return nil, fmt.Errorf("invalid transaction ordering: %w", err)
 	}
@@ -239,7 +237,7 @@ func buildSquare(txs [][]byte, txConfig client.TxConfig, maxSquareSize, subtreeR
 // This matches the validation performed by square.Construct.
 func validateTxOrdering(txs [][]byte, txConfig client.TxConfig) error {
 	seenFirstBlobTx := false
-	dec := txConfig.TxDecoder()
+	decoder := txConfig.TxDecoder()
 
 	for idx, rawTx := range txs {
 		_, isBlob, err := blobtx.UnmarshalBlobTx(rawTx)
@@ -249,23 +247,12 @@ func validateTxOrdering(txs [][]byte, txConfig client.TxConfig) error {
 			}
 			seenFirstBlobTx = true
 		} else {
-			// Check if this is a PayForFibre transaction - these are treated as normal transactions for ordering
-			sdkTx, err := dec(rawTx)
+			_, err := decoder(rawTx)
 			if err != nil {
-				// If we can't decode it, treat it as a normal transaction
-				if seenFirstBlobTx {
-					return fmt.Errorf("normal tx at index %d cannot be appended after blob tx", idx)
-				}
-				continue
+				return fmt.Errorf("decoding normal tx at index %d: %w", idx, err)
 			}
-			// PayForFibre transactions are allowed after blob transactions, but regular transactions are not
-			// extractMsgPayForFibre returns *fibretypes.MsgPayForFibre, ensuring fibretypes import is used
-			_, hasPayForFibre := extractMsgPayForFibre(sdkTx)
-			_ = (*fibretypes.MsgPayForFibre)(nil) // Ensure fibretypes import is recognized
-			if !hasPayForFibre {
-				if seenFirstBlobTx {
-					return fmt.Errorf("normal tx at index %d cannot be appended after blob tx", idx)
-				}
+			if seenFirstBlobTx {
+				return fmt.Errorf("normal tx at index %d cannot be appended after blob tx", idx)
 			}
 		}
 	}
