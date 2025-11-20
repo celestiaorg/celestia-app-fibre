@@ -12,7 +12,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
 	"github.com/celestiaorg/celestia-app/v6/pkg/da"
 	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
-	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types" //nolint:staticcheck // used indirectly through extractMsgPayForFibre return type
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	square "github.com/celestiaorg/go-square/v3"
 	"github.com/celestiaorg/go-square/v3/share"
 	blobtx "github.com/celestiaorg/go-square/v3/tx"
@@ -133,9 +133,9 @@ func (app *App) ProcessProposalHandler(ctx sdk.Context, req *abci.RequestProcess
 	}
 
 	// Build the square with PayForFibre support
-	dataSquare, err := buildSquareWithPayForFibre(req.Txs, app.encodingConfig.TxConfig, app.MaxEffectiveSquareSize(ctx), appconsts.SubtreeRootThreshold)
+	dataSquare, err := buildSquare(req.Txs, app.encodingConfig.TxConfig, app.MaxEffectiveSquareSize(ctx), appconsts.SubtreeRootThreshold)
 	if err != nil {
-		logInvalidPropBlockError(app.Logger(), blockHeader, "failure to build data square:", err)
+		logInvalidPropBlockError(app.Logger(), blockHeader, "failed to build data square:", err)
 		return reject(), nil
 	}
 
@@ -212,10 +212,10 @@ func accept() *abci.ResponseProcessProposal {
 	}
 }
 
-// buildSquareWithPayForFibre builds a data square from transactions, handling PayForFibre
+// buildSquare builds a data square from transactions, handling PayForFibre
 // transactions and creating system blobs for them. This function reconstructs the square
 // the same way as prepare_proposal does.
-func buildSquareWithPayForFibre(txs [][]byte, txConfig client.TxConfig, maxSquareSize, subtreeRootThreshold int) (square.Square, error) {
+func buildSquare(txs [][]byte, txConfig client.TxConfig, maxSquareSize, subtreeRootThreshold int) (square.Square, error) {
 	// Validate transaction ordering: normal txs must come before blob txs
 	// This matches the validation in square.Construct
 	if err := validateTxOrdering(txs, txConfig); err != nil {
