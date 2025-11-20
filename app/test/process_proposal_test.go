@@ -324,8 +324,7 @@ func calculateNewDataHash(t *testing.T, txs [][]byte) []byte {
 }
 
 // TestProcessProposalWithPayForFibre tests that process_proposal correctly handles
-// PayForFibre transactions. This test is expected to fail until process_proposal
-// is updated to handle PayForFibre transactions and system blobs.
+// PayForFibre transactions.
 func TestProcessProposalWithPayForFibre(t *testing.T) {
 	enc := encoding.MakeConfig(app.ModuleEncodingRegisters...)
 	accounts := testfactory.GenerateAccounts(2)
@@ -333,7 +332,7 @@ func TestProcessProposalWithPayForFibre(t *testing.T) {
 	infos := queryAccountInfo(testApp, accounts, kr)
 
 	// Create a PayForFibre transaction
-	payForFibreTx := createPayForFibreTxForTest(t, enc.TxConfig, kr, accounts[0], infos[0])
+	payForFibreTx := createPayForFibreTx(t, enc.TxConfig, kr, accounts[0], infos[0])
 
 	// Create input data with PayForFibre transaction
 	inputData := &tmproto.Data{
@@ -342,7 +341,6 @@ func TestProcessProposalWithPayForFibre(t *testing.T) {
 
 	blockTime, height := time.Now(), testApp.LastBlockHeight()+1
 
-	// Prepare proposal - this should work since prepare_proposal handles PayForFibre
 	resp, err := testApp.PrepareProposal(&abci.RequestPrepareProposal{
 		Txs:    inputData.Txs,
 		Height: height,
@@ -357,7 +355,6 @@ func TestProcessProposalWithPayForFibre(t *testing.T) {
 		SquareSize: resp.SquareSize,
 	}
 
-	// Process proposal - should ACCEPT now that process_proposal handles PayForFibre
 	res, err := testApp.ProcessProposal(&abci.RequestProcessProposal{
 		Time:         blockTime,
 		Height:       height,
@@ -366,20 +363,20 @@ func TestProcessProposalWithPayForFibre(t *testing.T) {
 		SquareSize:   blockData.SquareSize,
 	})
 	require.NoError(t, err)
-	require.Equal(t, abci.ResponseProcessProposal_ACCEPT, res.Status,
-		"process_proposal should ACCEPT PayForFibre transactions")
+	require.Equal(t, abci.ResponseProcessProposal_ACCEPT, res.Status)
 }
 
-// createPayForFibreTxForTest creates a PayForFibre transaction for testing purposes.
-// This is a simplified version that creates a valid transaction structure.
-func createPayForFibreTxForTest(t *testing.T, txConfig client.TxConfig, kr keyring.Keyring, account string, info blobfactory.AccountInfo) []byte {
+// createPayForFibreTx creates a PayForFibre transaction for testing purposes.
+func createPayForFibreTx(t *testing.T, txConfig client.TxConfig, kr keyring.Keyring, account string, info blobfactory.AccountInfo) []byte {
 	// Get the address and public key from the keyring
 	addr := testfactory.GetAddress(kr, account)
+
 	rec, err := kr.Key(account)
 	require.NoError(t, err)
+
 	pubKey, err := rec.GetPubKey()
 	require.NoError(t, err)
-	secp256k1PubKey := *pubKey.(*secp256k1.PubKey)
+	signerPublicKey := *pubKey.(*secp256k1.PubKey)
 
 	// Create a valid namespace
 	ns := share.MustNewV0Namespace(bytes.Repeat([]byte{1}, share.NamespaceVersionZeroIDSize))
@@ -387,7 +384,7 @@ func createPayForFibreTxForTest(t *testing.T, txConfig client.TxConfig, kr keyri
 
 	// Create a PaymentPromise with required fields
 	paymentPromise := fibretypes.PaymentPromise{
-		SignerPublicKey:   secp256k1PubKey,
+		SignerPublicKey:   signerPublicKey,
 		Namespace:         namespace,
 		Commitment:        bytes.Repeat([]byte{1}, 32), // 32-byte commitment
 		BlobVersion:       0,                           // BlobVersionZero
