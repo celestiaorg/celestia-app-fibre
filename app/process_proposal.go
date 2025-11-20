@@ -218,106 +218,21 @@ func accept() *abci.ResponseProcessProposal {
 func buildSquare(txs [][]byte, txConfig client.TxConfig, maxSquareSize, subtreeRootThreshold int) (square.Square, error) {
 	// Validate transaction ordering: normal txs must come before blob txs
 	// This matches the validation in square.Construct
+	// TODO: evaluate if PayForFibre transactions should be ordered after blob transactions
 	if err := validateTxOrdering(txs, txConfig); err != nil {
 		return nil, fmt.Errorf("invalid transaction ordering: %w", err)
 	}
 
 	// Separate transactions into normal, blob, and PayForFibre
-	normalTxs, blobTxs, payForFibreTxs := separateTxsForProcessProposal(txConfig, txs)
+	// Note: Transactions are already validated for size in the loop above (lines 64-69),
+	// so the size check in separateTxs is redundant but harmless.
+	normalTxs, blobTxs, payForFibreTxs := separateTxs(txConfig, txs)
 
-	// Create a square builder
-	builder, err := square.NewBuilder(maxSquareSize, subtreeRootThreshold)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create square builder: %w", err)
-	}
-
-	dec := txConfig.TxDecoder()
-
-	// Add normal transactions
-	for _, tx := range normalTxs {
-		if !builder.AppendTx(tx) {
-			return nil, fmt.Errorf("not enough space to append normal tx")
-		}
-	}
-
-	// Add blob transactions
-	for _, blobTx := range blobTxs {
-		if !builder.AppendBlobTx(blobTx) {
-			return nil, fmt.Errorf("not enough space to append blob tx")
-		}
-	}
-
-	// Add PayForFibre transactions and create system blobs
-	for _, tx := range payForFibreTxs {
-		// Append PayForFibre transaction
-		if !builder.AppendPayForFibreTx(tx) {
-			return nil, fmt.Errorf("not enough space to append pay-for-fibre tx")
-		}
-
-		// Decode transaction to extract MsgPayForFibre
-		sdkTx, err := dec(tx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode pay-for-fibre tx: %w", err)
-		}
-
-		// Extract MsgPayForFibre and create system blob
-		msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
-		if hasPayForFibre {
-			// msgPayForFibre is *fibretypes.MsgPayForFibre, ensuring fibretypes import is used
-			_ = (*fibretypes.MsgPayForFibre)(nil)
-			systemBlob, err := createSystemBlobForPayForFibre(msgPayForFibre)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create system blob for pay-for-fibre: %w", err)
-			}
-
-			// Add system blob to builder
-			if !builder.AppendSystemBlob(systemBlob) {
-				return nil, fmt.Errorf("not enough space to append system blob")
-			}
-		}
-	}
-
-	// Export the square
-	return builder.Export()
-}
-
-// separateTxsForProcessProposal separates transactions into normal, blob, and PayForFibre transactions.
-// This is similar to separateTxs in filtered_square_builder.go but doesn't filter by size.
-func separateTxsForProcessProposal(txConfig client.TxConfig, rawTxs [][]byte) (normalTxs [][]byte, blobTxs []*blobtx.BlobTx, payForFibreTxs [][]byte) {
-	normalTxs = make([][]byte, 0, len(rawTxs))
-	blobTxs = make([]*blobtx.BlobTx, 0, len(rawTxs))
-	payForFibreTxs = make([][]byte, 0, len(rawTxs))
-	dec := txConfig.TxDecoder()
-
-	for _, rawTx := range rawTxs {
-		bTx, isBlob, err := blobtx.UnmarshalBlobTx(rawTx)
-		if isBlob {
-			if err != nil {
-				// Invalid blob tx - treat as normal tx for error handling
-				normalTxs = append(normalTxs, rawTx)
-				continue
-			}
-			blobTxs = append(blobTxs, bTx)
-			continue
-		}
-
-		// Decode the transaction
-		sdkTx, err := dec(rawTx)
-		if err != nil {
-			// If we can't decode it, treat it as a normal transaction
-			normalTxs = append(normalTxs, rawTx)
-			continue
-		}
-
-		// Check if this is a pay-for-fibre transaction
-		if _, hasPayForFibre := extractMsgPayForFibre(sdkTx); hasPayForFibre {
-			payForFibreTxs = append(payForFibreTxs, rawTx)
-			continue
-		}
-		// If it's not a pay-for-fibre transaction, add it to the normal transactions
-		normalTxs = append(normalTxs, rawTx)
-	}
-	return normalTxs, blobTxs, payForFibreTxs
+	// Build the square from separated transactions
+	// Use strict error handling: return error immediately if anything fails
+	return buildSquareFromSeparatedTxs(normalTxs, blobTxs, payForFibreTxs, txConfig, maxSquareSize, subtreeRootThreshold, PayForFibreOptions{
+		StrictErrorHandling: true,
+	})
 }
 
 // validateTxOrdering validates that all blob transactions come after normal transactions.
@@ -344,7 +259,10 @@ func validateTxOrdering(txs [][]byte, txConfig client.TxConfig) error {
 				continue
 			}
 			// PayForFibre transactions are allowed after blob transactions, but regular transactions are not
-			if _, hasPayForFibre := extractMsgPayForFibre(sdkTx); !hasPayForFibre {
+			// extractMsgPayForFibre returns *fibretypes.MsgPayForFibre, ensuring fibretypes import is used
+			_, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+			_ = (*fibretypes.MsgPayForFibre)(nil) // Ensure fibretypes import is recognized
+			if !hasPayForFibre {
 				if seenFirstBlobTx {
 					return fmt.Errorf("normal tx at index %d cannot be appended after blob tx", idx)
 				}
