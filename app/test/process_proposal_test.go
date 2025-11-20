@@ -17,12 +17,16 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/test/util/testfactory"
 	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
 	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
+	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v3"
 	"github.com/celestiaorg/go-square/v3/share"
 	"github.com/celestiaorg/go-square/v3/tx"
 	abci "github.com/cometbft/cometbft/abci/types"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	coretypes "github.com/cometbft/cometbft/types"
+	"github.com/cosmos/cosmos-sdk/client"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
 )
@@ -317,4 +321,97 @@ func calculateNewDataHash(t *testing.T, txs [][]byte) []byte {
 	dah, err := da.NewDataAvailabilityHeader(eds)
 	require.NoError(t, err)
 	return dah.Hash()
+}
+
+// TestProcessProposalWithPayForFibre tests that process_proposal correctly handles
+// PayForFibre transactions. This test is expected to fail until process_proposal
+// is updated to handle PayForFibre transactions and system blobs.
+func TestProcessProposalWithPayForFibre(t *testing.T) {
+	enc := encoding.MakeConfig(app.ModuleEncodingRegisters...)
+	accounts := testfactory.GenerateAccounts(2)
+	testApp, kr := testutil.SetupTestAppWithGenesisValSet(app.DefaultConsensusParams(), accounts...)
+	infos := queryAccountInfo(testApp, accounts, kr)
+
+	// Create a PayForFibre transaction
+	payForFibreTx := createPayForFibreTxForTest(t, enc.TxConfig, kr, accounts[0], infos[0])
+
+	// Create input data with PayForFibre transaction
+	inputData := &tmproto.Data{
+		Txs: [][]byte{payForFibreTx},
+	}
+
+	blockTime, height := time.Now(), testApp.LastBlockHeight()+1
+
+	// Prepare proposal - this should work since prepare_proposal handles PayForFibre
+	resp, err := testApp.PrepareProposal(&abci.RequestPrepareProposal{
+		Txs:    inputData.Txs,
+		Height: height,
+		Time:   blockTime,
+	})
+	require.NoError(t, err)
+	require.Equal(t, len(inputData.Txs), len(resp.Txs))
+
+	blockData := &tmproto.Data{
+		Txs:        resp.Txs,
+		Hash:       resp.DataRootHash,
+		SquareSize: resp.SquareSize,
+	}
+
+	// Process proposal - should ACCEPT now that process_proposal handles PayForFibre
+	res, err := testApp.ProcessProposal(&abci.RequestProcessProposal{
+		Time:         blockTime,
+		Height:       height,
+		Txs:          blockData.Txs,
+		DataRootHash: blockData.Hash,
+		SquareSize:   blockData.SquareSize,
+	})
+	require.NoError(t, err)
+	require.Equal(t, abci.ResponseProcessProposal_ACCEPT, res.Status,
+		"process_proposal should ACCEPT PayForFibre transactions")
+}
+
+// createPayForFibreTxForTest creates a PayForFibre transaction for testing purposes.
+// This is a simplified version that creates a valid transaction structure.
+func createPayForFibreTxForTest(t *testing.T, txConfig client.TxConfig, kr keyring.Keyring, account string, info blobfactory.AccountInfo) []byte {
+	// Get the address and public key from the keyring
+	addr := testfactory.GetAddress(kr, account)
+	rec, err := kr.Key(account)
+	require.NoError(t, err)
+	pubKey, err := rec.GetPubKey()
+	require.NoError(t, err)
+	secp256k1PubKey := *pubKey.(*secp256k1.PubKey)
+
+	// Create a valid namespace
+	ns := share.MustNewV0Namespace(bytes.Repeat([]byte{1}, share.NamespaceVersionZeroIDSize))
+	namespace := ns.Bytes()
+
+	// Create a PaymentPromise with required fields
+	paymentPromise := fibretypes.PaymentPromise{
+		SignerPublicKey:   secp256k1PubKey,
+		Namespace:         namespace,
+		Commitment:        bytes.Repeat([]byte{1}, 32), // 32-byte commitment
+		BlobVersion:       0,                           // BlobVersionZero
+		BlobSize:          100,
+		CreationTimestamp: time.Now(),
+		Signature:         bytes.Repeat([]byte{1}, 64), // 64-byte signature
+		Height:            1,
+		ChainId:           testutil.ChainID,
+	}
+
+	// Create MsgPayForFibre with at least one validator signature (required by ValidateBasic)
+	msg := &fibretypes.MsgPayForFibre{
+		Signer:              addr.String(),
+		PaymentPromise:      paymentPromise,
+		ValidatorSignatures: [][]byte{bytes.Repeat([]byte{1}, 64)}, // At least one signature required
+	}
+
+	// Sign the transaction
+	signer, err := user.NewSigner(kr, txConfig, testutil.ChainID, user.NewAccount(account, info.AccountNum, info.Sequence))
+	require.NoError(t, err)
+
+	// Create and sign the transaction - CreateTx already returns encoded bytes
+	rawTx, _, err := signer.CreateTx([]sdk.Msg{msg}, user.SetGasLimit(100000), user.SetFee(100000))
+	require.NoError(t, err)
+
+	return rawTx
 }
