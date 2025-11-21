@@ -145,7 +145,7 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	if err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
 	}
-	if err := ms.validateValidatorSignatures(ctx, signBytes, msg.PaymentPromise.Height, msg.ValidatorSignatures); err != nil {
+	if err := ms.validateValidatorSignatures(ctx, signBytes, msg.PaymentPromise.ChainId, msg.PaymentPromise.Height, msg.ValidatorSignatures); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
 	}
 
@@ -300,7 +300,8 @@ func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk
 }
 
 // validateValidatorSignatures validates validator signatures using the existing SignatureSet infrastructure
-func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byte, height int64, signatures [][]byte) error {
+// SignRawBytes constructs bytes as: chainID || uniqueID || rawBytes, so we need to prepend chainID and uniqueID to signBytes
+func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byte, chainID string, height int64, signatures [][]byte) error {
 	// Get historical validator set at the height
 	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, height)
 	if err != nil {
@@ -332,9 +333,16 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byt
 		Height:       uint64(height),
 	}
 
+	// SignRawBytes constructs bytes as: chainID || uniqueID || rawBytes
+	// We need to prepend chainID and ValidatorSignatureUniqueID to match what was signed
+	bytesToVerify := make([]byte, 0, len(chainID)+len(fibre.ValidatorSignatureUniqueID)+len(signBytes))
+	bytesToVerify = append(bytesToVerify, []byte(chainID)...)
+	bytesToVerify = append(bytesToVerify, []byte(fibre.ValidatorSignatureUniqueID)...)
+	bytesToVerify = append(bytesToVerify, signBytes...)
+
 	// Create signature set with 2/3+ thresholds
 	twoThirds := cmtmath.Fraction{Numerator: 2, Denominator: 3}
-	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, signBytes)
+	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, bytesToVerify)
 
 	// Add all provided signatures to the signature set
 	for i, signature := range signatures {
