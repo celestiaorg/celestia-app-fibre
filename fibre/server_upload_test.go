@@ -310,12 +310,7 @@ func (m *testPrivValidator) GetPubKey() (crypto.PubKey, error) {
 }
 
 func (m *testPrivValidator) SignRawBytes(chainID, uniqueID string, rawBytes []byte) ([]byte, error) {
-	// SignRawBytes constructs bytes as: chainID || uniqueID || rawBytes
-	bytesToSign := make([]byte, 0, len(chainID)+len(uniqueID)+len(rawBytes))
-	bytesToSign = append(bytesToSign, []byte(chainID)...)
-	bytesToSign = append(bytesToSign, []byte(uniqueID)...)
-	bytesToSign = append(bytesToSign, rawBytes...)
-	return m.privKey.Sign(bytesToSign)
+	return m.privKey.Sign(rawBytes)
 }
 
 func (m *testPrivValidator) SignVote(chainID string, vote *cmtproto.Vote) error {

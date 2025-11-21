@@ -234,8 +234,7 @@ func (s *Server) signPromise(promise *PaymentPromise) ([]byte, error) {
 	}
 
 	// sign using validator's private key
-	// SignRawBytes constructs bytes as: chainID || uniqueID || rawBytes
-	signature, err := s.privVal.SignRawBytes(s.cfg.ChainID, ValidatorSignatureUniqueID, signBytes)
+	signature, err := s.privVal.SignRawBytes(s.cfg.ChainID, "", signBytes) // signBytes already include domain separator, so we don't have to pass its
 	if err != nil {
 		return nil, fmt.Errorf("signing payment promise: %w", err)
 	}

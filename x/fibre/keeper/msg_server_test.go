@@ -686,14 +686,7 @@ func (suite *MsgServerTestSuite) generateValidatorSignatures(paymentPromise *typ
 		return [][]byte{}
 	}
 
-	// SignRawBytes constructs bytes as: chainID || uniqueID || rawBytes
-	// We need to prepend chainID and ValidatorSignatureUniqueID to match what SignRawBytes does
-	bytesToSign := make([]byte, 0, len(paymentPromise.ChainId)+len(fibre.ValidatorSignatureUniqueID)+len(signBytes))
-	bytesToSign = append(bytesToSign, []byte(paymentPromise.ChainId)...)
-	bytesToSign = append(bytesToSign, []byte(fibre.ValidatorSignatureUniqueID)...)
-	bytesToSign = append(bytesToSign, signBytes...)
-
-	signature, err := valPrivKey.Sign(bytesToSign)
+	signature, err := valPrivKey.Sign(signBytes)
 	suite.NoError(err)
 
 	return [][]byte{signature}
