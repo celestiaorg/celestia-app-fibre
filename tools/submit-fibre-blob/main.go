@@ -111,9 +111,6 @@ func main() {
 	queryClient := valaddrtypes.NewQueryClient(grpcConn)
 	hostReg := fibregrpc.NewHostRegistry(queryClient)
 
-	// Create block time getter
-	blockTimeGet := fibregrpc.NewBlockTimeGetter(grpcConn)
-
 	// Create Fibre client config
 	clientCfg := fibre.DefaultClientConfig()
 	clientCfg.ChainID = *chainID
@@ -121,7 +118,7 @@ func main() {
 	clientCfg.ShardingFactor = 1 // This is a single node testnet
 
 	// Create Fibre client
-	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, blockTimeGet, clientCfg)
+	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, clientCfg)
 	if err != nil {
 		log.Fatalf("Failed to create Fibre client: %v", err)
 	}
