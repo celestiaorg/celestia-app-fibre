@@ -8,7 +8,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
@@ -60,8 +59,7 @@ func TestNewClient_KeyNotFound(t *testing.T) {
 	cfg := fibre.DefaultClientConfig()
 
 	// Attempt to create client with non-existent key
-	blockTimeGet := &mockBlockTimeGetter{}
-	_, err := fibre.NewClient(nil, emptyKeyring, &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, blockTimeGet, cfg)
+	_, err := fibre.NewClient(nil, emptyKeyring, &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
 	require.Error(t, err)
 	require.ErrorIs(t, err, fibre.ErrKeyNotFound, "expected ErrKeyNotFound when key doesn't exist")
 	require.Contains(t, err.Error(), cfg.DefaultKeyName, "error should mention the key name")
@@ -189,8 +187,7 @@ func testClientUploadAllValidatorsReceiveData(t *testing.T) {
 	cfg.NewClientFn = mockClientFn
 
 	valSet := validator.Set{ValidatorSet: core.NewValidatorSet(validators), Height: 100}
-	blockTimeGet := &mockBlockTimeGetter{}
-	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, blockTimeGet, cfg)
+	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
 	require.NoError(t, err)
 
 	ns := share.MustNewV0Namespace([]byte(testNamespace))
@@ -232,8 +229,7 @@ func makeTestClient(t *testing.T, numValidators int, customCfg func(*fibre.Clien
 	}
 
 	valSet := validator.Set{ValidatorSet: core.NewValidatorSet(validators), Height: 100}
-	blockTimeGet := &mockBlockTimeGetter{}
-	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, blockTimeGet, cfg)
+	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
 	require.NoError(t, err)
 	return client
 }
@@ -268,8 +264,7 @@ func makeTestClientWithFailures(t *testing.T, numValidators, numFailures int, cu
 	}
 
 	valSet := validator.Set{ValidatorSet: core.NewValidatorSet(validators), Height: 100}
-	blockTimeGet := &mockBlockTimeGetter{}
-	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, blockTimeGet, cfg)
+	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
 	require.NoError(t, err)
 	return client
 }
@@ -315,17 +310,6 @@ type mockHostRegistry struct{}
 
 func (m *mockHostRegistry) GetHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
 	return validator.Host("localhost:9090"), nil
-}
-
-type mockBlockTimeGetter struct {
-	blockTime time.Time
-}
-
-func (m *mockBlockTimeGetter) GetBlockTime(ctx context.Context) (time.Time, error) {
-	if m.blockTime.IsZero() {
-		return time.Now().UTC(), nil
-	}
-	return m.blockTime, nil
 }
 
 func makeMockClientFn(validators []*core.Validator, privKeys []cmted25519.PrivKey, tracker *uploadTracker) grpc.NewClientFn {

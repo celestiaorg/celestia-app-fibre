@@ -78,11 +78,10 @@ func DefaultClientConfig() ClientConfig {
 type Client struct {
 	cfg ClientConfig
 
-	txClient     *user.TxClient
-	keyring      keyring.Keyring
-	valGet       validator.SetGetter
-	hostReg      validator.HostRegistry
-	blockTimeGet validator.BlockTimeGetter
+	txClient *user.TxClient
+	keyring  keyring.Keyring
+	valGet   validator.SetGetter
+	hostReg  validator.HostRegistry
 
 	log    *slog.Logger
 	tracer trace.Tracer
@@ -102,7 +101,7 @@ type Client struct {
 
 // NewClient creates a new [Client] with the provided dependencies.
 // Returns an error if the configured key is not found in the keyring.
-func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.SetGetter, hostReg validator.HostRegistry, blockTimeGet validator.BlockTimeGetter, cfg ClientConfig) (*Client, error) {
+func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.SetGetter, hostReg validator.HostRegistry, cfg ClientConfig) (*Client, error) {
 	// Verify the key exists in the keyring
 	_, err := kr.Key(cfg.DefaultKeyName)
 	if err != nil {
@@ -123,18 +122,17 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	}
 
 	return &Client{
-		cfg:          cfg,
-		txClient:     txClient,
-		keyring:      kr,
-		valGet:       valGet,
-		hostReg:      hostReg,
-		blockTimeGet: blockTimeGet,
-		log:          cfg.Log,
-		tracer:       cfg.Tracer,
-		clock:        cfg.Clock,
-		clientCache:  grpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
-		uploadSem:    make(chan struct{}, cfg.UploadConcurrency),
-		downloadSem:  make(chan struct{}, cfg.DownloadConcurrency),
+		cfg:         cfg,
+		txClient:    txClient,
+		keyring:     kr,
+		valGet:      valGet,
+		hostReg:     hostReg,
+		log:         cfg.Log,
+		tracer:      cfg.Tracer,
+		clock:       cfg.Clock,
+		clientCache: grpc.NewClientCache(cfg.NewClientFn, cfg.UploadConcurrency),
+		uploadSem:   make(chan struct{}, cfg.UploadConcurrency),
+		downloadSem: make(chan struct{}, cfg.DownloadConcurrency),
 	}, nil
 }
 

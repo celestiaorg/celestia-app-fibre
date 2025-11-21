@@ -50,7 +50,7 @@ func (c *Client) Upload(ctx context.Context, ns share.Namespace, blob *Blob) (re
 	))
 
 	// 2) prepare payment promise
-	promise, err := c.signedPromise(ctx, ns, blob, valSet.Height)
+	promise, err := c.signedPromise(ns, blob, valSet.Height)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create signed promise")
@@ -78,7 +78,7 @@ func (c *Client) Upload(ctx context.Context, ns share.Namespace, blob *Blob) (re
 	}
 
 	requests := makeUploadRequests(shardMap, promise.ToProto(), blob.RLCCoeffs())
-	sigSet := valSet.NewSignatureSet(c.cfg.UploadTargetVotingPower, c.cfg.UploadTargetSignaturesCount, c.cfg.ChainID, PaymentPromiseUID, signBytes)
+	sigSet := valSet.NewSignatureSet(c.cfg.UploadTargetVotingPower, c.cfg.UploadTargetSignaturesCount, signBytes)
 
 	c.log.DebugContext(ctx, "initiating blob upload",
 		"promise_hash", hex.EncodeToString(promiseHash),
@@ -139,16 +139,10 @@ func (c *Client) signerKey() (*secp256k1.PubKey, error) {
 }
 
 // signedPromise creates and signs a [PaymentPromise].
-func (c *Client) signedPromise(ctx context.Context, ns share.Namespace, blob *Blob, height uint64) (*PaymentPromise, error) {
+func (c *Client) signedPromise(ns share.Namespace, blob *Blob, height uint64) (*PaymentPromise, error) {
 	signerKey, err := c.signerKey()
 	if err != nil {
 		return nil, err
-	}
-
-	// Get blockchain's current block time instead of system time
-	blockTime, err := c.blockTimeGet.GetBlockTime(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting blockchain block time: %w", err)
 	}
 
 	promise := &PaymentPromise{
@@ -158,7 +152,7 @@ func (c *Client) signedPromise(ctx context.Context, ns share.Namespace, blob *Bl
 		UploadSize:        uint32(blob.UploadSize()),
 		BlobVersion:       uint32(c.cfg.BlobVersion),
 		Commitment:        blob.Commitment(),
-		CreationTimestamp: blockTime.UTC(),
+		CreationTimestamp: c.clock.Now().UTC(),
 		SignerKey:         signerKey,
 	}
 

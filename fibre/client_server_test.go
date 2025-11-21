@@ -99,8 +99,7 @@ func makeTestEnv(
 		}
 		clientCfg.NewClientFn = grpcfibre.DefaultNewClientFn(&testHostRegistry{addresses: addresses}, fibre.MaxMessageSize(clientCfg.BlobConfig))
 
-		blockTimeGet := &mockBlockTimeGetter{}
-		client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, blockTimeGet, clientCfg)
+		client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, clientCfg)
 		require.NoError(t, err)
 		clients[i] = client
 	}
