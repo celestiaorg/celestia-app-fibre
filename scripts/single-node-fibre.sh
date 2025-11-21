@@ -9,11 +9,28 @@ set -o nounset # Stop script execution if an undefined variable is used
 CHAIN_ID="test"
 KEY_NAME="validator"
 KEYRING_BACKEND="test"
-FEES="500utia"
+FEES="5000utia"
+FIBRE_HOST="localhost:9090"  # Fibre DA server runs on the same gRPC server
 
 VERSION=$(celestia-appd version 2>&1)
 APP_HOME="${HOME}/.celestia-app"
 GENESIS_FILE="${APP_HOME}/config/genesis.json"
+CELESTIA_APP_PID=""
+
+# Cleanup function to kill background celestia-appd process
+cleanup() {
+  if [ -n "${CELESTIA_APP_PID}" ]; then
+    echo ""
+    echo "Stopping celestia-appd (PID: ${CELESTIA_APP_PID})..."
+    kill "${CELESTIA_APP_PID}" 2>/dev/null || true
+    wait "${CELESTIA_APP_PID}" 2>/dev/null || true
+    echo "celestia-appd stopped."
+  fi
+  exit 0
+}
+
+# Set up signal handlers to cleanup on script exit
+trap cleanup INT TERM EXIT
 
 echo "celestia-app version: ${VERSION}"
 echo "celestia-app home: ${APP_HOME}"
@@ -76,26 +93,40 @@ deleteCelestiaAppHome() {
     rm -r "$APP_HOME"
 }
 
+registerFibreProviderInfo() {
+  sleep 3
+  echo "Registering Fibre provider info..."
+  celestia-appd tx valaddr set-host "${FIBRE_HOST}" \
+      --from "${KEY_NAME}" \
+      --keyring-backend="${KEYRING_BACKEND}" \
+      --home "${APP_HOME}" \
+      --chain-id "${CHAIN_ID}" \
+      --fees "${FEES}" \
+      --yes
+
+  sleep 3
+  echo "Querying Fibre provider info..."
+  celestia-appd query valaddr providers --home "${APP_HOME}" --output json
+}
+
 startCelestiaApp() {
-  echo "Starting celestia-app..."
+  echo "Starting celestia-app in background..."
   celestia-appd start \
     --home "${APP_HOME}" \
     --api.enable \
     --grpc.enable \
     --grpc-web.enable \
-    --delayed-precommit-timeout 1s
+    --delayed-precommit-timeout 1s &
+
+  CELESTIA_APP_PID=$!
+  echo "celestia-appd started with PID: ${CELESTIA_APP_PID}"
 }
 
-if [ -f $GENESIS_FILE ]; then
-  echo "Do you want to delete existing ${APP_HOME} and start a new local testnet? [y/n]"
-  read -r response
-  if [ "$response" = "y" ]; then
-    deleteCelestiaAppHome
-    createGenesis
-  else
-    startCelestiaApp
-  fi
-else
-  createGenesis
-fi
+deleteCelestiaAppHome
+createGenesis
 startCelestiaApp
+registerFibreProviderInfo
+
+# Keep script running and wait for celestia-appd process
+# This allows logs to continue streaming and CTRL+C will trigger cleanup
+wait "${CELESTIA_APP_PID}"
