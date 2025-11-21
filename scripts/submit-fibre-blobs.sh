@@ -14,6 +14,8 @@ CHAIN_ID="test"
 KEY_NAME="validator"
 KEYRING_BACKEND="test"
 GRPC_ADDR="localhost:9090"
+DEPOSIT_AMOUNT="1000000utia"
+FEES="5000utia"
 
 VERSION=$(celestia-appd version 2>&1)
 APP_HOME="${HOME}/.celestia-app"
@@ -68,6 +70,18 @@ if ! celestia-appd keys show "${KEY_NAME}" --keyring-backend="${KEYRING_BACKEND}
     echo "Make sure you've run ./scripts/single-node-fibre.sh first"
     exit 1
 fi
+
+# Deposit to escrow account (creates account if it doesn't exist)
+echo "Depositing to escrow account..."
+celestia-appd tx fibre deposit-to-escrow "${DEPOSIT_AMOUNT}" \
+    --from "${KEY_NAME}" \
+    --keyring-backend="${KEYRING_BACKEND}" \
+    --home "${APP_HOME}" \
+    --chain-id "${CHAIN_ID}" \
+    --fees "${FEES}" \
+    --yes
+# Wait for transaction to be included
+sleep 3
 
 # Submit blob
 echo "Submitting Fibre blob..."
