@@ -62,7 +62,9 @@ func TestSignatureSet(t *testing.T) {
 		// 2/3 of 5 = 3 requiredCount
 		// Add 3 signatures (30 voting power, meets count threshold of 3 but not voting power threshold of 33)
 		for i := range 3 {
-			signature, err := s.privKeys[i].Sign(s.signBytes)
+			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
+			require.NoError(t, err)
+			signature, err := s.privKeys[i].Sign(signBytes)
 			require.NoError(t, err)
 			hasEnough, err := s.sigSet.Add(s.validators[i], signature)
 			require.NoError(t, err)
