@@ -187,6 +187,11 @@ const (
 
 	// signatureSize is the size of a secp256k1 signature in compact format (32 bytes r + 32 bytes s)
 	signatureSize = 64
+
+	// ValidatorSignatureUniqueID is the unique ID used when validators sign payment promises via SignRawBytes.
+	// This provides domain separation for validator signatures over payment promises, similar to how
+	// celestia-core uses "compactBlock" for compact block signatures.
+	ValidatorSignatureUniqueID = "paymentPromise"
 )
 
 // SignBytes returns the bytes that should be signed for this [PaymentPromise].
