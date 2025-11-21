@@ -18,6 +18,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	// PaymentPromiseUID is the unique ID used for payment promise signing.
+	PaymentPromiseUID = "paymentPromise"
+)
+
 // UploadShard handles the [types.FibreServer.UploadShard] RPC call.
 func (s *Server) UploadShard(ctx context.Context, req *types.UploadShardRequest) (*types.UploadShardResponse, error) {
 	ctx, span := s.tracer.Start(ctx, "fibre.Server.UploadShard")
@@ -234,7 +239,7 @@ func (s *Server) signPromise(promise *PaymentPromise) ([]byte, error) {
 	}
 
 	// sign using validator's private key
-	signature, err := s.privVal.SignRawBytes(s.cfg.ChainID, "", signBytes) // signBytes already include domain separator, so we don't have to pass its
+	signature, err := s.privVal.SignRawBytes(s.cfg.ChainID, PaymentPromiseUID, signBytes) // signBytes already include domain separator, so we don't have to pass its
 	if err != nil {
 		return nil, fmt.Errorf("signing payment promise: %w", err)
 	}
