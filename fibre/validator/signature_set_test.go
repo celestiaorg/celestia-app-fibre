@@ -87,7 +87,7 @@ func TestSignatureSet(t *testing.T) {
 
 		// Add only 2 signatures (requiredCount = 3)
 		for i := range 2 {
-			signBytes, err := validator.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
+			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
 			require.NoError(t, err)
 			signature, err := s.privKeys[i].Sign(signBytes)
 			require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestSignatureSet(t *testing.T) {
 
 		// Add 4 signatures (40 voting power, meets both thresholds)
 		for i := range 4 {
-			signBytes, err := validator.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
+			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
 			require.NoError(t, err)
 			signature, err := s.privKeys[i].Sign(signBytes)
 			require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestSignatureSet(t *testing.T) {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				signBytes, err := validator.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
+				signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
 				require.NoError(t, err)
 				signature, err := s.privKeys[idx].Sign(signBytes)
 				require.NoError(t, err)
@@ -154,7 +154,7 @@ func TestSignatureSet(t *testing.T) {
 		s := setupSignatureSet(3, 10, half, half)
 
 		wrongSignBytes := []byte("wrong message")
-		wrongSignBytesWrapped, err := validator.RawBytesMessageSignBytes("test-chain", "test-unique-id", wrongSignBytes)
+		wrongSignBytesWrapped, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", wrongSignBytes)
 		require.NoError(t, err)
 		signature, err := s.privKeys[0].Sign(wrongSignBytesWrapped)
 		require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestSignatureSet(t *testing.T) {
 
 		// Add 3 valid signatures (30 voting power, meets threshold of 25)
 		for i := range 3 {
-			signBytes, err := validator.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
+			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
 			require.NoError(t, err)
 			signature, err := s.privKeys[i].Sign(signBytes)
 			require.NoError(t, err)
