@@ -77,15 +77,8 @@ func (c *Client) Upload(ctx context.Context, ns share.Namespace, blob *Blob) (re
 		return result, fmt.Errorf("preparing bytes to sign: %w", err)
 	}
 
-	// SignRawBytes constructs bytes as: chainID || uniqueID || rawBytes
-	// We need to prepend chainID and ValidatorSignatureUniqueID to match what the server signs
-	bytesToVerify := make([]byte, 0, len(promise.ChainID)+len(ValidatorSignatureUniqueID)+len(signBytes))
-	bytesToVerify = append(bytesToVerify, []byte(promise.ChainID)...)
-	bytesToVerify = append(bytesToVerify, []byte(ValidatorSignatureUniqueID)...)
-	bytesToVerify = append(bytesToVerify, signBytes...)
-
 	requests := makeUploadRequests(shardMap, promise.ToProto(), blob.RLCCoeffs())
-	sigSet := valSet.NewSignatureSet(c.cfg.UploadTargetVotingPower, c.cfg.UploadTargetSignaturesCount, bytesToVerify)
+	sigSet := valSet.NewSignatureSet(c.cfg.UploadTargetVotingPower, c.cfg.UploadTargetSignaturesCount, signBytes)
 
 	c.log.DebugContext(ctx, "initiating blob upload",
 		"promise_hash", hex.EncodeToString(promiseHash),
