@@ -243,7 +243,8 @@ func makeBenchmarkClient(t *testing.T, numValidators int) *fibre.Client {
 	cfg.Clock = mockClock
 
 	valSet := validator.Set{ValidatorSet: core.NewValidatorSet(validators), Height: 100}
-	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
+	blockTimeGet := &mockBlockTimeGetter{blockTime: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)}
+	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, blockTimeGet, cfg)
 	require.NoError(t, err)
 	return client
 }

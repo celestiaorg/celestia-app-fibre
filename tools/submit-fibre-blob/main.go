@@ -111,13 +111,16 @@ func main() {
 	queryClient := valaddrtypes.NewQueryClient(grpcConn)
 	hostReg := fibregrpc.NewHostRegistry(queryClient)
 
+	// Create block time getter
+	blockTimeGet := fibregrpc.NewBlockTimeGetter(grpcConn)
+
 	// Create Fibre client config
 	clientCfg := fibre.DefaultClientConfig()
 	clientCfg.ChainID = *chainID
 	clientCfg.DefaultKeyName = *keyName
 
 	// Create Fibre client
-	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, clientCfg)
+	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, blockTimeGet, clientCfg)
 	if err != nil {
 		log.Fatalf("Failed to create Fibre client: %v", err)
 	}
