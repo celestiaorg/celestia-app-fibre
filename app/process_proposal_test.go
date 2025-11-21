@@ -7,6 +7,7 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	square "github.com/celestiaorg/go-square/v3"
 	v2 "github.com/celestiaorg/go-square/v3/proto/blob/v2"
 	"github.com/celestiaorg/go-square/v3/share"
 	"github.com/celestiaorg/go-square/v3/tx"
@@ -72,19 +73,19 @@ func TestValidateTxOrdering(t *testing.T) {
 			errorContains: "cannot be appended after blob tx",
 		},
 		{
-			name:      "PayForFibre before blob - valid (treated as normal)",
-			txs:       [][]byte{payForFibreTx, blobTx},
+			name:          "PayForFibre before blob - invalid (blob must come before pay-for-fibre if both exist)",
+			txs:           [][]byte{payForFibreTx, blobTx},
+			wantError:     true,
+			errorContains: "cannot be appended after pay-for-fibre tx",
+		},
+		{
+			name:      "PayForFibre after blob - valid",
+			txs:       [][]byte{blobTx, payForFibreTx},
 			wantError: false,
 		},
 		{
-			name:          "PayForFibre after blob - invalid (treated as normal)",
-			txs:           [][]byte{blobTx, payForFibreTx},
-			wantError:     true,
-			errorContains: "cannot be appended after blob tx",
-		},
-		{
-			name:      "mixed valid ordering - normal, PayForFibre, blob",
-			txs:       [][]byte{normalTx, payForFibreTx, blobTx},
+			name:      "mixed valid ordering - normal, blob, PayForFibre",
+			txs:       [][]byte{normalTx, blobTx, payForFibreTx},
 			wantError: false,
 		},
 		{
@@ -94,16 +95,15 @@ func TestValidateTxOrdering(t *testing.T) {
 			errorContains: "unmarshalling blob tx",
 		},
 		{
-			name:          "invalid normal tx - decoding error",
-			txs:           [][]byte{[]byte("invalid normal tx bytes")},
-			wantError:     true,
-			errorContains: "decoding normal tx",
+			name:      "invalid normal tx - no error (Construct doesn't validate decoding)",
+			txs:       [][]byte{[]byte("invalid normal tx bytes")},
+			wantError: false,
 		},
 		{
-			name:          "invalid normal tx after blob - should report decoding error first",
+			name:          "invalid normal tx after blob - reports ordering error",
 			txs:           [][]byte{blobTx, []byte("invalid normal tx bytes")},
 			wantError:     true,
-			errorContains: "decoding normal tx",
+			errorContains: "cannot be appended after blob tx",
 		},
 		{
 			name:          "invalid blob tx in middle - should report unmarshalling error",
@@ -115,7 +115,8 @@ func TestValidateTxOrdering(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateTxOrdering(tt.txs, txConfig)
+			handler := NewPayForFibreHandler(txConfig)
+			_, err := square.Construct(tt.txs, 64, 64, handler)
 
 			if tt.wantError {
 				require.Error(t, err)

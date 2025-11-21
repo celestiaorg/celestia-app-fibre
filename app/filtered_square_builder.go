@@ -190,21 +190,34 @@ func (fsb *FilteredSquareBuilder) Fill(ctx sdk.Context, txs [][]byte) [][]byte {
 		// Generate and add system-level blob for this MsgPayForFibre transaction
 		msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
 		if hasPayForFibre {
-			opts := PayForFibreOptions{
-				StrictErrorHandling: false, // Continue on error, log and skip
-				OnError: func(txHash []byte, err error, reason string) {
-					logger.Error(
-						reason,
-						"tx", tmbytes.HexBytes(txHash),
-						"error", err,
-					)
-					telemetry.IncrCounter(1, "prepare_proposal", "failed_system_blob_creation")
-				},
-				OnSkip: func(txHash []byte, reason string) {
-					logger.Debug(reason, "tx", tmbytes.HexBytes(txHash))
-				},
+			txHash := coretypes.Tx(tx).Hash()
+
+			// Create system blob
+			systemBlob, err := createSystemBlobForPayForFibre(msgPayForFibre)
+			if err != nil {
+				logger.Error(
+					"failed to create system blob for pay-for-fibre transaction",
+					"tx", tmbytes.HexBytes(txHash),
+					"error", err,
+				)
+				telemetry.IncrCounter(1, "prepare_proposal", "failed_system_blob_creation")
+				// Revert the transaction that was already appended
+				if revertErr := fsb.builder.RevertLastPayForFibreTx(); revertErr != nil {
+					logger.Error("reverting last pay-for-fibre transaction after system blob creation failure", "error", revertErr)
+				}
+				continue
 			}
-			if err := addPayForFibreTxWithSystemBlob(fsb.builder, tx, msgPayForFibre, opts); err != nil {
+
+			// Add system blob to builder
+			if !fsb.builder.AppendSystemBlob(systemBlob) {
+				logger.Debug(
+					"skipping pay-for-fibre tx because system blob was too large to fit in the square",
+					"tx", tmbytes.HexBytes(txHash),
+				)
+				// Revert the transaction that was already appended
+				if revertErr := fsb.builder.RevertLastPayForFibreTx(); revertErr != nil {
+					logger.Error("reverting last pay-for-fibre transaction after system blob addition failure", "error", revertErr)
+				}
 				continue
 			}
 		}
@@ -287,6 +300,39 @@ func separateTxs(txConfig client.TxConfig, rawTxs [][]byte) (normalTxs [][]byte,
 	return normalTxs, blobTxs, payForFibreTxs
 }
 
+// payForFibreHandler implements square.PayForFibreHandler for celestia-app.
+type payForFibreHandler struct {
+	txConfig client.TxConfig
+}
+
+// NewPayForFibreHandler creates a new PayForFibreHandler for celestia-app.
+func NewPayForFibreHandler(txConfig client.TxConfig) square.PayForFibreHandler {
+	return &payForFibreHandler{txConfig: txConfig}
+}
+
+// IsPayForFibreTx returns true if the transaction contains a MsgPayForFibre message.
+func (h *payForFibreHandler) IsPayForFibreTx(tx []byte) bool {
+	sdkTx, err := h.txConfig.TxDecoder()(tx)
+	if err != nil {
+		return false
+	}
+	_, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+	return hasPayForFibre
+}
+
+// CreateSystemBlob creates a system blob from a PayForFibre transaction.
+func (h *payForFibreHandler) CreateSystemBlob(tx []byte) (*share.Blob, error) {
+	sdkTx, err := h.txConfig.TxDecoder()(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode transaction: %w", err)
+	}
+	msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+	if !hasPayForFibre {
+		return nil, fmt.Errorf("transaction does not contain MsgPayForFibre")
+	}
+	return createSystemBlobForPayForFibre(msgPayForFibre)
+}
+
 // extractMsgPayForFibre extracts MsgPayForFibre from a transaction's messages.
 // Returns the first MsgPayForFibre found and true if found, nil and false otherwise.
 func extractMsgPayForFibre(sdkTx sdk.Tx) (*fibretypes.MsgPayForFibre, bool) {
@@ -336,157 +382,4 @@ func createSystemBlobForPayForFibre(msg *fibretypes.MsgPayForFibre) (*share.Blob
 	}
 
 	return blob, nil
-}
-
-// PayForFibreOptions configures how PayForFibre transactions are handled when adding to the builder.
-type PayForFibreOptions struct {
-	// StrictErrorHandling: if true, return error immediately on failure.
-	// If false, log the error and continue to next transaction.
-	// false in prepare_proposal, true in process_proposal.
-	StrictErrorHandling bool
-	// OnError is called when an error occurs (only used when StrictErrorHandling is false)
-	OnError func(txHash []byte, err error, reason string)
-	// OnSkip is called when a transaction is skipped (only used when StrictErrorHandling is false)
-	OnSkip func(txHash []byte, reason string)
-}
-
-// buildSquareFromSeparatedTxs builds a square from already-separated transactions.
-// This is a shared helper used by both prepare_proposal (via FilteredSquareBuilder) and process_proposal.
-func buildSquareFromSeparatedTxs(
-	normalTxs [][]byte,
-	blobTxs []*tx.BlobTx,
-	payForFibreTxs [][]byte,
-	txConfig client.TxConfig,
-	maxSquareSize int,
-	subtreeRootThreshold int,
-	opts PayForFibreOptions,
-) (square.Square, error) {
-	// Create a square builder
-	builder, err := square.NewBuilder(maxSquareSize, subtreeRootThreshold)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create square builder: %w", err)
-	}
-
-	// Add normal transactions
-	for _, tx := range normalTxs {
-		if !builder.AppendTx(tx) {
-			if opts.StrictErrorHandling {
-				return nil, fmt.Errorf("not enough space to append normal tx")
-			}
-			// In non-strict mode (prepare_proposal), we skip transactions that don't fit
-			// This shouldn't happen in practice since transactions are validated
-			continue
-		}
-	}
-
-	// Add blob transactions
-	for _, blobTx := range blobTxs {
-		if !builder.AppendBlobTx(blobTx) {
-			if opts.StrictErrorHandling {
-				return nil, fmt.Errorf("not enough space to append blob tx")
-			}
-			// In non-strict mode, skip transactions that don't fit
-			continue
-		}
-	}
-
-	// Add PayForFibre transactions and create system blobs
-	if err := addPayForFibreTxsToBuilder(builder, payForFibreTxs, txConfig, opts); err != nil {
-		return nil, err
-	}
-
-	// Export the square
-	return builder.Export()
-}
-
-// addPayForFibreTxsToBuilder adds PayForFibre transactions and their system blobs to the builder.
-func addPayForFibreTxsToBuilder(
-	builder *square.Builder,
-	payForFibreTxs [][]byte,
-	txConfig client.TxConfig,
-	opts PayForFibreOptions,
-) error {
-	decoder := txConfig.TxDecoder()
-
-	for _, payForFibreTx := range payForFibreTxs {
-		// Decode transaction to extract MsgPayForFibre
-		sdkTx, err := decoder(payForFibreTx)
-		if err != nil {
-			if opts.StrictErrorHandling {
-				return fmt.Errorf("failed to decode pay-for-fibre tx: %w", err)
-			}
-			if opts.OnError != nil {
-				opts.OnError(coretypes.Tx(payForFibreTx).Hash(), err, "decoding pay-for-fibre transaction")
-			}
-			continue
-		}
-
-		// Append PayForFibre transaction
-		if !builder.AppendPayForFibreTx(payForFibreTx) {
-			if opts.StrictErrorHandling {
-				return fmt.Errorf("not enough space to append pay-for-fibre tx")
-			}
-			if opts.OnSkip != nil {
-				opts.OnSkip(coretypes.Tx(payForFibreTx).Hash(), "skipping pay-for-fibre tx because it was too large to fit in the square")
-			}
-			continue
-		}
-
-		// Extract MsgPayForFibre and create system blob
-		msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
-		if hasPayForFibre {
-			if err := addPayForFibreTxWithSystemBlob(builder, payForFibreTx, msgPayForFibre, opts); err != nil {
-				if opts.StrictErrorHandling {
-					return err
-				}
-				continue
-			}
-		}
-	}
-
-	return nil
-}
-
-// addPayForFibreTxWithSystemBlob adds a single PayForFibre transaction and its system blob to the builder.
-// The transaction should already be appended to the builder before calling this function.
-func addPayForFibreTxWithSystemBlob(
-	builder *square.Builder,
-	tx []byte,
-	msgPayForFibre *fibretypes.MsgPayForFibre,
-	opts PayForFibreOptions,
-) error {
-	txHash := coretypes.Tx(tx).Hash()
-
-	// Create system blob
-	systemBlob, err := createSystemBlobForPayForFibre(msgPayForFibre)
-	if err != nil {
-		if opts.StrictErrorHandling {
-			return fmt.Errorf("failed to create system blob for pay-for-fibre: %w", err)
-		}
-		if opts.OnError != nil {
-			opts.OnError(txHash, err, "failed to create system blob for pay-for-fibre transaction")
-		}
-		// Revert the transaction that was already appended
-		if revertErr := builder.RevertLastPayForFibreTx(); revertErr != nil && opts.OnError != nil {
-			opts.OnError(txHash, revertErr, "reverting last pay-for-fibre transaction after system blob creation failure")
-		}
-		return err
-	}
-
-	// Add system blob to builder
-	if !builder.AppendSystemBlob(systemBlob) {
-		if opts.StrictErrorHandling {
-			return fmt.Errorf("not enough space to append system blob")
-		}
-		if opts.OnSkip != nil {
-			opts.OnSkip(txHash, "skipping pay-for-fibre tx because system blob was too large to fit in the square")
-		}
-		// Revert the transaction that was already appended
-		if revertErr := builder.RevertLastPayForFibreTx(); revertErr != nil && opts.OnError != nil {
-			opts.OnError(txHash, revertErr, "reverting last pay-for-fibre transaction after system blob addition failure")
-		}
-		return fmt.Errorf("system blob too large")
-	}
-
-	return nil
 }

@@ -109,6 +109,7 @@ func TestMaliciousTestNode(t *testing.T) {
 	correctSquare, err := square.Construct(block.Block.Txs.ToSliceOfBytes(),
 		appconsts.SquareSizeUpperBound,
 		appconsts.SubtreeRootThreshold,
+		square.NoOpPayForFibreHandler(),
 	)
 	require.NoError(t, err)
 

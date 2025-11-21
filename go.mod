@@ -282,7 +282,7 @@ require (
 replace (
 	cosmossdk.io/api => github.com/celestiaorg/cosmos-sdk/api v0.7.6
 	cosmossdk.io/x/upgrade => github.com/celestiaorg/cosmos-sdk/x/upgrade v0.2.0
-	github.com/celestiaorg/go-square/v3 => github.com/celestiaorg/go-square/v3 v3.0.0-20251112213826-ad7dfd52baef
+	github.com/celestiaorg/go-square/v3 => ../go-square
 	github.com/cometbft/cometbft => github.com/celestiaorg/celestia-core v0.39.7
 	github.com/cosmos/cosmos-sdk => github.com/celestiaorg/cosmos-sdk v0.51.3
 	github.com/cosmos/ibc-go/v8 => github.com/celestiaorg/ibc-go/v8 v8.7.2

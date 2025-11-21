@@ -17,7 +17,6 @@ import (
 	blobtx "github.com/celestiaorg/go-square/v3/tx"
 	abci "github.com/cometbft/cometbft/abci/types"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/telemetry"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
@@ -132,7 +131,8 @@ func (app *App) ProcessProposalHandler(ctx sdk.Context, req *abci.RequestProcess
 	}
 
 	// Build the square with PayForFibre support
-	dataSquare, err := buildSquare(req.Txs, app.encodingConfig.TxConfig, app.MaxEffectiveSquareSize(ctx), appconsts.SubtreeRootThreshold)
+	pffHandler := NewPayForFibreHandler(app.encodingConfig.TxConfig)
+	dataSquare, err := square.Construct(req.Txs, app.MaxEffectiveSquareSize(ctx), appconsts.SubtreeRootThreshold, pffHandler)
 	if err != nil {
 		logInvalidPropBlockError(app.Logger(), blockHeader, "failed to build data square:", err)
 		return reject(), nil
@@ -209,52 +209,4 @@ func accept() *abci.ResponseProcessProposal {
 	return &abci.ResponseProcessProposal{
 		Status: abci.ResponseProcessProposal_ACCEPT,
 	}
-}
-
-// buildSquare builds a data square from transactions, handling PayForFibre
-// transactions and creating system blobs for them. This function reconstructs the square
-// the same way as prepare_proposal does.
-func buildSquare(txs [][]byte, txConfig client.TxConfig, maxSquareSize, subtreeRootThreshold int) (square.Square, error) {
-	// Validate transaction ordering: normal txs must come before blob txs
-	// This matches the validation in square.Construct
-	if err := validateTxOrdering(txs, txConfig); err != nil {
-		return nil, fmt.Errorf("invalid transaction ordering: %w", err)
-	}
-
-	// Separate transactions into normal, blob, and PayForFibre
-	// Note: Transactions are already validated for size in the loop above (lines 64-69),
-	// so the size check in separateTxs is redundant but harmless.
-	normalTxs, blobTxs, payForFibreTxs := separateTxs(txConfig, txs)
-
-	// Build the square from separated transactions
-	// Use strict error handling: return error immediately if anything fails
-	return buildSquareFromSeparatedTxs(normalTxs, blobTxs, payForFibreTxs, txConfig, maxSquareSize, subtreeRootThreshold, PayForFibreOptions{
-		StrictErrorHandling: true,
-	})
-}
-
-// validateTxOrdering validates that all blob transactions come after normal transactions.
-// This matches the validation performed by square.Construct.
-func validateTxOrdering(txs [][]byte, txConfig client.TxConfig) error {
-	seenFirstBlobTx := false
-	decoder := txConfig.TxDecoder()
-
-	for idx, rawTx := range txs {
-		_, isBlob, err := blobtx.UnmarshalBlobTx(rawTx)
-		if isBlob {
-			if err != nil {
-				return fmt.Errorf("unmarshalling blob tx at index %d: %w", idx, err)
-			}
-			seenFirstBlobTx = true
-		} else {
-			_, err := decoder(rawTx)
-			if err != nil {
-				return fmt.Errorf("decoding normal tx at index %d: %w", idx, err)
-			}
-			if seenFirstBlobTx {
-				return fmt.Errorf("normal tx at index %d cannot be appended after blob tx", idx)
-			}
-		}
-	}
-	return nil
 }

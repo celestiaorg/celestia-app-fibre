@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
+	v5 "github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
 	"github.com/celestiaorg/celestia-app/v6/pkg/wrapper"
 	daproto "github.com/celestiaorg/celestia-app/v6/proto/celestia/core/v1/da"
 	squarev2 "github.com/celestiaorg/go-square/v2"
@@ -65,7 +65,12 @@ func NewDataAvailabilityHeader(eds *rsmt2d.ExtendedDataSquare) (DataAvailability
 
 // ConstructEDS constructs an ExtendedDataSquare from the given transactions and app version.
 // If maxSquareSize is less than 0, it will use the upper bound square size for the given app version.
-func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.ExtendedDataSquare, error) {
+//
+// The handler parameter is required. Callers with access to TxConfig should create a handler using
+// app.NewPayForFibreHandler(txConfig). Callers without access to TxConfig can use
+// squarev3.NoOpPayForFibreHandler(), but note that PayForFibre transactions will be treated as
+// normal transactions, which may result in incorrect square construction.
+func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler squarev3.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	switch appVersion {
 	case 0:
 		return nil, fmt.Errorf("app version cannot be 0")
@@ -83,7 +88,7 @@ func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.E
 		if maxSquareSize < 0 {
 			maxSquareSize = appconsts.SquareSizeUpperBound
 		}
-		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold)
+		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +99,12 @@ func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.E
 // ConstructEDSWithTreePool constructs an ExtendedDataSquare from the given transactions and app version,
 // it uses treePool to optimize allocations.
 // If maxSquareSize is less than 0, it will use the upper bound square size for the given app version.
-func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int, treePool *wrapper.TreePool) (*rsmt2d.ExtendedDataSquare, error) {
+//
+// The handler parameter is required. Callers with access to TxConfig should create a handler using
+// app.NewPayForFibreHandler(txConfig). Callers without access to TxConfig can use
+// squarev3.NoOpPayForFibreHandler(), but note that PayForFibre transactions will be treated as
+// normal transactions, which may result in incorrect square construction.
+func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int, treePool *wrapper.TreePool, handler squarev3.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	switch appVersion {
 	case 0:
 		return nil, fmt.Errorf("app version cannot be 0")
@@ -112,7 +122,7 @@ func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int
 		if maxSquareSize < 0 {
 			maxSquareSize = appconsts.SquareSizeUpperBound
 		}
-		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold)
+		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
 		if err != nil {
 			return nil, err
 		}
