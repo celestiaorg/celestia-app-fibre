@@ -174,6 +174,42 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 	// startGRPCServer the grpc server in the case of a native app. If using an embedded app
 	// it will use that instead.
 	if m.svrCfg.GRPC.Enable {
+		// Prepare Fibre server config and calculate max message size BEFORE creating the gRPC server
+		// This ensures the server is created with the correct max message sizes
+		var fibreServerConfig *fibre.ServerConfig
+		if m.cmNode != nil {
+			serverConfig := fibre.DefaultServerConfig()
+			serverConfig.ChainID = m.chainID
+			serverConfig.StoreConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+			fibreServerConfig = &serverConfig
+			fibreMaxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
+
+			// Log the configured values before updating
+			m.logger.Info("configuring gRPC max message sizes",
+				"configured_max_recv_msg_size", m.svrCfg.GRPC.MaxRecvMsgSize,
+				"configured_max_send_msg_size", m.svrCfg.GRPC.MaxSendMsgSize,
+				"fibre_max_msg_size", fibreMaxMsgSize)
+
+			// Use the maximum of configured value and Fibre-calculated value
+			// This respects user's app.toml settings while ensuring Fibre messages can be sent
+			// If configured value is 0 (not set), use Fibre-calculated value
+			if m.svrCfg.GRPC.MaxRecvMsgSize == 0 {
+				m.svrCfg.GRPC.MaxRecvMsgSize = fibreMaxMsgSize
+			} else if m.svrCfg.GRPC.MaxRecvMsgSize < fibreMaxMsgSize {
+				m.svrCfg.GRPC.MaxRecvMsgSize = fibreMaxMsgSize
+			}
+			if m.svrCfg.GRPC.MaxSendMsgSize == 0 {
+				m.svrCfg.GRPC.MaxSendMsgSize = fibreMaxMsgSize
+			} else if m.svrCfg.GRPC.MaxSendMsgSize < fibreMaxMsgSize {
+				m.svrCfg.GRPC.MaxSendMsgSize = fibreMaxMsgSize
+			}
+
+			// Log the final values that will be used
+			m.logger.Info("gRPC max message sizes configured",
+				"final_max_recv_msg_size", m.svrCfg.GRPC.MaxRecvMsgSize,
+				"final_max_send_msg_size", m.svrCfg.GRPC.MaxSendMsgSize)
+		}
+
 		// Create and configure gRPC server (but don't start serving yet)
 		grpcServer, clientContext, err := m.createGRPCServer()
 		if err != nil {
@@ -184,18 +220,12 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		// Register Fibre server BEFORE starting the gRPC server
 		// This ensures all services are registered before Server.Serve() is called
 		var fibreServer *fibre.Server
-		if m.cmNode != nil {
-			serverConfig := fibre.DefaultServerConfig()
-			serverConfig.ChainID = m.chainID
-			serverConfig.StoreConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+		if m.cmNode != nil && fibreServerConfig != nil {
 			// TODO: convert the m.Logger into a *slog.Logger and then propgate
-			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, serverConfig)
+			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, *fibreServerConfig)
 			if err != nil {
 				return fmt.Errorf("failed to start Fibre server: %w", err)
 			}
-			maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
-			m.svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
-			m.svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
 
 			// Add graceful shutdown for Fibre server
 			if fibreServer != nil {
@@ -340,11 +370,17 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	maxSendMsgSize := m.svrCfg.GRPC.MaxSendMsgSize
 	if maxSendMsgSize == 0 {
 		maxSendMsgSize = serverconfig.DefaultGRPCMaxSendMsgSize
+		m.logger.Info("using default max send msg size", "size", maxSendMsgSize)
+	} else {
+		m.logger.Info("using configured max send msg size", "size", maxSendMsgSize)
 	}
 
 	maxRecvMsgSize := m.svrCfg.GRPC.MaxRecvMsgSize
 	if maxRecvMsgSize == 0 {
 		maxRecvMsgSize = serverconfig.DefaultGRPCMaxRecvMsgSize
+		m.logger.Info("using default max recv msg size", "size", maxRecvMsgSize)
+	} else {
+		m.logger.Info("using configured max recv msg size", "size", maxRecvMsgSize)
 	}
 
 	// if gRPC is enabled, configure gRPC client for gRPC gateway
@@ -363,10 +399,18 @@ func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 
 	m.clientContext = m.clientContext.WithGRPCClient(grpcClient)
 	m.logger.Debug("gRPC client assigned to client context", "target", m.svrCfg.GRPC.Address)
+
+	// Log the config values being passed to NewGRPCServer
+	m.logger.Info("creating gRPC server with config",
+		"grpc_config_max_recv_msg_size", m.svrCfg.GRPC.MaxRecvMsgSize,
+		"grpc_config_max_send_msg_size", m.svrCfg.GRPC.MaxSendMsgSize)
+
 	grpcSrv, err := servergrpc.NewGRPCServer(m.clientContext, m.nativeApp, m.svrCfg.GRPC)
 	if err != nil {
 		return nil, m.clientContext, err
 	}
+
+	m.logger.Info("gRPC server created successfully")
 
 	coreEnv, err := m.cmNode.ConfigureRPC()
 	if err != nil {

@@ -82,13 +82,7 @@ createGenesis() {
     sed -i.bak 's#discard_abci_responses = true#discard_abci_responses = false#g' "${APP_HOME}"/config/config.toml
 
     # Override the log level to reduce noisy logs
-    sed -i.bak 's#log_level = "info"#log_level = "*:error,p2p:info,state:info"#g' "${APP_HOME}"/config/config.toml
-
-    echo "Overriding the max-recv-msg-size to 10 MiB (104857600 bytes)..."
-    sed -i.bak -E 's#max-recv-msg-size\s*=\s*[0-9]+#max-recv-msg-size = 104857600#g' "${APP_HOME}"/config/config.toml
-
-    echo "Overriding the max-send-msg-size to 10 MiB (104857600 bytes)..."
-    sed -i.bak -E 's#max-send-msg-size\s*=\s*[0-9]+#max-send-msg-size = 104857600#g' "${APP_HOME}"/config/config.toml
+    # sed -i.bak 's#log_level = "info"#log_level = "info"#g' "${APP_HOME}"/config/config.toml
 }
 
 deleteCelestiaAppHome() {
