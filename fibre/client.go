@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"math"
 	"sync"
 	"sync/atomic"
 
@@ -79,11 +78,11 @@ func DefaultClientConfig() ClientConfig {
 type Client struct {
 	cfg ClientConfig
 
-	txClient      *user.TxClient
-	keyring       keyring.Keyring
-	valGet        validator.SetGetter
-	hostReg       validator.HostRegistry
-	blockTimeGet  validator.BlockTimeGetter
+	txClient     *user.TxClient
+	keyring      keyring.Keyring
+	valGet       validator.SetGetter
+	hostReg      validator.HostRegistry
+	blockTimeGet validator.BlockTimeGetter
 
 	log    *slog.Logger
 	tracer trace.Tracer
@@ -111,10 +110,7 @@ func NewClient(txClient *user.TxClient, kr keyring.Keyring, valGet validator.Set
 	}
 
 	if cfg.NewClientFn == nil {
-		// Use a large max message size to match server capabilities
-		// The server's max message size is typically much larger than the Fibre-calculated minimum
-		// Using math.MaxInt32 ensures the client can send messages up to the server's configured limit
-		cfg.NewClientFn = grpc.DefaultNewClientFn(hostReg, math.MaxInt32)
+		cfg.NewClientFn = grpc.DefaultNewClientFn(hostReg, MaxMessageSize(cfg.BlobConfig))
 	}
 	if cfg.Tracer == nil {
 		cfg.Tracer = otel.Tracer("fibre-client")

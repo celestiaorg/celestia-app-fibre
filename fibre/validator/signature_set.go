@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	cmtmath "github.com/cometbft/cometbft/libs/math"
+	"github.com/cometbft/cometbft/libs/protoio"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/privval"
 	core "github.com/cometbft/cometbft/types"
-	"github.com/cometbft/cometbft/libs/protoio"
 )
 
 // RawBytesSignBytesPrefix defines a domain separator prefix added to raw bytes to ensure the resulting
@@ -49,9 +49,9 @@ func RawBytesMessageSignBytes(chainID, uniqueID string, rawBytes []byte) ([]byte
 // SignatureSet collects and validates signatures from validators.
 // It is safe for concurrent use.
 type SignatureSet struct {
-	chainID             string
-	uniqueID            string
-	requiredBytesSigned []byte
+	chainID                string
+	uniqueID               string
+	requiredBytesSigned    []byte
 	minRequiredVotingPower int64
 	minRequiredSignatures  int
 

@@ -118,6 +118,7 @@ func main() {
 	clientCfg := fibre.DefaultClientConfig()
 	clientCfg.ChainID = *chainID
 	clientCfg.DefaultKeyName = *keyName
+	clientCfg.ShardingFactor = 1 // This is a single node testnet
 
 	// Create Fibre client
 	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, blockTimeGet, clientCfg)
