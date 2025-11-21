@@ -93,27 +93,6 @@ func startCommandHandler(
 	var grpcServer *grpc.Server
 	var fibreServer *fibre.Server
 	if svrCfg.GRPC.Enable {
-		// Calculate Fibre max message size BEFORE creating the gRPC server
-		// This ensures the server is created with the correct max message sizes
-		serverConfig := fibre.DefaultServerConfig()
-		serverConfig.ChainID = svrCtx.Viper.GetString(ChainIDKey)
-		serverConfig.StoreConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
-		fibreMaxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
-
-		// Use the maximum of configured value and Fibre-calculated value
-		// This respects user's app.toml settings while ensuring Fibre messages can be sent
-		// If configured value is 0 (not set), use Fibre-calculated value
-		if svrCfg.GRPC.MaxRecvMsgSize == 0 {
-			svrCfg.GRPC.MaxRecvMsgSize = fibreMaxMsgSize
-		} else if svrCfg.GRPC.MaxRecvMsgSize < fibreMaxMsgSize {
-			svrCfg.GRPC.MaxRecvMsgSize = fibreMaxMsgSize
-		}
-		if svrCfg.GRPC.MaxSendMsgSize == 0 {
-			svrCfg.GRPC.MaxSendMsgSize = fibreMaxMsgSize
-		} else if svrCfg.GRPC.MaxSendMsgSize < fibreMaxMsgSize {
-			svrCfg.GRPC.MaxSendMsgSize = fibreMaxMsgSize
-		}
-
 		// Create and configure gRPC server (but don't start serving yet)
 		var err error
 		grpcServer, clientCtx, err = createGRPCServer(svrCtx, clientCtx, appInstance, svrCfg, cmtNode)
@@ -122,11 +101,17 @@ func startCommandHandler(
 		}
 
 		// Register Fibre server BEFORE starting the gRPC server
+		serverConfig := fibre.DefaultServerConfig()
+		serverConfig.ChainID = svrCtx.Viper.GetString(ChainIDKey)
+		serverConfig.StoreConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
 		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
 		fibreServer, err = fibre.NewServerFromGRPC(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, serverConfig)
 		if err != nil {
 			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
+		maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
+		svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
+		svrCfg.GRPC.MaxSendMsgSize = maxMsgSize
 
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
