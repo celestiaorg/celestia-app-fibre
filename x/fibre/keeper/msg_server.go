@@ -145,6 +145,7 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	if err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
 	}
+
 	if err := ms.validateValidatorSignatures(ctx, signBytes, msg.PaymentPromise.Height, msg.ValidatorSignatures, pp.ChainID, fibre.SignBytesPrefix); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
 	}
@@ -332,9 +333,15 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byt
 		Height:       uint64(height),
 	}
 
+	// Prepare sign bytes with domain separation and chainID for validator signatures
+	validatorSignBytes, err := core.RawBytesMessageSignBytes(chainID, uniqueID, signBytes)
+	if err != nil {
+		return errorsmod.Wrapf(err, "failed to prepare validator sign bytes")
+	}
+
 	// Create signature set with 2/3+ thresholds
 	twoThirds := cmtmath.Fraction{Numerator: 2, Denominator: 3}
-	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, chainID, uniqueID, signBytes)
+	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, validatorSignBytes)
 
 	// Add all provided signatures to the signature set
 	for i, signature := range signatures {

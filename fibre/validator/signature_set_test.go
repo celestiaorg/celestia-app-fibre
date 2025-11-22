@@ -1,6 +1,7 @@
 package validator_test
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -39,7 +40,12 @@ func setupSignatureSet(numVals int, votingPower int64, votingPowerFrac, countFra
 		ValidatorSet: core.NewValidatorSet(validators),
 		Height:       100,
 	}
-	sigSet := valSet.NewSignatureSet(votingPowerFrac, countFrac, chainID, uniqueID, signBytes)
+	// Prepare sign bytes with domain separation and chainID for validator signatures
+	validatorSignBytes, err := core.RawBytesMessageSignBytes(chainID, uniqueID, signBytes)
+	if err != nil {
+		panic(fmt.Sprintf("failed to prepare validator sign bytes: %v", err))
+	}
+	sigSet := valSet.NewSignatureSet(votingPowerFrac, countFrac, validatorSignBytes)
 
 	return &testSetup{
 		validators: validators,
