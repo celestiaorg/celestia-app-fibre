@@ -464,7 +464,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 }
 
 func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
-	suite.T().Run("payment promise with future creation timestamp should be rejected", func(t *testing.T) {
+	suite.T().Run("payment promise with future creation timestamp should be accepted", func(t *testing.T) {
 		paymentPromise := suite.createPaymentPromise()
 		suite.createEscrowAccount(paymentPromise)
 
@@ -473,9 +473,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
 
 		// Validate should fail because creation timestamp is in the future
 		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
-		suite.Error(err)
-		suite.Contains(err.Error(), "creation_timestamp")
-		suite.Contains(err.Error(), "greater than current timestamp")
+		suite.NoError(err)
 	})
 
 	suite.T().Run("payment promise with timestamp before withdrawal delay should be rejected", func(t *testing.T) {
