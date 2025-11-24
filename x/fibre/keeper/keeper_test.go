@@ -400,7 +400,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseInternal() {
 
 		err := suite.keeper.ValidatePaymentPromiseInternal(suite.ctx, &paymentPromise)
 		suite.Error(err)
-		suite.Contains(err.Error(), "blob size must be positive")
+		suite.Contains(err.Error(), "upload size must be positive")
 	})
 
 	suite.T().Run("already processed payment promise should fail", func(t *testing.T) {
