@@ -31,15 +31,13 @@ type testSetup struct {
 }
 
 func setupSignatureSet(numVals int, votingPower int64, votingPowerFrac, countFrac cmtmath.Fraction) *testSetup {
-	chainID := "test-chain"
-	uniqueID := "test-unique-id"
 	signBytes := []byte("test message to sign")
 	validators, privKeys := makeValidators(numVals, votingPower)
 	valSet := validator.Set{
 		ValidatorSet: core.NewValidatorSet(validators),
 		Height:       100,
 	}
-	sigSet := valSet.NewSignatureSet(votingPowerFrac, countFrac, chainID, uniqueID, signBytes)
+	sigSet := valSet.NewSignatureSet(votingPowerFrac, countFrac, signBytes)
 
 	return &testSetup{
 		validators: validators,
@@ -62,9 +60,7 @@ func TestSignatureSet(t *testing.T) {
 		// 2/3 of 5 = 3 requiredCount
 		// Add 3 signatures (30 voting power, meets count threshold of 3 but not voting power threshold of 33)
 		for i := range 3 {
-			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
-			require.NoError(t, err)
-			signature, err := s.privKeys[i].Sign(signBytes)
+			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			hasEnough, err := s.sigSet.Add(s.validators[i], signature)
 			require.NoError(t, err)
@@ -89,9 +85,7 @@ func TestSignatureSet(t *testing.T) {
 
 		// Add only 2 signatures (requiredCount = 3)
 		for i := range 2 {
-			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
-			require.NoError(t, err)
-			signature, err := s.privKeys[i].Sign(signBytes)
+			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			hasEnough, err := s.sigSet.Add(s.validators[i], signature)
 			require.NoError(t, err)
@@ -116,9 +110,7 @@ func TestSignatureSet(t *testing.T) {
 
 		// Add 4 signatures (40 voting power, meets both thresholds)
 		for i := range 4 {
-			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
-			require.NoError(t, err)
-			signature, err := s.privKeys[i].Sign(signBytes)
+			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			_, err = s.sigSet.Add(s.validators[i], signature)
 			require.NoError(t, err)
@@ -137,9 +129,7 @@ func TestSignatureSet(t *testing.T) {
 			wg.Add(1)
 			go func(idx int) {
 				defer wg.Done()
-				signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
-				require.NoError(t, err)
-				signature, err := s.privKeys[idx].Sign(signBytes)
+				signature, err := s.privKeys[idx].Sign(s.signBytes)
 				require.NoError(t, err)
 				_, err = s.sigSet.Add(s.validators[idx], signature)
 				require.NoError(t, err)
@@ -156,9 +146,7 @@ func TestSignatureSet(t *testing.T) {
 		s := setupSignatureSet(3, 10, half, half)
 
 		wrongSignBytes := []byte("wrong message")
-		wrongSignBytesWrapped, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", wrongSignBytes)
-		require.NoError(t, err)
-		signature, err := s.privKeys[0].Sign(wrongSignBytesWrapped)
+		signature, err := s.privKeys[0].Sign(wrongSignBytes)
 		require.NoError(t, err)
 
 		hasEnough, err := s.sigSet.Add(s.validators[0], signature)
@@ -172,9 +160,7 @@ func TestSignatureSet(t *testing.T) {
 
 		// Add 3 valid signatures (30 voting power, meets threshold of 25)
 		for i := range 3 {
-			signBytes, err := core.RawBytesMessageSignBytes("test-chain", "test-unique-id", s.signBytes)
-			require.NoError(t, err)
-			signature, err := s.privKeys[i].Sign(signBytes)
+			signature, err := s.privKeys[i].Sign(s.signBytes)
 			require.NoError(t, err)
 			_, err = s.sigSet.Add(s.validators[i], signature)
 			require.NoError(t, err)
