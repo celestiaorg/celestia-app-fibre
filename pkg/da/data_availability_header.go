@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	v5 "github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
+	appconstsv5 "github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
 	"github.com/celestiaorg/celestia-app/v6/pkg/wrapper"
 	daproto "github.com/celestiaorg/celestia-app/v6/proto/celestia/core/v1/da"
 	squarev2 "github.com/celestiaorg/go-square/v2"
@@ -76,10 +76,10 @@ func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler sq
 		return nil, fmt.Errorf("app version cannot be 0")
 	case 1, 2, 3, 4, 5: // versions 1-5 are all compatible with v2 of the square package
 		if maxSquareSize < 0 {
-			maxSquareSize = v5.SquareSizeUpperBound
+			maxSquareSize = appconstsv5.SquareSizeUpperBound
 		}
 		// all versions 5 and below have the same parameters and algorithm
-		square, err := squarev2.Construct(txs, maxSquareSize, v5.SubtreeRootThreshold)
+		square, err := squarev2.Construct(txs, maxSquareSize, appconstsv5.SubtreeRootThreshold)
 		if err != nil {
 			return nil, err
 		}
@@ -110,10 +110,10 @@ func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int
 		return nil, fmt.Errorf("app version cannot be 0")
 	case 1, 2, 3, 4, 5: // versions 1-5 are all compatible with v2 of the square package
 		if maxSquareSize < 0 {
-			maxSquareSize = v5.SquareSizeUpperBound
+			maxSquareSize = appconstsv5.SquareSizeUpperBound
 		}
 		// all versions 5 and below have the same parameters and algorithm
-		square, err := squarev2.Construct(txs, maxSquareSize, v5.SubtreeRootThreshold)
+		square, err := squarev2.Construct(txs, maxSquareSize, appconstsv5.SubtreeRootThreshold)
 		if err != nil {
 			return nil, err
 		}

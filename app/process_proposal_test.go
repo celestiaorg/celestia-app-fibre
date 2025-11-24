@@ -8,7 +8,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	square "github.com/celestiaorg/go-square/v3"
-	v2 "github.com/celestiaorg/go-square/v3/proto/blob/v2"
+	blobv2 "github.com/celestiaorg/go-square/v3/proto/blob/v2"
 	"github.com/celestiaorg/go-square/v3/share"
 	"github.com/celestiaorg/go-square/v3/tx"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -205,9 +205,9 @@ func createPayForFibreTxForTest(t *testing.T, txConfig client.TxConfig) []byte {
 func createMalformedBlobTxForTest(t *testing.T) []byte {
 	// Create a BlobTx with empty blobs slice - this will be recognized as a blob tx
 	// but will fail validation with "no blobs provided"
-	bTx := &v2.BlobTx{
+	bTx := &blobv2.BlobTx{
 		Tx:     []byte("dummy tx"),
-		Blobs:  []*v2.BlobProto{}, // Empty blobs - this triggers the error
+		Blobs:  []*blobv2.BlobProto{}, // Empty blobs - this triggers the error
 		TypeId: "BLOB",
 	}
 	blobTxBytes, err := proto.Marshal(bTx)
