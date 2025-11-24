@@ -303,14 +303,6 @@ func SetupTxClient(
 	return txClient, nil
 }
 
-// PrimaryConn returns the primary grpc connection used by the TxClient.
-func (client *TxClient) PrimaryConn() *grpc.ClientConn {
-	if len(client.conns) == 0 {
-		return nil
-	}
-	return client.conns[0]
-}
-
 // SubmitPayForBlob forms a transaction from the provided blobs, signs it, and submits it to the chain.
 // TxOptions may be provided to set the fee and gas limit.
 // This method broadcasts the transaction and waits for confirmation using the default account.

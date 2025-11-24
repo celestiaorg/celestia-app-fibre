@@ -1,19 +1,16 @@
 package fibre
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
-	tmservice "github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	clock "github.com/filecoin-project/go-clock"
 	"go.opentelemetry.io/otel"
@@ -161,24 +158,4 @@ func (c *Client) Close() error {
 func MaxMessageSize(cfg BlobConfig) int {
 	msgSize := cfg.MaxShardSize() + MaxPaymentPromiseSize
 	return msgSize + (msgSize / 50) // add 2% protobuf overhead
-}
-
-// latestBlockTime fetches the latest block time from the chain.
-func (c *Client) latestBlockTime(ctx context.Context) (time.Time, error) {
-	conn := c.txClient.PrimaryConn()
-	if conn == nil {
-		return time.Time{}, fmt.Errorf("no grpc connection available")
-	}
-
-	client := tmservice.NewServiceClient(conn)
-	resp, err := client.GetLatestBlock(ctx, &tmservice.GetLatestBlockRequest{})
-	if err != nil {
-		return time.Time{}, fmt.Errorf("failed to get latest block: %w", err)
-	}
-
-	if resp == nil || resp.SdkBlock == nil {
-		return time.Time{}, fmt.Errorf("invalid block response: missing block")
-	}
-
-	return resp.SdkBlock.Header.Time, nil
 }
