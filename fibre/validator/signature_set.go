@@ -22,8 +22,6 @@ type SignatureSet struct {
 }
 
 // NewSignatureSet creates a new [SignatureSet] for collecting and validating signatures.
-// The requiredBytesSigned parameter should contain the already-prepared sign bytes
-// (with domain separation prefix and chainID) that validators sign over.
 func (s Set) NewSignatureSet(targetVotingPower, targetValidatorsCount cmtmath.Fraction, requiredBytesSigned []byte) *SignatureSet {
 	minRequiredVotingPower := s.TotalVotingPower() * int64(targetVotingPower.Numerator) / int64(targetVotingPower.Denominator)
 	minRequiredSignatures := s.Size() * int(targetValidatorsCount.Numerator) / int(targetValidatorsCount.Denominator)
@@ -40,7 +38,7 @@ func (s Set) NewSignatureSet(targetVotingPower, targetValidatorsCount cmtmath.Fr
 // Returns an error if the signature is invalid.
 // Returns true if enough signatures have been collected to meet both thresholds.
 func (ss *SignatureSet) Add(val *core.Validator, signature []byte) (bool, error) {
-	// verify signature using the prepared sign bytes
+	// verify signature
 	pubKey := val.PubKey.Bytes()
 	if !ed25519.Verify(ed25519.PublicKey(pubKey), ss.requiredBytesSigned, signature) {
 		return false, fmt.Errorf("invalid signature from validator %s", val.Address.String())
