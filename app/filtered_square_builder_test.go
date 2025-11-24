@@ -505,30 +505,3 @@ func TestFilteredSquareBuilderFillWithPayForFibreGeneratesSystemBlob(t *testing.
 	firstShare := blobShares[0]
 	require.Equal(t, share.ShareVersionTwo, firstShare.Version())
 }
-
-// Tests for removed helper functions (addPayForFibreTxWithSystemBlob, addPayForFibreTxsToBuilder, buildSquareFromSeparatedTxs)
-// have been removed. Functionality is now tested through:
-// - TestFilteredSquareBuilderFillWithPayForFibre (for FilteredSquareBuilder)
-// - square.Construct tests in process_proposal_test.go (for ProcessProposal)
-
-// Removed test functions:
-// - _TestAddPayForFibreTxWithSystemBlob
-// - _TestAddPayForFibreTxsToBuilder
-// - _TestBuildSquareFromSeparatedTxs
-// - _TestBuildSquareFromSeparatedTxsSystemBlobs
-
-// Helper function to create a BlobTx object (not just bytes)
-func createBlobTxAsBlobTx(t *testing.T) *tx.BlobTx {
-	ns := share.MustNewV0Namespace([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
-	blob, err := share.NewBlob(ns, []byte("test blob data"), share.ShareVersionZero, nil)
-	require.NoError(t, err)
-
-	blobTxBytes, err := tx.MarshalBlobTx(nil, blob)
-	require.NoError(t, err)
-
-	blobTx, isBlob, err := tx.UnmarshalBlobTx(blobTxBytes)
-	require.NoError(t, err)
-	require.True(t, isBlob)
-
-	return blobTx
-}
