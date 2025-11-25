@@ -11,7 +11,8 @@ import (
 	appconstsv5 "github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
 	"github.com/celestiaorg/celestia-app/v6/pkg/wrapper"
 	sharev2 "github.com/celestiaorg/go-square/v2/share"
-	sh "github.com/celestiaorg/go-square/v3/share"
+	squarev4 "github.com/celestiaorg/go-square/v4"
+	sharev4 "github.com/celestiaorg/go-square/v4/share"
 	"github.com/celestiaorg/rsmt2d"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func TestMinDataAvailabilityHeader(t *testing.T) {
 
 type (
 	extendFunc    = func([][]byte) (*rsmt2d.ExtendedDataSquare, error)
-	constructFunc = func(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.ExtendedDataSquare, error)
+	constructFunc = func(txs [][]byte, appVersion uint64, maxSquareSize int, handler squarev4.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error)
 )
 
 // extendSharesWithPool works exactly the same as ExtendShares,
@@ -72,12 +73,12 @@ func extendSharesWithPool(s [][]byte) (*rsmt2d.ExtendedDataSquare, error) {
 
 // constructEDSWithPool works exactly the same as ConstructEDS,
 // but it uses treePool to reuse the allocs.
-func constructEDSWithPool(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.ExtendedDataSquare, error) {
+func constructEDSWithPool(txs [][]byte, appVersion uint64, maxSquareSize int, handler squarev4.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	treePool, err := wrapper.DefaultPreallocatedTreePool(512)
 	if err != nil {
 		return nil, err
 	}
-	return ConstructEDSWithTreePool(txs, appVersion, maxSquareSize, treePool)
+	return ConstructEDSWithTreePool(txs, appVersion, maxSquareSize, treePool, handler)
 }
 
 func TestMinDataAvailabilityHeaderBackwardsCompatibility(t *testing.T) {
@@ -344,7 +345,7 @@ func TestConstructEDS_Versions(t *testing.T) {
 			} {
 				shares := generateShares(4)
 				maxSquareSize := -1
-				eds, err := constructEDS(shares, appVersion, maxSquareSize)
+				eds, err := constructEDS(shares, appVersion, maxSquareSize, squarev4.NoOpPayForFibreHandler())
 				if appVersion == 0 {
 					require.Error(t, err)
 					require.Nil(t, eds)
@@ -397,9 +398,9 @@ func TestConstructEDS_SquareSize(t *testing.T) {
 				constructEDSWithPool,
 				ConstructEDS,
 			} {
-				txLength := sh.AvailableBytesFromCompactShares((tc.expectedSize * tc.expectedSize) - 1)
+				txLength := sharev4.AvailableBytesFromCompactShares((tc.expectedSize * tc.expectedSize) - 1)
 				tx := bytes.Repeat([]byte{0x1}, txLength)
-				eds, err := construct([][]byte{tx}, tc.appVersion, tc.maxSquare)
+				eds, err := construct([][]byte{tx}, tc.appVersion, tc.maxSquare, squarev4.NoOpPayForFibreHandler())
 				require.NoError(t, err)
 				require.NotNil(t, eds)
 				// The EDS width should be 2*expectedSize
@@ -412,7 +413,7 @@ func TestConstructEDS_SquareSize(t *testing.T) {
 // generateShares generates count number of shares with a constant namespace and
 // share contents.
 func generateShares(count int) (shares [][]byte) {
-	ns1 := sh.MustNewV0Namespace(bytes.Repeat([]byte{1}, sh.NamespaceVersionZeroIDSize))
+	ns1 := sharev4.MustNewV0Namespace(bytes.Repeat([]byte{1}, sharev4.NamespaceVersionZeroIDSize))
 
 	for range count {
 		share := generateShare(ns1.Bytes())
@@ -423,7 +424,7 @@ func generateShares(count int) (shares [][]byte) {
 }
 
 func generateShare(namespace []byte) (share []byte) {
-	remainder := bytes.Repeat([]byte{0xFF}, sh.ShareSize-len(namespace))
+	remainder := bytes.Repeat([]byte{0xFF}, sharev4.ShareSize-len(namespace))
 	share = append(share, namespace...)
 	share = append(share, remainder...)
 	return share

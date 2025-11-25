@@ -14,7 +14,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/app/grpc/tx"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/go-square/v4/share"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/cometbft/cometbft/rpc/core"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"

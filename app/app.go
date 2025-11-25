@@ -53,7 +53,7 @@ import (
 	"github.com/celestiaorg/celestia-app/v6/x/valaddr"
 	valaddrkeeper "github.com/celestiaorg/celestia-app/v6/x/valaddr/keeper"
 	valaddrtypes "github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/go-square/v4/share"
 	abci "github.com/cometbft/cometbft/abci/types"
 	tmjson "github.com/cometbft/cometbft/libs/json"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"

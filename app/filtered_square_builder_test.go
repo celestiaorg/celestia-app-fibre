@@ -10,8 +10,8 @@ import (
 	"cosmossdk.io/store/metrics"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	"github.com/celestiaorg/go-square/v3/share"
-	"github.com/celestiaorg/go-square/v3/tx"
+	"github.com/celestiaorg/go-square/v4/share"
+	"github.com/celestiaorg/go-square/v4/tx"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -27,7 +27,7 @@ func TestSeparateTxs(t *testing.T) {
 
 	// Create test transactions
 	normalTx := createNormalTx(t, txConfig)
-	blobTx := createBlobTx(t, txConfig)
+	blobTx := createBlobTx(t)
 	payForFibreTx := createPayForFibreTx(t, txConfig)
 
 	tests := []struct {
@@ -148,7 +148,7 @@ func TestFilteredSquareBuilderFillWithPayForFibre(t *testing.T) {
 
 	// Create test transactions
 	normalTx := createNormalTx(t, txConfig)
-	blobTx := createBlobTx(t, txConfig)
+	blobTx := createBlobTx(t)
 	payForFibreTx := createPayForFibreTx(t, txConfig)
 
 	// Create a minimal context
@@ -243,7 +243,7 @@ func createNormalTx(t *testing.T, txConfig client.TxConfig) []byte {
 	return txBytes
 }
 
-func createBlobTx(t *testing.T, txConfig client.TxConfig) []byte {
+func createBlobTx(t *testing.T) []byte {
 	ns := share.MustNewV0Namespace([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
 	blob, err := share.NewBlob(ns, []byte("test blob data"), share.ShareVersionZero, nil)
 	require.NoError(t, err)

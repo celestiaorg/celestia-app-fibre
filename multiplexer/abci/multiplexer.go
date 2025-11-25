@@ -187,7 +187,7 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		if m.cmNode != nil {
 			serverConfig := fibre.DefaultServerConfig()
 			serverConfig.ChainID = m.chainID
-			serverConfig.StoreConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
+			serverConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
 			// TODO: convert the m.Logger into a *slog.Logger and then propgate
 			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, serverConfig)
 			if err != nil {
