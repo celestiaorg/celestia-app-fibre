@@ -354,7 +354,7 @@ func (v *validatorMockClient) UploadShard(ctx context.Context, req *types.Upload
 	}
 
 	// Wrap sign bytes with domain separation (matching client_upload.go)
-	validatorSignBytes, err := core.RawBytesMessageSignBytes("celestia", fibre.SignBytesPrefix, signBytes)
+	validatorSignBytes, err := core.RawBytesMessageSignBytes(pp.ChainID, fibre.SignBytesPrefix, signBytes)
 	if err != nil {
 		return nil, err
 	}
