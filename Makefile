@@ -55,7 +55,7 @@ build-standalone: mod
 
 DOWNLOAD ?= true
 ## build: Build the celestia-appd binary into the ./build directory.
-build: mod
+build:
 ifeq ($(DOWNLOAD),true)
 	@$(MAKE) download-v3-binaries
 	@$(MAKE) download-v4-binaries

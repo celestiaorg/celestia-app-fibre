@@ -13,6 +13,8 @@ import (
 	sharev2 "github.com/celestiaorg/go-square/v2/share"
 	squarev3 "github.com/celestiaorg/go-square/v3"
 	sharev3 "github.com/celestiaorg/go-square/v3/share"
+	squarev4 "github.com/celestiaorg/go-square/v4"
+	sharev4 "github.com/celestiaorg/go-square/v4/share"
 	"github.com/celestiaorg/rsmt2d"
 	"github.com/cometbft/cometbft/crypto/merkle"
 	"github.com/cometbft/cometbft/types"
@@ -70,7 +72,7 @@ func NewDataAvailabilityHeader(eds *rsmt2d.ExtendedDataSquare) (DataAvailability
 // app.NewPayForFibreHandler(txConfig). Callers without access to TxConfig can use
 // squarev3.NoOpPayForFibreHandler(), but note that PayForFibre transactions will be treated as
 // normal transactions, which may result in incorrect square construction.
-func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler squarev3.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
+func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler squarev4.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	switch appVersion {
 	case 0:
 		return nil, fmt.Errorf("app version cannot be 0")
@@ -84,15 +86,25 @@ func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler sq
 			return nil, err
 		}
 		return ExtendShares(sharev2.ToBytes(square))
-	default: // assume all other versions are compatible with v3 of the square package
+	case 6: // version 6 used go-square v3
 		if maxSquareSize < 0 {
 			maxSquareSize = appconsts.SquareSizeUpperBound
 		}
-		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
+		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold)
 		if err != nil {
 			return nil, err
 		}
 		return ExtendShares(sharev3.ToBytes(square))
+	default: // assume all other versions are compatible with v4 of the square package
+		if maxSquareSize < 0 {
+			maxSquareSize = appconsts.SquareSizeUpperBound
+		}
+		square, err := squarev4.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
+		if err != nil {
+			return nil, err
+		}
+		return ExtendShares(sharev4.ToBytes(square))
+
 	}
 }
 
@@ -104,7 +116,7 @@ func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler sq
 // app.NewPayForFibreHandler(txConfig). Callers without access to TxConfig can use
 // squarev3.NoOpPayForFibreHandler(), but note that PayForFibre transactions will be treated as
 // normal transactions, which may result in incorrect square construction.
-func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int, treePool *wrapper.TreePool, handler squarev3.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
+func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int, treePool *wrapper.TreePool, handler squarev4.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	switch appVersion {
 	case 0:
 		return nil, fmt.Errorf("app version cannot be 0")
@@ -118,15 +130,25 @@ func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int
 			return nil, err
 		}
 		return ExtendSharesWithTreePool(sharev2.ToBytes(square), treePool)
-	default: // assume all other versions are compatible with v3 of the square package
+	case 6: // version 6 used go-square v3
 		if maxSquareSize < 0 {
 			maxSquareSize = appconsts.SquareSizeUpperBound
 		}
-		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
+		square, err := squarev3.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold)
 		if err != nil {
 			return nil, err
 		}
 		return ExtendSharesWithTreePool(sharev3.ToBytes(square), treePool)
+	default:
+		// assume all other versions are compatible with v4 of the square package
+		if maxSquareSize < 0 {
+			maxSquareSize = appconsts.SquareSizeUpperBound
+		}
+		square, err := squarev4.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
+		if err != nil {
+			return nil, err
+		}
+		return ExtendSharesWithTreePool(sharev4.ToBytes(square), treePool)
 	}
 }
 

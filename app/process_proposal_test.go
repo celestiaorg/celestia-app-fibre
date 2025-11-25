@@ -7,10 +7,10 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
-	square "github.com/celestiaorg/go-square/v3"
-	blobv2 "github.com/celestiaorg/go-square/v3/proto/blob/v2"
-	"github.com/celestiaorg/go-square/v3/share"
-	"github.com/celestiaorg/go-square/v3/tx"
+	squarev4 "github.com/celestiaorg/go-square/v4"
+	blobv2 "github.com/celestiaorg/go-square/v4/proto/blob/v2"
+	"github.com/celestiaorg/go-square/v4/share"
+	"github.com/celestiaorg/go-square/v4/tx"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -116,7 +116,7 @@ func TestValidateTxOrdering(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := NewPayForFibreHandler(txConfig)
-			_, err := square.Construct(tt.txs, 64, 64, handler)
+			_, err := squarev4.Construct(tt.txs, 64, 64, handler)
 
 			if tt.wantError {
 				require.Error(t, err)
