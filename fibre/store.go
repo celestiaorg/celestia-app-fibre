@@ -12,7 +12,6 @@ import (
 	gogoproto "github.com/cosmos/gogoproto/proto"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
-	dssync "github.com/ipfs/go-datastore/sync"
 	badger "github.com/ipfs/go-ds-badger4"
 )
 
@@ -43,11 +42,22 @@ type Store struct {
 	ds  ds.Batching
 }
 
-// NewMemoryStore creates a new [Store] with an in-memory datastore.
+// NewMemoryStore creates a new [Store] with an in-memory badger.
 func NewMemoryStore(cfg StoreConfig) *Store {
+	opts := badger.DefaultOptions
+	opts.GcDiscardRatio = 0.2
+	opts.GcSleep = time.Second
+	opts.GcInterval = time.Minute
+	opts.InMemory = true
+
+	bds, err := badger.NewDatastore(cfg.Path, &opts)
+	if err != nil {
+		panic(fmt.Errorf("creating badger datastore: %w", err))
+	}
+
 	return &Store{
 		cfg: cfg,
-		ds:  dssync.MutexWrap(ds.NewMapDatastore()),
+		ds:  bds,
 	}
 }
 
@@ -115,10 +125,11 @@ func (s *Store) Put(ctx context.Context, promise *PaymentPromise, shard *types.B
 
 // Get retrieves [types.BlobShard] for the given [Commitment].
 //
-// When multiple payment promises exist for the same commitment
-// this method combines all their rows into a single [types.BlobShard] result.
+// When multiple payment promises exist for the same commitment, only the first shard is returned.
+// This prevents unbounded message sizes when the same blob is uploaded multiple times.
+// Underlying store's must ensure deterministic key ordering to ensure validators return shards as they were uploaded.
 //
-// If unmarshaling fails for some entries, it continues trying others and collects errors.
+// If unmarshaling fails for some entries, it continues trying others.
 // Returns an error only if all entries fail to unmarshal or if no shards are found.
 func (s *Store) Get(ctx context.Context, commitment Commitment) (*types.BlobShard, error) {
 	results, err := s.ds.Query(ctx, query.Query{
@@ -129,12 +140,7 @@ func (s *Store) Get(ctx context.Context, commitment Commitment) (*types.BlobShar
 	}
 	defer results.Close()
 
-	var (
-		combinedShard *types.BlobShard
-		rerr          error
-	)
-
-	// collect all rows from all promises with this commitment
+	var rerr error
 	for result := range results.Next() {
 		if result.Error != nil {
 			rerr = errors.Join(rerr, result.Error)
@@ -147,18 +153,10 @@ func (s *Store) Get(ctx context.Context, commitment Commitment) (*types.BlobShar
 			continue
 		}
 
-		if combinedShard == nil {
-			combinedShard = shard
-			continue
-		}
+		// return first valid shard found
+		return shard, nil
+	}
 
-		// append all rows from this entry
-		combinedShard.Rows = append(combinedShard.Rows, shard.Rows...)
-	}
-	if combinedShard != nil {
-		return combinedShard, nil
-	}
-	// if we have no shards at all, return error
 	if rerr != nil {
 		return nil, rerr
 	}
