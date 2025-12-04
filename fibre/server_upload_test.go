@@ -10,7 +10,6 @@ import (
 	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
 	"github.com/celestiaorg/celestia-app-fibre/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
-	"github.com/celestiaorg/go-square/v4/share"
 	"github.com/celestiaorg/rsema1d"
 	"github.com/celestiaorg/rsema1d/field"
 	"github.com/cometbft/cometbft/crypto"
@@ -188,7 +187,6 @@ func makeTestRequest(
 	t.Helper()
 
 	blob := makeTestBlobV0(t, 256*1024)
-	namespace := share.MustNewV0Namespace([]byte("testns"))
 
 	// create and sign payment promise
 	keyring := makeTestKeyring(t)
@@ -215,7 +213,7 @@ func makeTestRequest(
 	promise := &fibre.PaymentPromise{
 		ChainID:           "celestia",
 		Height:            100,
-		Namespace:         namespace,
+		Namespace:         testNamespace,
 		UploadSize:        uint32(blob.UploadSize()),
 		BlobVersion:       0,
 		Commitment:        blob.Commitment(),

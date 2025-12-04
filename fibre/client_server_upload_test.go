@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
-	"github.com/celestiaorg/go-square/v4/share"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	"github.com/stretchr/testify/require"
 )
@@ -72,8 +71,7 @@ func TestClientServerUpload(t *testing.T) {
 						return fmt.Errorf("creating blob %d: %w", blobIdx, err)
 					}
 
-					ns := share.MustNewV0Namespace([]byte("test"))
-					promise, err := client.Upload(ctx, ns, blob)
+					promise, err := client.Upload(ctx, testNamespace, blob)
 					if err != nil {
 						return fmt.Errorf("uploading blob %d: %w", blobIdx, err)
 					}

@@ -1,0 +1,92 @@
+package fibre_test
+
+import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"testing"
+
+	"github.com/celestiaorg/celestia-app/v6/app"
+	"github.com/celestiaorg/celestia-app/v6/app/encoding"
+	"github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/go-square/v4/share"
+	cmted25519 "github.com/cometbft/cometbft/crypto/ed25519"
+	core "github.com/cometbft/cometbft/types"
+	"github.com/cosmos/cosmos-sdk/crypto/hd"
+	"github.com/cosmos/cosmos-sdk/crypto/keyring"
+	"github.com/stretchr/testify/require"
+	grpclib "google.golang.org/grpc"
+)
+
+var testNamespace = share.MustNewV0Namespace([]byte("test"))
+
+func makeTestBlobV0(t *testing.T, sizeBytes int) *fibre.Blob {
+	t.Helper()
+	data := make([]byte, sizeBytes)
+	_, err := rand.Read(data)
+	require.NoError(t, err)
+
+	blob, err := fibre.NewBlob(data, fibre.DefaultBlobConfigV0())
+	require.NoError(t, err)
+	return blob
+}
+
+func makeTestValidators(t *testing.T, n int) ([]*core.Validator, []cmted25519.PrivKey) {
+	t.Helper()
+	validators := make([]*core.Validator, n)
+	privKeys := make([]cmted25519.PrivKey, n)
+	for i := range n {
+		privKey := cmted25519.GenPrivKey()
+		privKeys[i] = privKey
+		validators[i] = &core.Validator{
+			Address:     privKey.PubKey().Address(),
+			PubKey:      privKey.PubKey(),
+			VotingPower: 100,
+		}
+	}
+	return validators, privKeys
+}
+
+func makeTestKeyring(t *testing.T) keyring.Keyring {
+	t.Helper()
+	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
+	kr := keyring.NewInMemory(encCfg.Codec)
+	_, _, err := kr.NewMnemonic(fibre.DefaultKeyName, keyring.English, "m/44'/118'/0'/0/0", keyring.DefaultBIP39Passphrase, hd.Secp256k1)
+	require.NoError(t, err)
+	return kr
+}
+
+// Mock infrastructure
+
+type mockValidatorSetGetter struct{ set validator.Set }
+
+func (m *mockValidatorSetGetter) Head(ctx context.Context) (validator.Set, error) {
+	return m.set, nil
+}
+
+func (m *mockValidatorSetGetter) GetByHeight(ctx context.Context, height uint64) (validator.Set, error) {
+	return m.set, nil
+}
+
+type mockHostRegistry struct{}
+
+func (m *mockHostRegistry) GetHost(ctx context.Context, val *core.Validator) (validator.Host, error) {
+	return validator.Host("localhost:9090"), nil
+}
+
+// failingClient is a grpc.Client that always fails all operations.
+type failingClient struct{}
+
+func (failingClient) UploadShard(ctx context.Context, req *types.UploadShardRequest, opts ...grpclib.CallOption) (*types.UploadShardResponse, error) {
+	return nil, fmt.Errorf("simulated failure")
+}
+
+func (failingClient) DownloadShard(ctx context.Context, req *types.DownloadShardRequest, opts ...grpclib.CallOption) (*types.DownloadShardResponse, error) {
+	return nil, fmt.Errorf("simulated failure")
+}
+
+func (failingClient) Close() error {
+	return nil
+}
