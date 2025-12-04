@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"net"
+	"sync/atomic"
 	"testing"
 
 	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
@@ -20,10 +22,10 @@ import (
 
 // testEnv holds the test environment with servers, clients, and validator set
 type testEnv struct {
-	valSet      validator.Set
-	grpcServers []*grpc.Server
-	clients     []*fibre.Client
-	stores      []*fibre.Store
+	valSetGetter *shufflingValidatorSetGetter
+	grpcServers  []*grpc.Server
+	clients      []*fibre.Client
+	stores       []*fibre.Store
 }
 
 func (e *testEnv) Close() {
@@ -38,6 +40,12 @@ func (e *testEnv) Close() {
 			_ = store.Close()
 		}
 	}
+}
+
+// SetHeight changes the current height of the validator set getter.
+// Different heights produce deterministically shuffled validator orderings.
+func (e *testEnv) SetHeight(height uint64) {
+	e.valSetGetter.SetHeight(height)
 }
 
 // ForEachClient runs the given function for each client concurrently and waits for completion.
@@ -68,7 +76,7 @@ func (e *testEnv) ForEachStore(ctx context.Context, fn func(context.Context, *fi
 	return g.Wait()
 }
 
-// makeTestEnv creates a complete test environment with validators, servers, and clients
+// makeTestEnv creates a complete test environment with validators, servers, and clients.
 func makeTestEnv(
 	t *testing.T,
 	numValidators int,
@@ -79,14 +87,12 @@ func makeTestEnv(
 	t.Helper()
 
 	validators, privKeys := makeTestValidators(t, numValidators)
-	valSet := validator.Set{
-		ValidatorSet: core.NewValidatorSet(validators),
-		Height:       100,
-	}
+
+	valSetGetter := newShufflingValidatorSetGetter(validators, 100)
 	testParams := fibre.DefaultProtocolParams
 	testParams.MaxValidatorCount = numValidators
 
-	grpcServers, stores, addresses := makeTestServers(t, validators, privKeys, valSet, testParams, modifyServerConfig)
+	grpcServers, stores, addresses := makeTestServers(t, validators, privKeys, testParams, valSetGetter, modifyServerConfig)
 	clients := make([]*fibre.Client, numClients)
 	for i := range numClients {
 		clientCfg := fibre.NewClientConfigFromParams(testParams)
@@ -100,16 +106,16 @@ func makeTestEnv(
 		}
 		clientCfg.NewClientFn = grpcfibre.DefaultNewClientFn(&testHostRegistry{addresses: addresses}, clientCfg.MaxMessageSize)
 
-		client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, clientCfg)
+		client, err := fibre.NewClient(nil, makeTestKeyring(t), valSetGetter, &mockHostRegistry{}, clientCfg)
 		require.NoError(t, err)
 		clients[i] = client
 	}
 
 	return &testEnv{
-		valSet:      valSet,
-		grpcServers: grpcServers,
-		clients:     clients,
-		stores:      stores,
+		valSetGetter: valSetGetter,
+		grpcServers:  grpcServers,
+		clients:      clients,
+		stores:       stores,
 	}
 }
 
@@ -120,6 +126,7 @@ func makeTestServers(
 	privKeys []cmted25519.PrivKey,
 	valSet validator.Set,
 	params fibre.ProtocolParams,
+	valSetGetter validator.SetGetter,
 	modifyServerConfig func(*fibre.ServerConfig),
 ) ([]*grpc.Server, []*fibre.Store, map[string]string) {
 	t.Helper()
@@ -149,7 +156,7 @@ func makeTestServers(
 		fibreServer, err := fibre.NewInMemoryServer(
 			newTestPrivValidator(privKeys[i]),
 			&mockQueryClient{},
-			&mockValidatorSetGetter{set: valSet},
+			valSetGetter,
 			serverCfg,
 		)
 		require.NoError(t, err)
@@ -182,4 +189,44 @@ func (r *testHostRegistry) GetHost(ctx context.Context, val *core.Validator) (va
 		return "", fmt.Errorf("no address for validator %s", val.Address.String())
 	}
 	return validator.Host(addr), nil
+}
+
+// shufflingValidatorSetGetter returns deterministically shuffled validator sets based on height.
+// Each height produces a different but deterministic ordering using height as the random seed.
+type shufflingValidatorSetGetter struct {
+	validators []*core.Validator
+	height     atomic.Uint64
+}
+
+func newShufflingValidatorSetGetter(validators []*core.Validator, initialHeight uint64) *shufflingValidatorSetGetter {
+	g := &shufflingValidatorSetGetter{validators: validators}
+	g.height.Store(initialHeight)
+	return g
+}
+
+func (g *shufflingValidatorSetGetter) Head(ctx context.Context) (validator.Set, error) {
+	return g.setForHeight(g.height.Load()), nil
+}
+
+func (g *shufflingValidatorSetGetter) GetByHeight(ctx context.Context, height uint64) (validator.Set, error) {
+	return g.setForHeight(height), nil
+}
+
+func (g *shufflingValidatorSetGetter) SetHeight(height uint64) {
+	g.height.Store(height)
+}
+
+func (g *shufflingValidatorSetGetter) setForHeight(height uint64) validator.Set {
+	shuffled := make([]*core.Validator, len(g.validators))
+	copy(shuffled, g.validators)
+
+	r := rand.New(rand.NewSource(int64(height)))
+	r.Shuffle(len(shuffled), func(i, j int) {
+		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+	})
+
+	return validator.Set{
+		ValidatorSet: core.NewValidatorSet(shuffled),
+		Height:       height,
+	}
 }

@@ -2,6 +2,7 @@ package fibre
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 
@@ -17,7 +18,7 @@ import (
 // Download retrieves and reconstructs a blob by commitment from the validator set.
 //
 // Errors:
-//   - [ErrBlobNotFound]: no rows were retrieved for the blob
+//   - [ErrBlobNotFound]: no shard was retrieved for the blob
 //   - [ErrNotEnoughRows]: not enough rows were retrieved to reconstruct the original data
 //   - reconstruction errors: if the commitment doesn't match or reconstruction fails
 //   - context errors: timeouts, cancellations
@@ -75,7 +76,7 @@ func (c *Client) Download(ctx context.Context, commitment Commitment) (*Blob, er
 	return blob, nil
 }
 
-// downloadFrom downloads rows for a commitment from a single validator and applies them to the blob.
+// downloadFrom downloads a shard for a commitment from a single validator and applies its rows to the blob.
 // Returns true if enough rows have been collected for reconstruction.
 func (c *Client) downloadFrom(
 	ctx context.Context,
@@ -99,18 +100,24 @@ func (c *Client) downloadFrom(
 	}
 	span.AddEvent("client_acquired")
 
-	resp, err := client.DownloadRows(ctx, &types.DownloadRowsRequest{Commitment: commitment[:]})
+	resp, err := client.DownloadShard(ctx, &types.DownloadShardRequest{Commitment: commitment[:]})
 	if err != nil {
-		log.WarnContext(ctx, "failed to download rows", "error", err)
+		if context.Cause(ctx) == errReconstructed {
+			log.DebugContext(ctx, "stopped downloading shard as already reconstructed", "error", err)
+			span.AddEvent("already_reconstructed")
+			span.SetStatus(codes.Ok, "")
+			return false
+		}
+		log.WarnContext(ctx, "failed to download shard", "error", err)
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to download rows")
+		span.SetStatus(codes.Error, "failed to download shard")
 		return false
 	}
-	rows, err := parseRows(resp.GetRows())
+	rows, err := parseShard(resp.GetShard())
 	if err != nil {
-		log.WarnContext(ctx, "failed to parse rows", "error", err)
+		log.WarnContext(ctx, "failed to parse shard", "error", err)
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to parse rows")
+		span.SetStatus(codes.Error, "failed to parse shard")
 		return false
 	}
 	var rowSize int
@@ -170,14 +177,17 @@ func (c *Client) downloadFrom(
 	return false
 }
 
-// downloadBlob downloads rows from validators concurrently and populates the blob.
+// errReconstructed is used to communicate that the blob has been reconstructed.
+var errReconstructed = errors.New("already reconstructed")
+
+// downloadBlob downloads shards from validators concurrently and populates the blob.
 func (c *Client) downloadBlob(
 	ctx context.Context,
 	valSet validator.Set,
 	commitment Commitment,
 ) (*Blob, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(errReconstructed)
 
 	var (
 		responses            atomic.Uint32         // tracks finished responses
@@ -190,7 +200,7 @@ func (c *Client) downloadBlob(
 		blob         = NewEmptyBlob(c.cfg.BlobConfig, commitment)
 	)
 
-	// request rows from validators concurrently
+	// request shards from validators concurrently
 loop:
 	for _, val := range valSet.Validators {
 		// acquire semaphore before spawning goroutine
@@ -230,7 +240,7 @@ loop:
 		return nil, ctx.Err()
 	case <-blobDone: // enough data collected
 		// stop spawning new requests and cancel ongoing
-		cancel()
+		cancel(errReconstructed)
 	case <-responsesExhaustedCh: // no more responses to wait for
 		// attempt to continue with what we have
 	}
@@ -238,24 +248,24 @@ loop:
 	return blob, nil
 }
 
-// parseRows extracts and validates rows from the Rows response, constructing RowInclusionProofs.
+// parseShard extracts and validates rows from the BlobShard response, constructing RowInclusionProofs.
 // Returns the row inclusion proofs with RLC root already set.
-func parseRows(rows *types.Rows) ([]*rsema1d.RowInclusionProof, error) {
-	if rows == nil {
-		return nil, fmt.Errorf("rows response is nil")
+func parseShard(shard *types.BlobShard) ([]*rsema1d.RowInclusionProof, error) {
+	if shard == nil {
+		return nil, fmt.Errorf("shard response is nil")
 	}
 
-	rowsArray := rows.GetRows()
+	rowsArray := shard.GetRows()
 	if len(rowsArray) == 0 {
-		return nil, fmt.Errorf("no rows in response")
+		return nil, fmt.Errorf("no rows in shard")
 	}
 
-	if len(rows.GetRoot()) != 32 {
-		return nil, fmt.Errorf("invalid RLC root length: expected 32 bytes, got %d", len(rows.GetRoot()))
+	if len(shard.GetRoot()) != 32 {
+		return nil, fmt.Errorf("invalid RLC root length: expected 32 bytes, got %d", len(shard.GetRoot()))
 	}
 
 	var rlcRoot [32]byte
-	copy(rlcRoot[:], rows.GetRoot())
+	copy(rlcRoot[:], shard.GetRoot())
 
 	proofs := make([]*rsema1d.RowInclusionProof, 0, len(rowsArray))
 	for _, row := range rowsArray {

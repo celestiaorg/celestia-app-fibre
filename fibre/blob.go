@@ -244,9 +244,13 @@ func (d *Blob) SetRow(row *rsema1d.RowInclusionProof) (bool, error) {
 		return true, nil
 	}
 
-	// store row and increment counter
-	d.rows[row.Index] = row.Row
-	return int(d.rowsCollected.Add(1)) >= d.cfg.OriginalRows, nil
+	// store row and increment counter only if slot is empty
+	if d.rows[row.Index] == nil {
+		d.rows[row.Index] = row.Row
+		return int(d.rowsCollected.Add(1)) >= d.cfg.OriginalRows, nil
+	}
+	// slot already filled by another goroutine, just check if we have enough
+	return int(d.rowsCollected.Load()) >= d.cfg.OriginalRows, nil
 }
 
 // Reconstruct checks the accumulated rows and reconstructs the original data.

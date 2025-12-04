@@ -72,7 +72,7 @@ func TestClientServerUpload(t *testing.T) {
 						return fmt.Errorf("creating blob %d: %w", blobIdx, err)
 					}
 
-					ns := share.MustNewV0Namespace([]byte{byte(clientIdx >> 8), byte(clientIdx)})
+					ns := share.MustNewV0Namespace([]byte("test"))
 					promise, err := client.Upload(ctx, ns, blob)
 					if err != nil {
 						return fmt.Errorf("uploading blob %d: %w", blobIdx, err)
