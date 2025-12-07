@@ -23,12 +23,11 @@ func TestClientDownload(t *testing.T) {
 		fn   func(*testing.T)
 	}{
 		{"Success", testClientDownloadSuccess},
-		{"Concurrent", testClientDownloadConcurrent},
+		{"Success_ExactTargetCount", testClientDownloadExactTargetCount},
+		{"Success_Concurrent", testClientDownloadConcurrent},
+		{"FaultTolerance", testClientDownloadFaultTolerance},
 		{"ContextCancellation", testClientDownloadContextCancellation},
 		{"ClosedClient", testClientDownloadClosedClient},
-		{"SucceedsWithPartialFailures", testClientDownloadSucceedsWithPartialFailures},
-		{"BlobNotFound", testClientDownloadBlobNotFound},
-		{"NotEnoughRows", testClientDownloadNotEnoughRows},
 	}
 
 	for _, tt := range tests {
@@ -38,7 +37,7 @@ func TestClientDownload(t *testing.T) {
 
 func testClientDownloadSuccess(t *testing.T) {
 	blob := makeTestBlobV0(t, 256*1024)
-	client := makeTestDownloadClient(t, 10, 0, []*fibre.Blob{blob}, nil)
+	client := makeTestDownloadClient(t, 10, nil, blob)
 	defer client.Close()
 
 	downloaded, err := client.Download(t.Context(), blob.Commitment())
@@ -55,7 +54,7 @@ func testClientDownloadConcurrent(t *testing.T) {
 		blobs[i] = makeTestBlobV0(t, 256*1024)
 	}
 
-	client := makeTestDownloadClient(t, 100, 0, blobs, nil)
+	client := makeTestDownloadClient(t, 100, nil, blobs...)
 	defer client.Close()
 
 	var wg sync.WaitGroup
@@ -74,7 +73,7 @@ func testClientDownloadConcurrent(t *testing.T) {
 
 func testClientDownloadContextCancellation(t *testing.T) {
 	blob := makeTestBlobV0(t, 256*1024)
-	client := makeTestDownloadClient(t, 10, 0, []*fibre.Blob{blob}, nil)
+	client := makeTestDownloadClient(t, 10, nil, blob)
 	defer client.Close()
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -86,7 +85,8 @@ func testClientDownloadContextCancellation(t *testing.T) {
 
 func testClientDownloadClosedClient(t *testing.T) {
 	blob := makeTestBlobV0(t, 256*1024)
-	client := makeTestDownloadClient(t, 10, 0, []*fibre.Blob{blob}, nil)
+	client := makeTestDownloadClient(t, 10, nil, blob)
+	defer client.Close()
 
 	require.NoError(t, client.Close())
 	require.NoError(t, client.Close()) // idempotent
@@ -95,88 +95,77 @@ func testClientDownloadClosedClient(t *testing.T) {
 	require.ErrorIs(t, err, fibre.ErrClientClosed)
 }
 
-func testClientDownloadSucceedsWithPartialFailures(t *testing.T) {
+func testClientDownloadExactTargetCount(t *testing.T) {
+	// Test that we download from exactly downloadTarget validators (no more)
+	// With 10 validators and 2/3 target, downloadTarget = 6
+	const numValidators = 10
+
 	blob := makeTestBlobV0(t, 256*1024)
-	// fail 1/3 of validators
-	client := makeTestDownloadClient(t, 10, 3, []*fibre.Blob{blob}, nil)
+
+	var counter *atomic.Int64
+	client := makeTestDownloadClient(t, 10, func(cfg *fibre.ClientConfig) {
+		cfg.NewClientFn, counter = countingClientFn(cfg.NewClientFn)
+
+	}, blob)
 	defer client.Close()
 
 	downloaded, err := client.Download(t.Context(), blob.Commitment())
 	require.NoError(t, err)
-	require.NotNil(t, downloaded)
 	require.Equal(t, blob.Data(), downloaded.Data())
+
+	// downloadTarget = 10 * 2/3 = 6
+	// We should have exactly 6 successful downloads (no over-fetching in happy path)
+	require.Equal(t, int64(6), counter.Load(), "should download from exactly downloadTarget validators")
 }
 
-func testClientDownloadBlobNotFound(t *testing.T) {
-	blob := makeTestBlobV0(t, 256*1024)
-	client := makeTestDownloadClient(t, 10, 0, []*fibre.Blob{blob}, nil)
-	defer client.Close()
-
-	// request a commitment that doesn't exist
-	_, err := client.Download(t.Context(), fibre.Commitment{1, 2, 3})
-	require.ErrorIs(t, err, fibre.ErrBlobNotFound)
-}
-
-func testClientDownloadNotEnoughRows(t *testing.T) {
+func testClientDownloadFaultTolerance(t *testing.T) {
+	// Test failure tolerance boundaries
+	// With 10 validators and 2/3 target, downloadTarget = 6
 	const numValidators = 10
 	blob := makeTestBlobV0(t, 256*1024)
-	// fail most validators so we don't get enough rows for reconstruction
-	client := makeTestDownloadClient(t, numValidators, numValidators-1, []*fibre.Blob{blob}, func(cfg *fibre.ClientConfig) {
-		cfg.DownloadConcurrency = numValidators
-	})
-	defer client.Close()
 
-	_, err := client.Download(t.Context(), blob.Commitment())
-	require.ErrorIs(t, err, fibre.ErrNotEnoughRows)
+	tests := []struct {
+		failures  int
+		expectErr error
+	}{
+		{10, fibre.ErrNotFound},
+		{6, fibre.ErrNotEnoughShards}, // 4 successes, need 6
+		{5, fibre.ErrNotEnoughShards}, // 5 successes, need 6
+		{4, nil},                      // 6 successes, exactly enough
+		{3, nil},                      // 7 successes, more than enough
+	}
+
+	for _, tc := range tests {
+		t.Run(fmt.Sprintf("%d_failures", tc.failures), func(t *testing.T) {
+			client := makeTestDownloadClient(t, numValidators, func(cfg *fibre.ClientConfig) {
+				cfg.NewClientFn = failingClientFn(tc.failures, cfg.NewClientFn)
+			}, blob)
+			defer client.Close()
+
+			downloaded, err := client.Download(t.Context(), blob.Commitment())
+			if tc.expectErr != nil {
+				require.ErrorIs(t, err, tc.expectErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, blob.Data(), downloaded.Data())
+			}
+		})
+	}
 }
 
 // makeTestDownloadClient creates a download client that serves the given blobs.
 // numFailures specifies how many validators should fail (0 for none).
 func makeTestDownloadClient(
 	t *testing.T,
-	numValidators, numFailures int,
-	blobs []*fibre.Blob,
+	numValidators int,
 	customCfg func(*fibre.ClientConfig),
+	blobs ...*fibre.Blob,
 ) *fibre.Client {
 	t.Helper()
 
 	validators, privKeys := makeTestValidators(t, numValidators)
-
-	var failCount atomic.Int32
-	mockClientFn := func(ctx context.Context, val *core.Validator) (grpc.Client, error) {
-		valIdx := -1
-		for i, v := range validators {
-			if v.Address.String() == val.Address.String() {
-				valIdx = i
-				break
-			}
-		}
-		if valIdx == -1 {
-			return nil, fmt.Errorf("no private key found for validator %s", val.Address)
-		}
-
-		client := &downloadMockClient{
-			validator:     val,
-			valIdx:        valIdx,
-			numValidators: numValidators,
-			privKey:       privKeys[valIdx],
-			blobs:         blobs,
-		}
-
-		if numFailures > 0 {
-			currentCount := failCount.Add(1)
-			if currentCount <= int32(numFailures) {
-				return failingClient{}, nil
-			}
-		}
-		return client, nil
-	}
-
 	cfg := fibre.DefaultClientConfig()
-	cfg.NewClientFn = mockClientFn
-	if numFailures > 0 {
-		cfg.DownloadConcurrency = 5
-	}
+	cfg.NewClientFn = makeDownloadMockClientFn(validators, privKeys, blobs...)
 	if customCfg != nil {
 		customCfg(&cfg)
 	}
@@ -185,6 +174,32 @@ func makeTestDownloadClient(
 	client, err := fibre.NewClient(nil, makeTestKeyring(t), &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
 	require.NoError(t, err)
 	return client
+}
+
+// makeDownloadMockClientFn creates a mock client function for download tests.
+func makeDownloadMockClientFn(
+	validators []*core.Validator,
+	privKeys []cmted25519.PrivKey,
+	blobs ...*fibre.Blob,
+) func(context.Context, *core.Validator) (grpc.Client, error) {
+	return func(ctx context.Context, val *core.Validator) (grpc.Client, error) {
+		valIdx := -1
+		for i, v := range validators {
+			if v.Address.String() == val.Address.String() {
+				valIdx = i
+				break
+			}
+		}
+
+		client := &downloadMockClient{
+			validator:     val,
+			valIdx:        valIdx,
+			numValidators: len(validators),
+			privKey:       privKeys[valIdx],
+			blobs:         blobs,
+		}
+		return client, nil
+	}
 }
 
 // mock infrastructure

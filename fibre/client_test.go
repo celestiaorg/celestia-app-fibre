@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"sync/atomic"
 	"testing"
 
 	"github.com/celestiaorg/celestia-app/v6/app"
 	"github.com/celestiaorg/celestia-app/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v4/share"
@@ -19,6 +21,23 @@ import (
 	"github.com/stretchr/testify/require"
 	grpclib "google.golang.org/grpc"
 )
+
+func TestNewClient_KeyNotFound(t *testing.T) {
+	validators, _ := makeTestValidators(t, 10)
+	valSet := validator.Set{ValidatorSet: core.NewValidatorSet(validators), Height: 100}
+
+	// Create empty keyring (no keys)
+	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
+	emptyKeyring := keyring.NewInMemory(encCfg.Codec)
+
+	cfg := fibre.DefaultClientConfig()
+
+	// Attempt to create client with non-existent key
+	_, err := fibre.NewClient(nil, emptyKeyring, &mockValidatorSetGetter{set: valSet}, &mockHostRegistry{}, cfg)
+	require.Error(t, err)
+	require.ErrorIs(t, err, fibre.ErrKeyNotFound, "expected ErrKeyNotFound when key doesn't exist")
+	require.Contains(t, err.Error(), cfg.DefaultKeyName, "error should mention the key name")
+}
 
 var testNamespace = share.MustNewV0Namespace([]byte("test"))
 
@@ -58,7 +77,7 @@ func makeTestKeyring(t *testing.T) keyring.Keyring {
 	return kr
 }
 
-// Mock infrastructure
+// mock infrastructure
 
 type mockValidatorSetGetter struct{ set validator.Set }
 
@@ -79,6 +98,18 @@ func (m *mockHostRegistry) GetHost(ctx context.Context, val *core.Validator) (va
 // failingClient is a grpc.Client that always fails all operations.
 type failingClient struct{}
 
+func failingClientFn(numFailures int, clientFn grpc.NewClientFn) grpc.NewClientFn {
+	var count atomic.Int64
+	return func(ctx context.Context, val *core.Validator) (grpc.Client, error) {
+		currentCount := count.Add(1)
+		if currentCount <= int64(numFailures) {
+			return failingClient{}, nil
+		}
+
+		return clientFn(ctx, val)
+	}
+}
+
 func (failingClient) UploadShard(ctx context.Context, req *types.UploadShardRequest, opts ...grpclib.CallOption) (*types.UploadShardResponse, error) {
 	return nil, fmt.Errorf("simulated failure")
 }
@@ -89,4 +120,44 @@ func (failingClient) DownloadShard(ctx context.Context, req *types.DownloadShard
 
 func (failingClient) Close() error {
 	return nil
+}
+
+// countingClient wraps a grpc.Client and counts successful downloads.
+type countingClient struct {
+	client grpc.Client
+	count  *atomic.Int64
+}
+
+func countingClientFn(clientFn grpc.NewClientFn) (grpc.NewClientFn, *atomic.Int64) {
+	var count atomic.Int64
+	return func(ctx context.Context, val *core.Validator) (grpc.Client, error) {
+		client, err := clientFn(ctx, val)
+		if err != nil {
+			return nil, err
+		}
+		return &countingClient{
+			client: client,
+			count:  &count,
+		}, nil
+	}, &count
+}
+
+func (c *countingClient) UploadShard(ctx context.Context, req *types.UploadShardRequest, opts ...grpclib.CallOption) (*types.UploadShardResponse, error) {
+	resp, err := c.client.UploadShard(ctx, req, opts...)
+	if err == nil && resp.ValidatorSignature != nil {
+		c.count.Add(1)
+	}
+	return resp, err
+}
+
+func (c *countingClient) DownloadShard(ctx context.Context, req *types.DownloadShardRequest, opts ...grpclib.CallOption) (*types.DownloadShardResponse, error) {
+	resp, err := c.client.DownloadShard(ctx, req, opts...)
+	if err == nil && resp.Shard != nil && len(resp.Shard.Rows) > 0 {
+		c.count.Add(1)
+	}
+	return resp, err
+}
+
+func (c *countingClient) Close() error {
+	return c.client.Close()
 }
