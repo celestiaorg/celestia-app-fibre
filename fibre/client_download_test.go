@@ -96,16 +96,15 @@ func testClientDownloadClosedClient(t *testing.T) {
 }
 
 func testClientDownloadExactTargetCount(t *testing.T) {
-	// Test that we download from exactly downloadTarget validators (no more)
-	// With 10 validators and 2/3 target, downloadTarget = 6
+	// test that we download from exactly downloadTarget validators (no more)
+	// with 10 validators and 2/3 target, downloadTarget = 6
 	const numValidators = 10
 
 	blob := makeTestBlobV0(t, 256*1024)
 
 	var counter *atomic.Int64
-	client := makeTestDownloadClient(t, 10, func(cfg *fibre.ClientConfig) {
+	client := makeTestDownloadClient(t, numValidators, func(cfg *fibre.ClientConfig) {
 		cfg.NewClientFn, counter = countingClientFn(cfg.NewClientFn)
-
 	}, blob)
 	defer client.Close()
 
@@ -114,13 +113,12 @@ func testClientDownloadExactTargetCount(t *testing.T) {
 	require.Equal(t, blob.Data(), downloaded.Data())
 
 	// downloadTarget = 10 * 2/3 = 6
-	// We should have exactly 6 successful downloads (no over-fetching in happy path)
+	// we should have exactly 6 successful downloads (no over-fetching in happy path)
 	require.Equal(t, int64(6), counter.Load(), "should download from exactly downloadTarget validators")
 }
 
 func testClientDownloadFaultTolerance(t *testing.T) {
-	// Test failure tolerance boundaries
-	// With 10 validators and 2/3 target, downloadTarget = 6
+	// test failure tolerance boundaries with 10 validators and 2/3 target
 	const numValidators = 10
 	blob := makeTestBlobV0(t, 256*1024)
 

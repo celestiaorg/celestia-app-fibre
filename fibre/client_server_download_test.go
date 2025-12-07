@@ -60,7 +60,6 @@ func TestClientServerDownload(t *testing.T) {
 			allCommitments := make([]fibre.Commitment, totalBlobs)
 			allData := make([][]byte, totalBlobs)
 
-
 			// upload blobs
 			err := env.ForEachClient(t.Context(), func(ctx context.Context, client *fibre.Client, clientIdx int) error {
 				for blobIdx := range tt.blobsPerClient {
