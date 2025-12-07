@@ -12,6 +12,7 @@ import (
 	gogoproto "github.com/cosmos/gogoproto/proto"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/query"
+	dssync "github.com/ipfs/go-datastore/sync"
 	badger "github.com/ipfs/go-ds-badger4"
 )
 
@@ -44,20 +45,9 @@ type Store struct {
 
 // NewMemoryStore creates a new [Store] with an in-memory badger.
 func NewMemoryStore(cfg StoreConfig) *Store {
-	opts := badger.DefaultOptions
-	opts.GcDiscardRatio = 0.2
-	opts.GcSleep = time.Second
-	opts.GcInterval = time.Minute
-	opts.InMemory = true
-
-	bds, err := badger.NewDatastore(cfg.Path, &opts)
-	if err != nil {
-		panic(fmt.Errorf("creating badger datastore: %w", err))
-	}
-
 	return &Store{
 		cfg: cfg,
-		ds:  bds,
+		ds:  dssync.MutexWrap(ds.NewMapDatastore()),
 	}
 }
 
