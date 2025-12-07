@@ -99,7 +99,7 @@ func TestBlob_Reconstruct(t *testing.T) {
 		reconstructBlob := NewEmptyBlob(cfg, blob.Commitment())
 
 		for _, row := range rows {
-			_, err = reconstructBlob.SetRow(row)
+			err = reconstructBlob.SetRow(row)
 			require.NoError(t, err)
 		}
 
@@ -127,21 +127,5 @@ func TestBlob_Reconstruct(t *testing.T) {
 			}
 		}
 		testReconstruct(t, mixedRows)
-	})
-
-	t.Run("NotEnoughRows", func(t *testing.T) {
-		reconstructBlob := NewEmptyBlob(cfg, blob.Commitment())
-		for i := 0; i < cfg.OriginalRows-1; i++ {
-			_, err = reconstructBlob.SetRow(allRows[i])
-			require.NoError(t, err)
-		}
-		err = reconstructBlob.Reconstruct()
-		require.ErrorIs(t, err, ErrNotEnoughRows)
-	})
-
-	t.Run("NotFound", func(t *testing.T) {
-		emptyBlob := NewEmptyBlob(cfg, blob.Commitment())
-		err := emptyBlob.Reconstruct()
-		require.ErrorIs(t, err, ErrBlobNotFound)
 	})
 }

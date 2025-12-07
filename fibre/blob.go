@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"sync/atomic"
 
 	"github.com/celestiaorg/rsema1d"
 	"github.com/celestiaorg/rsema1d/field"
@@ -16,10 +15,6 @@ import (
 var (
 	// ErrBlobTooLarge is returned when the blob size exceeds BlobConfig.MaxDataSize.
 	ErrBlobTooLarge = errors.New("blob size exceeds maximum allowed size")
-	// ErrBlobNotFound is returned when no rows were retrieved for the blob.
-	ErrBlobNotFound = errors.New("blob not found: no rows retrieved")
-	// ErrNotEnoughRows is returned when not enough rows were retrieved to reconstruct the blob.
-	ErrNotEnoughRows = errors.New("not enough rows to reconstruct blob")
 	// ErrBlobCommitmentMismatch is returned when the reconstructed commitment doesn't match the expected one.
 	ErrBlobCommitmentMismatch = errors.New("commitment mismatch: reconstructed data doesn't match expected commitment")
 )
@@ -129,8 +124,7 @@ type Blob struct {
 	data []byte
 
 	// fields for reconstruction
-	rows          [][]byte
-	rowsCollected atomic.Int32
+	rows [][]byte
 }
 
 // NewBlob creates a new [Blob] instance by encoding the data.
@@ -224,9 +218,8 @@ func (d *Blob) Row(index int) (*rsema1d.RowInclusionProof, error) {
 }
 
 // SetRow adds and verifies [*rsema1d.RowInclusionProof] to the blob.
-// Returns true if enough rows have been collected for [Reconstruct] (>= OriginalRows).
 // It is safe to call this method concurrently only for disjoint indices.
-func (d *Blob) SetRow(row *rsema1d.RowInclusionProof) (bool, error) {
+func (d *Blob) SetRow(row *rsema1d.RowInclusionProof) error {
 	// verify the inclusion proof
 	config := &rsema1d.Config{
 		K:           d.cfg.OriginalRows,
@@ -236,43 +229,24 @@ func (d *Blob) SetRow(row *rsema1d.RowInclusionProof) (bool, error) {
 	}
 	err := rsema1d.VerifyRowInclusionProof(row, rsema1d.Commitment(d.commitment), config)
 	if err != nil {
-		return false, fmt.Errorf("verifying row %d: %w", row.Index, err)
+		return fmt.Errorf("verifying row %d: %w", row.Index, err)
 	}
 
-	// check if we already have enough rows - avoid further writes
-	if int(d.rowsCollected.Load()) >= d.cfg.OriginalRows {
-		return true, nil
-	}
-
-	// store row and increment counter only if slot is empty
+	// store row only if slot is empty
 	if d.rows[row.Index] == nil {
 		d.rows[row.Index] = row.Row
-		return int(d.rowsCollected.Add(1)) >= d.cfg.OriginalRows, nil
 	}
-	// slot already filled by another goroutine, just check if we have enough
-	return int(d.rowsCollected.Load()) >= d.cfg.OriginalRows, nil
+	return nil
 }
 
 // Reconstruct checks the accumulated rows and reconstructs the original data.
 // It is not safe to call this method concurrently.
 //
 // Returns:
-//   - [ErrBlobNotFound] if no rows were accumulated
-//   - [ErrNotEnoughRows] if some rows were accumulated but not enough to reconstruct
 //   - [ErrBlobCommitmentMismatch] if the reconstructed commitment doesn't match the expected one
 //   - Reconstruction or decoding errors if either process fails
 func (d *Blob) Reconstruct() error {
 	// TODO(@Wondertan): Move and encapsulate inside rsema1d
-
-	// check if we have enough rows
-	collected := int(d.rowsCollected.Load())
-	switch {
-	case collected == 0:
-		return ErrBlobNotFound
-	case collected < d.cfg.OriginalRows:
-		return fmt.Errorf("%w: collected %d rows, need %d", ErrNotEnoughRows, collected, d.cfg.OriginalRows)
-	case collected >= d.cfg.OriginalRows:
-	}
 
 	// use reedsolomon decoder directly as opposed to rsema1d.Reconstruct
 	// the decoder is used to reconstruct missing shards in-place which is more efficient than copying data and

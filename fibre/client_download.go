@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
+	"slices"
 	"sync/atomic"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
@@ -15,13 +17,19 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Download retrieves and reconstructs a blob by commitment from the validator set.
+var (
+	// ErrNotFound is returned when no shards were retrieved for the blob.
+	ErrNotFound = errors.New("blob not found: no shards retrieved")
+	// ErrNotEnoughShards is returned when not enough shards were retrieved to reconstruct the blob.
+	ErrNotEnoughShards = errors.New("not enough shards to reconstruct blob")
+)
+
+// Download retrieves and reconstructs [Blob] by [Commitment] from the [Server]s.
 //
 // Errors:
-//   - [ErrBlobNotFound]: no shard was retrieved for the blob
-//   - [ErrNotEnoughRows]: not enough rows were retrieved to reconstruct the original data
-//   - reconstruction errors: if the commitment doesn't match or reconstruction fails
-//   - context errors: timeouts, cancellations
+//   - [ErrNotFound]: no shard was retrieved for the blob
+//   - [ErrNotEnoughShards]: not enough rows were retrieved to reconstruct the original data
+//   - [ErrInvalidCommitment]: the commitment doesn't match the reconstructed blob
 func (c *Client) Download(ctx context.Context, commitment Commitment) (*Blob, error) {
 	if c.closed.Load() {
 		return nil, ErrClientClosed
@@ -77,12 +85,11 @@ func (c *Client) Download(ctx context.Context, commitment Commitment) (*Blob, er
 }
 
 // downloadFrom downloads a shard for a commitment from a single validator and applies its rows to the blob.
-// Returns true if enough rows have been collected for reconstruction.
 func (c *Client) downloadFrom(
 	ctx context.Context,
 	val *core.Validator,
 	blob *Blob,
-) bool {
+) error {
 	commitment := blob.Commitment()
 	log := c.log.With("validator", val.Address.String(), "blob_commitment", commitment)
 
@@ -93,32 +100,34 @@ func (c *Client) downloadFrom(
 
 	client, err := c.clientCache.GetClient(ctx, val)
 	if err != nil {
+		if context.Cause(ctx) == errDownloaded {
+			span.SetStatus(codes.Ok, "")
+			return err
+		}
 		log.WarnContext(ctx, "can't get grpc.FibreClient", "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "can't get grpc.FibreClient")
-		return false
+		return err
 	}
 	span.AddEvent("client_acquired")
 
 	resp, err := client.DownloadShard(ctx, &types.DownloadShardRequest{Commitment: commitment[:]})
 	if err != nil {
-		if context.Cause(ctx) == errReconstructed {
-			log.DebugContext(ctx, "stopped downloading shard as already reconstructed", "error", err)
-			span.AddEvent("already_reconstructed")
+		if context.Cause(ctx) == errDownloaded {
 			span.SetStatus(codes.Ok, "")
-			return false
+			return err
 		}
 		log.WarnContext(ctx, "failed to download shard", "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to download shard")
-		return false
+		return err
 	}
 	rows, err := parseShard(resp.GetShard())
 	if err != nil {
 		log.WarnContext(ctx, "failed to parse shard", "error", err)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to parse shard")
-		return false
+		return err
 	}
 	var rowSize int
 	if len(rows) > 0 && len(rows[0].Row) > 0 {
@@ -131,33 +140,11 @@ func (c *Client) downloadFrom(
 
 	var applied int
 	for _, row := range rows {
-		isDone, err := blob.SetRow(row)
-		if err != nil {
+		if err := blob.SetRow(row); err != nil {
 			log.WarnContext(ctx, "invalid row", "row_index", row.Index, "error", err)
-			span.AddEvent("invalid_row", trace.WithAttributes(attribute.Int("row_index", len(rows))))
+			span.AddEvent("invalid_row", trace.WithAttributes(attribute.Int("row_index", row.Index)))
 			continue
 		}
-		if isDone && applied == 0 {
-			log.WarnContext(ctx, "blob was already reconstructed and no rows were applied", "rows_total", len(rows), "row_size", rowSize)
-			span.AddEvent("rows_applied", trace.WithAttributes(
-				attribute.Int("applied", applied),
-				attribute.Int("total", len(rows)),
-				attribute.Int("row_size", rowSize),
-			))
-			span.SetStatus(codes.Ok, "") // this is ok because validator behaved correctly
-			return true
-		}
-		if isDone {
-			log.DebugContext(ctx, "got rows completing the blob", "rows_applied", applied, "rows_total", len(rows), "row_size", rowSize)
-			span.AddEvent("rows_applied", trace.WithAttributes(
-				attribute.Int("applied", applied),
-				attribute.Int("total", len(rows)),
-				attribute.Int("row_size", rowSize),
-			))
-			span.SetStatus(codes.Ok, "")
-			return true
-		}
-
 		applied++
 	}
 
@@ -169,25 +156,26 @@ func (c *Client) downloadFrom(
 	if applied == 0 {
 		log.WarnContext(ctx, "no rows applied", "rows_total", len(rows), "row_size", rowSize)
 		span.SetStatus(codes.Error, "no rows applied")
-		return false
+		return fmt.Errorf("no rows applied from validator %s", val.Address)
 	}
 
 	log.DebugContext(ctx, "got rows", "rows_applied", applied, "rows_total", len(rows), "row_size", rowSize)
 	span.SetStatus(codes.Ok, "")
-	return false
+	return nil
 }
 
-// errReconstructed is used to communicate that the blob has been reconstructed.
-var errReconstructed = errors.New("already reconstructed")
-
 // downloadBlob downloads shards from validators concurrently and populates the blob.
+// It requests minimally required number of validators (e.g. 2/3 by default)
+// and requests further ones if any initial validator requests fail.
 func (c *Client) downloadBlob(
 	ctx context.Context,
 	valSet validator.Set,
 	commitment Commitment,
 ) (*Blob, error) {
 	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(errReconstructed)
+	defer cancel(errDownloaded)
+
+	blob := NewEmptyBlob(c.cfg.BlobConfig, commitment)
 
 	var (
 		responses            atomic.Uint32         // tracks finished responses
@@ -195,18 +183,38 @@ func (c *Client) downloadBlob(
 	)
 
 	var (
-		blodDoneOnce atomic.Bool
-		blobDone     = make(chan struct{})
-		blob         = NewEmptyBlob(c.cfg.BlobConfig, commitment)
+		successes    atomic.Uint32         // tracks successful responses
+		downloadedCh = make(chan struct{}) // closes when downloadTarget amount of responses complete
 	)
 
-	// request shards from validators concurrently
+	var (
+		// limit to download minimum required amount of shards in the best case, instead of everything
+		downloadTarget = valSet.Size() * int(c.cfg.UploadTargetSignaturesCount.Numerator) /
+			int(c.cfg.UploadTargetSignaturesCount.Denominator)
+		downloadLimitCh = make(chan struct{}, downloadTarget)
+	)
+
+	// shuffle validators for random prioritization
+	// TODO(@Wondertan): Order validators based on their performance over time using EWMA
+	validators := slices.Clone(valSet.Validators)
+	rand.Shuffle(len(validators), func(i, j int) {
+		validators[i], validators[j] = validators[j], validators[i]
+	})
+
 loop:
-	for _, val := range valSet.Validators {
-		// acquire semaphore before spawning goroutine
+	for _, val := range validators {
+		// local semaphore first - order matters
+		select {
+		case downloadLimitCh <- struct{}{}:
+		case <-downloadedCh:
+			break loop
+		case <-ctx.Done():
+			break loop
+		}
+
 		select {
 		case c.downloadSem <- struct{}{}:
-		case <-blobDone:
+		case <-downloadedCh:
 			break loop
 		case <-ctx.Done():
 			break loop
@@ -215,12 +223,11 @@ loop:
 		c.closeWg.Add(1)
 		go func(val *core.Validator) {
 			defer func() {
-				// release semaphore
+				// release global semaphore
 				<-c.downloadSem
 
-				// mark response as complete if so
-				totalRequests := len(valSet.Validators)
-				if totalRequests == int(responses.Add(1)) {
+				// increment responses and mark as completed if so
+				if int(responses.Add(1)) == len(validators) {
 					close(responsesExhaustedCh)
 				}
 
@@ -228,25 +235,42 @@ loop:
 				c.closeWg.Done()
 			}()
 
-			isDone := c.downloadFrom(ctx, val, blob)
-			if isDone && blodDoneOnce.CompareAndSwap(false, true) {
-				close(blobDone)
+			if err := c.downloadFrom(ctx, val, blob); err != nil {
+				// release to replace this failed request with a new one
+				<-downloadLimitCh
+				return
+			}
+
+			// increment successes and mark download completed if so
+			if successes.Add(1) == uint32(downloadTarget) {
+				close(downloadedCh)
 			}
 		}(val)
 	}
 
 	select {
-	case <-ctx.Done(): // oops, abort
+	case <-downloadedCh:
+	case <-responsesExhaustedCh:
+	case <-ctx.Done():
 		return nil, ctx.Err()
-	case <-blobDone: // enough data collected
-		// stop spawning new requests and cancel ongoing
-		cancel(errReconstructed)
-	case <-responsesExhaustedCh: // no more responses to wait for
-		// attempt to continue with what we have
 	}
 
-	return blob, nil
+	s := int(successes.Load())
+	switch {
+	case s == 0:
+		return nil, ErrNotFound
+	case s < downloadTarget:
+		return nil, ErrNotEnoughShards
+	case s > downloadTarget:
+		c.log.WarnContext(ctx, "downloaded more shards then needed", "downloaded", s, "expected_target", downloadTarget)
+		fallthrough
+	default:
+		return blob, nil
+	}
 }
+
+// errDownloaded signals that context was cancelled because download completed successfully.
+var errDownloaded = errors.New("downloaded")
 
 // parseShard extracts and validates rows from the BlobShard response, constructing RowInclusionProofs.
 // Returns the row inclusion proofs with RLC root already set.
