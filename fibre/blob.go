@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 
 	"github.com/celestiaorg/rsema1d"
 	"github.com/celestiaorg/rsema1d/field"
@@ -124,7 +125,8 @@ type Blob struct {
 	data []byte
 
 	// fields for reconstruction
-	rows [][]byte
+	rowsMu sync.RWMutex
+	rows   [][]byte
 }
 
 // NewBlob creates a new [Blob] instance by encoding the data.
@@ -232,7 +234,8 @@ func (d *Blob) SetRow(row *rsema1d.RowInclusionProof) error {
 		return fmt.Errorf("verifying row %d: %w", row.Index, err)
 	}
 
-	// store row only if slot is empty
+	d.rowsMu.Lock()
+	defer d.rowsMu.Unlock()
 	if d.rows[row.Index] == nil {
 		d.rows[row.Index] = row.Row
 	}
