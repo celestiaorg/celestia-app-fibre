@@ -26,6 +26,11 @@ var (
 
 // Download retrieves and reconstructs [Blob] by [Commitment] from the [Server]s.
 //
+// The algorithm is simple: take a randomized 2/3 subset of the latest validators (instead of the complete set)
+// and request blob shards from them. In the happy path, this is sufficient to reconstruct blobs.
+// For the unhappy path, we add recovery requests to additional validators if any of the initial requests fail,
+// so that in the worst case, we cover all validators.
+//
 // Errors:
 //   - [ErrNotFound]: no shard was retrieved for the blob
 //   - [ErrNotEnoughShards]: not enough rows were retrieved to reconstruct the original data
