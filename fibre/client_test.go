@@ -77,8 +77,6 @@ func makeTestKeyring(t *testing.T) keyring.Keyring {
 	return kr
 }
 
-// mock infrastructure
-
 type mockValidatorSetGetter struct{ set validator.Set }
 
 func (m *mockValidatorSetGetter) Head(ctx context.Context) (validator.Set, error) {

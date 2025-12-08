@@ -43,7 +43,7 @@ type Store struct {
 	ds  ds.Batching
 }
 
-// NewMemoryStore creates a new [Store] with an in-memory badger.
+// NewMemoryStore creates a new [Store] with an in-memory datastore.
 func NewMemoryStore(cfg StoreConfig) *Store {
 	return &Store{
 		cfg: cfg,
