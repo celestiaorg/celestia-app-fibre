@@ -141,12 +141,12 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	}
 
 	// Validate validator signatures
-	signBytes, err := pp.SignBytes()
+	validatorSignBytes, err := pp.SignBytesValidator()
 	if err != nil {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get sign bytes: %s", err)
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "failed to get validator sign bytes: %s", err)
 	}
 
-	if err := ms.validateValidatorSignatures(ctx, signBytes, msg.PaymentPromise.Height, msg.ValidatorSignatures, pp.ChainID, fibre.SignBytesPrefix); err != nil {
+	if err := ms.validateValidatorSignatures(ctx, validatorSignBytes, msg.PaymentPromise.Height, msg.ValidatorSignatures); err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature validation failed: %s", err)
 	}
 
@@ -301,7 +301,7 @@ func (ms msgServer) calculatePaymentAmount(ctx sdk.Context, blobSize uint32) sdk
 }
 
 // validateValidatorSignatures validates validator signatures using the existing SignatureSet infrastructure
-func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byte, height int64, signatures [][]byte, chainID, uniqueID string) error {
+func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, validatorSignBytes []byte, height int64, signatures [][]byte) error {
 	// Get historical validator set at the height
 	historicalInfo, err := ms.stakingKeeper.GetHistoricalInfo(ctx, height)
 	if err != nil {
@@ -331,12 +331,6 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byt
 	valSet := validator.Set{
 		ValidatorSet: cmtValSet,
 		Height:       uint64(height),
-	}
-
-	// Prepare sign bytes with domain separation and chainID for validator signatures
-	validatorSignBytes, err := core.RawBytesMessageSignBytes(chainID, uniqueID, signBytes)
-	if err != nil {
-		return errorsmod.Wrapf(err, "failed to prepare validator sign bytes")
 	}
 
 	// Create signature set with 2/3+ thresholds
