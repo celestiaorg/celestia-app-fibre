@@ -52,7 +52,7 @@ func TestServerDownloadShard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server, _ := makeTestDownloadServer(t)
+			server, _, _ := makeTestServer(t)
 
 			// create a test blob for commitment
 			blob := makeTestBlobV0(t, 256)
@@ -77,13 +77,6 @@ func TestServerDownloadShard(t *testing.T) {
 			tt.check(t, resp, err)
 		})
 	}
-}
-
-// makeTestDownloadServer creates a server for download testing.
-func makeTestDownloadServer(t *testing.T) (*fibre.Server, fibre.Commitment) {
-	t.Helper()
-	server, _, _ := makeTestServer(t)
-	return server, fibre.Commitment{}
 }
 
 // storeTestShard stores a test blob shard in the server's store for download testing.
