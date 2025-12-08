@@ -194,8 +194,8 @@ func (c *Client) downloadBlob(
 
 	var (
 		// limit to download minimum required amount of shards in the best case, instead of everything
-		downloadTarget = valSet.Size() * int(c.cfg.UploadTargetSignaturesCount.Numerator) /
-			int(c.cfg.UploadTargetSignaturesCount.Denominator)
+		downloadTarget = max(valSet.Size()*int(c.cfg.UploadTargetSignaturesCount.Numerator)/
+			int(c.cfg.UploadTargetSignaturesCount.Denominator), 1)
 		downloadLimitCh = make(chan struct{}, downloadTarget)
 	)
 
