@@ -336,6 +336,7 @@ func makeTestServers(
 		require.NoError(t, err)
 
 		serverCfg := fibre.NewServerConfigFromParams(params)
+		serverCfg.StoreConfig.Path = t.TempDir()
 
 		// create logger with unique server identifier
 		serverCfg.Log = slog.Default().With(
@@ -349,7 +350,7 @@ func makeTestServers(
 			modifyServerConfig(&serverCfg)
 		}
 
-		fibreServer, err := fibre.NewInMemoryServer(
+		fibreServer, err := fibre.NewServer(
 			newTestPrivValidator(privKeys[i]),
 			&mockQueryClient{},
 			valSetGetter,
