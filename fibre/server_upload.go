@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
 	"github.com/celestiaorg/rsema1d"
@@ -108,31 +107,13 @@ func (s *Server) verifyPromise(ctx context.Context, promisePb *types.PaymentProm
 	if promise.BlobVersion != uint32(s.cfg.BlobVersion) {
 		return nil, nil, fmt.Errorf("blob version mismatch: expected %d, got %d", s.cfg.BlobVersion, promise.BlobVersion)
 	}
-	oldestAllowed := time.Now().UTC().Add(-s.cfg.PaymentPromiseTimeout)
-	if promise.CreationTimestamp.Before(oldestAllowed) {
-		return nil, nil, fmt.Errorf("payment promise expired: %s is before %s (timeout: %s)",
-			promise.CreationTimestamp.Format(time.RFC3339),
-			oldestAllowed.Format(time.RFC3339),
-			s.cfg.PaymentPromiseTimeout)
-	}
-	// use height of the latest valset to verify height in the promise
-	currentValSet, err := s.valGet.Head(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("getting current validator set: %w", err)
-	}
-	// calculate max height drift based on promise timeout and block time
-	maxHeightDrift := uint64(s.cfg.PaymentPromiseTimeout / s.cfg.BlockTime)
-	if currentValSet.Height > maxHeightDrift && promise.Height < currentValSet.Height-maxHeightDrift {
-		return nil, nil, fmt.Errorf("payment promise height too far in past: %d is before min allowed %d (current: %d, timeout: %s, block time: %s)",
-			promise.Height, currentValSet.Height-maxHeightDrift, currentValSet.Height, s.cfg.PaymentPromiseTimeout, s.cfg.BlockTime)
-	}
 
 	// stateless validation
 	if err := promise.Validate(); err != nil {
 		return nil, nil, fmt.Errorf("payment promise validation failed: %w", err)
 	}
 
-	// validate stateful constraints
+	// validate stateful constraints (includes timestamp expiration and height validation)
 	resp, err := s.queryClient.ValidatePaymentPromise(ctx, &types.QueryValidatePaymentPromiseRequest{
 		Promise: *promisePb,
 	})

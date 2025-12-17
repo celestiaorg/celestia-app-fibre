@@ -52,7 +52,7 @@ func (suite *KeeperTestSuite) SetupTest() {
 
 	mockBankKeeper := &MockBankKeeper{}
 	authority := authtypes.NewModuleAddress("gov").String()
-	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC()}, false, nil)
+	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC(), Height: 100}, false, nil)
 	mockStakingKeeper := &MockStakingKeeper{}
 	suite.keeper = keeper.NewKeeper(suite.cdc, storeKey, mockBankKeeper, mockStakingKeeper, authority)
 	suite.keeper.SetParams(suite.ctx, types.DefaultParams())
@@ -472,8 +472,10 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
 		paymentPromise.CreationTimestamp = suite.ctx.BlockTime().Add(1 * time.Hour)
 
 		// Validate should fail because creation timestamp is in the future
-		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		expirationTime, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
 		suite.NoError(err)
+		wantTime := paymentPromise.CreationTimestamp.Add(suite.keeper.GetParams(suite.ctx).PaymentPromiseTimeout)
+		suite.Equal(wantTime, expirationTime)
 	})
 
 	suite.T().Run("payment promise with timestamp before withdrawal delay should be rejected", func(t *testing.T) {
@@ -488,7 +490,7 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
 		paymentPromise.CreationTimestamp = currentTime.Add(-params.WithdrawalDelay).Add(-1 * time.Second)
 
 		// Validate should fail because creation timestamp is too old
-		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
 		suite.Error(err)
 		suite.Contains(err.Error(), "creation_timestamp")
 		suite.Contains(err.Error(), "must be greater than")

@@ -17,7 +17,7 @@ import (
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/pkg/user"
 	valaddrtypes "github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/go-square/v4/share"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"google.golang.org/grpc"

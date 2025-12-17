@@ -260,11 +260,8 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 	}
 
 	// Perform stateful validation
-	if err := k.ValidatePaymentPromiseStateful(ctx, promise); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := k.ValidatePaymentPromiseStateful(ctx, promise)
+	return err
 }
 
 func (k Keeper) ValidatePaymentPromiseStateless(ctx sdk.Context, promise *types.PaymentPromise) error {
@@ -312,30 +309,58 @@ func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Ti
 
 // ValidatePaymentPromiseStateful performs stateful validation of a payment promise.
 // It checks:
-// 1. The creation_timestamp is within valid bounds
-// 2. The payment promise has not already been processed
-// 3. The escrow account exists for the signer
-// 4. The escrow account has sufficient available balance
+// 1. The creation_timestamp is within valid bounds (not too old, not expired)
+// 2. The promise height is within acceptable range
+// 3. The payment promise has not already been processed
+// 4. The escrow account exists for the signer
+// 5. The escrow account has sufficient available balance
 //
 // This method does NOT perform stateless validation.
 // Callers should perform stateless validation separately via pp.Validate().
-func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) error {
+//
+// Returns the expiration time (creation_timestamp + PaymentPromiseTimeout) if validation succeeds.
+func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) (time.Time, error) {
 	// Validate creation_timestamp bounds
 	// Spec requirement: creation_timestamp <= current confirmed timestamp
 	// and creation_timestamp > (header_timestamp - withdrawal_delay)
 	params := k.GetParams(ctx)
 	currentTime := ctx.BlockTime()
+	currentHeight := ctx.BlockHeight()
 	creationTime := promise.CreationTimestamp
 
 	// Check creation_timestamp is not too old (must be greater than header_timestamp - withdrawal_delay)
 	minAllowedTime := currentTime.Add(-params.WithdrawalDelay)
 	if !creationTime.After(minAllowedTime) {
-		return fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
+		return time.Time{}, fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
+	}
+
+	// Calculate expiration time
+	expirationTime := creationTime.Add(params.PaymentPromiseTimeout)
+
+	// Check if payment promise has expired
+	if currentTime.After(expirationTime) || currentTime.Equal(expirationTime) {
+		return time.Time{}, fmt.Errorf("payment promise expired: creation_timestamp %v + timeout %v = %v, current_time: %v", creationTime, params.PaymentPromiseTimeout, expirationTime, currentTime)
+	}
+
+	// Validate height: promise height should not be in the future
+	if promise.Height > currentHeight {
+		return time.Time{}, fmt.Errorf("payment promise height %d is in the future (current height: %d)", promise.Height, currentHeight)
+	}
+
+	// Validate height: promise height should not be too far in the past
+	// Use a reasonable heuristic: if the promise is older than 2x the timeout period in blocks,
+	// it's likely too old. We use a conservative estimate of 1 block per 6 seconds.
+	// This is a safety check - the timestamp expiration check above is the primary validation.
+	// We allow up to 2x timeout period worth of blocks as a buffer.
+	estimatedBlocksPerTimeout := int64(params.PaymentPromiseTimeout.Seconds() / 6) // conservative: 6 seconds per block
+	maxHeightDrift := estimatedBlocksPerTimeout * 2                                // allow 2x timeout period
+	if currentHeight > maxHeightDrift && promise.Height < currentHeight-maxHeightDrift {
+		return time.Time{}, fmt.Errorf("payment promise height %d is too far in the past (current height: %d, max drift: %d)", promise.Height, currentHeight, maxHeightDrift)
 	}
 
 	// Check if payment promise has already been processed
 	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
-		return fmt.Errorf("payment promise has already been processed")
+		return time.Time{}, fmt.Errorf("payment promise has already been processed")
 	}
 
 	// Check escrow account exists
@@ -343,7 +368,7 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 	signerAddrStr := signerAddr.String()
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
 	if !found {
-		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
+		return time.Time{}, fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
 	}
 
 	// Check sufficient available balance
@@ -355,8 +380,84 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 
 	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
 	if !hasSufficientBalance {
-		return fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
+		return time.Time{}, fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
 	}
 
-	return nil
+	return expirationTime, nil
+}
+
+// ValidatePaymentPromiseStatefulForTimeout performs stateful validation of a payment promise for timeout processing.
+// It performs the same checks as ValidatePaymentPromiseStateful except it allows expired payment promises.
+// It checks:
+// 1. The creation_timestamp is within valid bounds (not too old)
+// 2. The promise height is within acceptable range
+// 3. The payment promise has not already been processed
+// 4. The escrow account exists for the signer
+// 5. The escrow account has sufficient available balance
+//
+// This method does NOT perform stateless validation.
+// Callers should perform stateless validation separately via pp.Validate().
+//
+// Returns the expiration time (creation_timestamp + PaymentPromiseTimeout) if validation succeeds.
+func (k Keeper) ValidatePaymentPromiseStatefulForTimeout(ctx sdk.Context, promise *types.PaymentPromise) (time.Time, error) {
+	// Validate creation_timestamp bounds
+	// Spec requirement: creation_timestamp > (header_timestamp - withdrawal_delay)
+	// Note: We allow expired promises for timeout processing, so we don't check expiration here
+	params := k.GetParams(ctx)
+	currentTime := ctx.BlockTime()
+	currentHeight := ctx.BlockHeight()
+	creationTime := promise.CreationTimestamp
+
+	// Check creation_timestamp is not too old (must be greater than header_timestamp - withdrawal_delay)
+	minAllowedTime := currentTime.Add(-params.WithdrawalDelay)
+	if !creationTime.After(minAllowedTime) {
+		return time.Time{}, fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
+	}
+
+	// Calculate expiration time
+	expirationTime := creationTime.Add(params.PaymentPromiseTimeout)
+
+	// Note: We skip the expiration check here because we want to process expired promises
+
+	// Validate height: promise height should not be in the future
+	if promise.Height > currentHeight {
+		return time.Time{}, fmt.Errorf("payment promise height %d is in the future (current height: %d)", promise.Height, currentHeight)
+	}
+
+	// Validate height: promise height should not be too far in the past
+	// Use a reasonable heuristic: if the promise is older than 2x the timeout period in blocks,
+	// it's likely too old. We use a conservative estimate of 1 block per 6 seconds.
+	// We allow up to 2x timeout period worth of blocks as a buffer.
+	estimatedBlocksPerTimeout := int64(params.PaymentPromiseTimeout.Seconds() / 6) // conservative: 6 seconds per block
+	maxHeightDrift := estimatedBlocksPerTimeout * 2                                // allow 2x timeout period
+	if currentHeight > maxHeightDrift && promise.Height < currentHeight-maxHeightDrift {
+		return time.Time{}, fmt.Errorf("payment promise height %d is too far in the past (current height: %d, max drift: %d)", promise.Height, currentHeight, maxHeightDrift)
+	}
+
+	// Check if payment promise has already been processed
+	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
+		return time.Time{}, fmt.Errorf("payment promise has already been processed")
+	}
+
+	// Check escrow account exists
+	signerAddr := sdk.AccAddress(promise.SignerPublicKey.Address())
+	signerAddrStr := signerAddr.String()
+	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
+	if !found {
+		return time.Time{}, fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
+	}
+
+	// Check sufficient available balance
+	gasRequired := uint64(promise.BlobSize) * uint64(params.GasPerBlobByte)
+
+	// TODO: This assumes 1 gas = 1 utia but the minimum gas price could be
+	// different.
+	requiredAmount := sdk.NewCoin("utia", math.NewInt(int64(gasRequired)))
+
+	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
+	if !hasSufficientBalance {
+		return time.Time{}, fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
+	}
+
+	return expirationTime, nil
 }
