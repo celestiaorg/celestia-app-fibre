@@ -299,8 +299,7 @@ func (m *mockQueryClient) ValidatePaymentPromise(ctx context.Context, in *types.
 
 	// Check if payment promise has expired
 	if currentTime.After(expirationTime) || currentTime.Equal(expirationTime) {
-		return nil, fmt.Errorf("payment promise expired: creation_timestamp %v + timeout %v = %v, current_time: %v",
-			in.Promise.CreationTimestamp, 1*time.Hour, expirationTime, currentTime)
+		return nil, fmt.Errorf("payment promise expired: creation_timestamp %v + timeout %v = %v, current_time: %v", in.Promise.CreationTimestamp, 1*time.Hour, expirationTime, currentTime)
 	}
 
 	return &types.QueryValidatePaymentPromiseResponse{
