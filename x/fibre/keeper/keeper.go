@@ -312,7 +312,6 @@ func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Ti
 func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise *types.PaymentPromise, allowExpired bool) (time.Time, error) {
 	params := k.GetParams(ctx)
 	currentTime := ctx.BlockTime()
-	currentHeight := ctx.BlockHeight()
 	creationTime := promise.CreationTimestamp
 
 	// Check creation_timestamp is not too old (must be greater than header_timestamp - withdrawal_delay)
@@ -329,22 +328,6 @@ func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise 
 		if currentTime.After(expirationTime) || currentTime.Equal(expirationTime) {
 			return time.Time{}, fmt.Errorf("payment promise expired: creation_timestamp %v + timeout %v = %v, current_time: %v", creationTime, params.PaymentPromiseTimeout, expirationTime, currentTime)
 		}
-	}
-
-	// Validate height: promise height should not be in the future
-	if promise.Height > currentHeight {
-		return time.Time{}, fmt.Errorf("payment promise height %d is in the future (current height: %d)", promise.Height, currentHeight)
-	}
-
-	// Validate height: promise height should not be too far in the past
-	// Use a reasonable heuristic: if the promise is older than 2x the timeout period in blocks,
-	// it's likely too old. We use a conservative estimate of 1 block per 6 seconds.
-	// This is a safety check - the timestamp expiration check above is the primary validation.
-	// We allow up to 2x timeout period worth of blocks as a buffer.
-	estimatedBlocksPerTimeout := int64(params.PaymentPromiseTimeout.Seconds() / 6) // conservative: 6 seconds per block
-	maxHeightDrift := estimatedBlocksPerTimeout * 2                                // allow 2x timeout period
-	if currentHeight > maxHeightDrift && promise.Height < currentHeight-maxHeightDrift {
-		return time.Time{}, fmt.Errorf("payment promise height %d is too far in the past (current height: %d, max drift: %d)", promise.Height, currentHeight, maxHeightDrift)
 	}
 
 	// Check if payment promise has already been processed

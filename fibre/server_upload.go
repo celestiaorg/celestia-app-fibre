@@ -113,7 +113,7 @@ func (s *Server) verifyPromise(ctx context.Context, promisePb *types.PaymentProm
 		return nil, nil, fmt.Errorf("payment promise validation failed: %w", err)
 	}
 
-	// validate stateful constraints (includes timestamp expiration and height validation)
+	// validate stateful constraints
 	resp, err := s.queryClient.ValidatePaymentPromise(ctx, &types.QueryValidatePaymentPromiseRequest{
 		Promise: *promisePb,
 	})
