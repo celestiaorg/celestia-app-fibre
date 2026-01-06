@@ -15,6 +15,7 @@ var (
 	KeyWithdrawalDelay               = []byte("WithdrawalDelay")
 	KeyPaymentPromiseTimeout         = []byte("PaymentPromiseTimeout")
 	KeyPaymentPromiseRetentionWindow = []byte("PaymentPromiseRetentionWindow")
+	KeyPaymentPromiseHeightWindow    = []byte("PaymentPromiseHeightWindow")
 
 	// DefaultGasPerBlobByte is the initial value of the gas per blob byte parameter.
 	DefaultGasPerBlobByte uint32 = 1
@@ -24,6 +25,8 @@ var (
 	DefaultPaymentPromiseTimeout = 1 * time.Hour
 	// DefaultPaymentPromiseRetentionWindow is the initial value of the payment promise retention window parameter.
 	DefaultPaymentPromiseRetentionWindow = 24 * time.Hour
+	// DefaultPaymentPromiseHeightWindow is the initial value of the payment promise height window parameter.
+	DefaultPaymentPromiseHeightWindow uint64 = 1000
 )
 
 // ParamKeyTable returns the param key table for the fibre module
@@ -32,18 +35,19 @@ func ParamKeyTable() paramtypes.KeyTable {
 }
 
 // NewParams creates a new Params instance
-func NewParams(gasPerBlobByte uint32, withdrawalDelay, paymentPromiseTimeout, paymentPromiseRetentionWindow time.Duration) Params {
+func NewParams(gasPerBlobByte uint32, withdrawalDelay, paymentPromiseTimeout, paymentPromiseRetentionWindow time.Duration, paymentPromiseHeightWindow uint64) Params {
 	return Params{
 		GasPerBlobByte:                gasPerBlobByte,
 		WithdrawalDelay:               withdrawalDelay,
 		PaymentPromiseTimeout:         paymentPromiseTimeout,
 		PaymentPromiseRetentionWindow: paymentPromiseRetentionWindow,
+		PaymentPromiseHeightWindow:    paymentPromiseHeightWindow,
 	}
 }
 
 // DefaultParams returns a default set of parameters
 func DefaultParams() Params {
-	return NewParams(DefaultGasPerBlobByte, DefaultWithdrawalDelay, DefaultPaymentPromiseTimeout, DefaultPaymentPromiseRetentionWindow)
+	return NewParams(DefaultGasPerBlobByte, DefaultWithdrawalDelay, DefaultPaymentPromiseTimeout, DefaultPaymentPromiseRetentionWindow, DefaultPaymentPromiseHeightWindow)
 }
 
 // ParamSetPairs gets the list of param key-value pairs
@@ -53,6 +57,7 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 		paramtypes.NewParamSetPair(KeyWithdrawalDelay, &p.WithdrawalDelay, validateWithdrawalDelay),
 		paramtypes.NewParamSetPair(KeyPaymentPromiseTimeout, &p.PaymentPromiseTimeout, validatePaymentPromiseTimeout),
 		paramtypes.NewParamSetPair(KeyPaymentPromiseRetentionWindow, &p.PaymentPromiseRetentionWindow, validatePaymentPromiseRetentionWindow),
+		paramtypes.NewParamSetPair(KeyPaymentPromiseHeightWindow, &p.PaymentPromiseHeightWindow, validatePaymentPromiseHeightWindow),
 	}
 }
 
@@ -68,6 +73,9 @@ func (p Params) Validate() error {
 		return err
 	}
 	if err := validatePaymentPromiseRetentionWindow(&p.PaymentPromiseRetentionWindow); err != nil {
+		return err
+	}
+	if err := validatePaymentPromiseHeightWindow(p.PaymentPromiseHeightWindow); err != nil {
 		return err
 	}
 	return nil
@@ -142,6 +150,20 @@ func validatePaymentPromiseRetentionWindow(v any) error {
 
 	if *duration <= 0 {
 		return fmt.Errorf("payment promise retention window must be positive: %s", *duration)
+	}
+
+	return nil
+}
+
+// validatePaymentPromiseHeightWindow validates the PaymentPromiseHeightWindow param
+func validatePaymentPromiseHeightWindow(v any) error {
+	heightWindow, ok := v.(uint64)
+	if !ok {
+		return fmt.Errorf("invalid parameter type: %T", v)
+	}
+
+	if heightWindow == 0 {
+		return fmt.Errorf("payment promise height window cannot be 0")
 	}
 
 	return nil

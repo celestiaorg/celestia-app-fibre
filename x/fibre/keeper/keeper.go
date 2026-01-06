@@ -309,7 +309,7 @@ func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Ti
 
 // validatePaymentPromiseStatefulInternal performs the core stateful validation logic.
 // The allowExpired parameter controls whether expired payment promises are allowed.
-func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise *types.PaymentPromise, allowExpired bool) (time.Time, error) {
+func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise *types.PaymentPromise, isTimeout bool) (time.Time, error) {
 	params := k.GetParams(ctx)
 	currentTime := ctx.BlockTime()
 	creationTime := promise.CreationTimestamp
@@ -320,13 +320,27 @@ func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise 
 		return time.Time{}, fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
 	}
 
-	// Calculate expiration time
 	expirationTime := creationTime.Add(params.PaymentPromiseTimeout)
-
-	// Check if payment promise has expired (unless expired promises are allowed)
-	if !allowExpired {
+	// Expiration time validation only applies to normal flow (not timeout mechanism)
+	if !isTimeout {
 		if currentTime.After(expirationTime) || currentTime.Equal(expirationTime) {
 			return time.Time{}, fmt.Errorf("payment promise expired: creation_timestamp %v + timeout %v = %v, current_time: %v", creationTime, params.PaymentPromiseTimeout, expirationTime, currentTime)
+		}
+	}
+
+	// Height validation only applies to normal flow (not timeout mechanism)
+	if !isTimeout {
+		currentHeight := ctx.BlockHeight()
+		promiseHeight := int64(promise.Height)
+
+		// Validate height is not too far in the past
+		if currentHeight-promiseHeight > int64(params.PaymentPromiseHeightWindow) {
+			return time.Time{}, fmt.Errorf("payment promise height %d is too far in the past (current height: %d, max window: %d)", promiseHeight, currentHeight, params.PaymentPromiseHeightWindow)
+		}
+
+		// Validate height is not too far in the future (allow up to 1 block ahead)
+		if promiseHeight > currentHeight+1 {
+			return time.Time{}, fmt.Errorf("payment promise height %d is too far in the future (current height: %d, max allowed: %d)", promiseHeight, currentHeight, currentHeight+1)
 		}
 	}
 

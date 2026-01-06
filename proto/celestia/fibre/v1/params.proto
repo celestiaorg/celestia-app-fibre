@@ -25,4 +25,5 @@ message Params {
     (gogoproto.stdduration) = true,
     (gogoproto.nullable) = false
   ];
+  uint64 payment_promise_height_window = 5 [(gogoproto.moretags) = "yaml:\"payment_promise_height_window\""];
 }
