@@ -308,7 +308,8 @@ func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Ti
 }
 
 // validatePaymentPromiseStatefulInternal performs the core stateful validation logic.
-// The allowExpired parameter controls whether expired payment promises are allowed.
+// The isTimeout parameter indicates whether this is being called for timeout processing,
+// which skips expiration and height validation to allow processing older promises.
 func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise *types.PaymentPromise, isTimeout bool) (time.Time, error) {
 	params := k.GetParams(ctx)
 	currentTime := ctx.BlockTime()
@@ -379,18 +380,19 @@ func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise 
 //
 // Returns the expiration time if validation succeeds.
 func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) (time.Time, error) {
-	allowExpired := false
-	return k.validatePaymentPromiseStatefulInternal(ctx, promise, allowExpired)
+	isTimeout := false
+	return k.validatePaymentPromiseStatefulInternal(ctx, promise, isTimeout)
 }
 
 // ValidatePaymentPromiseStatefulForTimeout performs stateful validation of a payment promise for timeout processing.
-// It performs the same checks as ValidatePaymentPromiseStateful except it allows expired payment promises.
+// It performs the same checks as ValidatePaymentPromiseStateful except it skips expiration and height validation
+// to allow processing older promises that may be outside the normal validation windows.
 //
 // This method does NOT perform stateless validation.
 // Callers should perform stateless validation separately via pp.Validate().
 //
 // Returns the expiration time if validation succeeds.
 func (k Keeper) ValidatePaymentPromiseStatefulForTimeout(ctx sdk.Context, promise *types.PaymentPromise) (time.Time, error) {
-	allowExpired := true
-	return k.validatePaymentPromiseStatefulInternal(ctx, promise, allowExpired)
+	isTimeout := true
+	return k.validatePaymentPromiseStatefulInternal(ctx, promise, isTimeout)
 }
