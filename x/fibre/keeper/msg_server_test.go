@@ -566,6 +566,7 @@ func (suite *MsgServerTestSuite) TestUpdateFibreParams() {
 			72*time.Hour, // WithdrawalDelay
 			3*time.Hour,  // PaymentPromiseTimeout
 			96*time.Hour, // PaymentPromiseRetentionWindow
+			2000,         // PaymentPromiseHeightWindow
 		)
 
 		msg := &types.MsgUpdateFibreParams{

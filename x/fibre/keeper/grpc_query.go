@@ -99,8 +99,12 @@ func (k Keeper) ValidatePaymentPromise(c context.Context, req *types.QueryValida
 	// Perform stateful verification only
 	// Note: Stateless validation (signature, format checks) should be done by the caller
 	// before making this query, as it doesn't require state access
-	if err := k.ValidatePaymentPromiseStateful(ctx, &req.Promise); err != nil {
+	expirationTime, err := k.ValidatePaymentPromiseStateful(ctx, &req.Promise)
+	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &types.QueryValidatePaymentPromiseResponse{IsValid: true}, nil
+	return &types.QueryValidatePaymentPromiseResponse{
+		IsValid:        true,
+		ExpirationTime: &expirationTime,
+	}, nil
 }
