@@ -91,7 +91,7 @@ deleteCelestiaAppHome() {
 }
 
 registerFibreProviderInfo() {
-  sleep 3
+  sleep 10
   echo "Registering Fibre provider info..."
   celestia-appd tx valaddr set-host "${FIBRE_HOST}" \
       --from "${KEY_NAME}" \
@@ -101,7 +101,7 @@ registerFibreProviderInfo() {
       --fees "${FEES}" \
       --yes
 
-  sleep 3
+  sleep 7
   echo "Querying Fibre provider info..."
   celestia-appd query valaddr providers --home "${APP_HOME}" --output json
 }
@@ -113,7 +113,7 @@ startCelestiaApp() {
     --api.enable \
     --grpc.enable \
     --grpc-web.enable \
-    --delayed-precommit-timeout 1s &
+    --delayed-precommit-timeout 6s &
 
   CELESTIA_APP_PID=$!
   echo "celestia-appd started with PID: ${CELESTIA_APP_PID}"
