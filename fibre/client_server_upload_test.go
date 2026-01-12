@@ -45,11 +45,7 @@ func TestClientServerUpload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			env := makeTestEnv(t, tt.numValidators, tt.numClients, func(cfg *fibre.ClientConfig) {
-				// ensure all validators receive rows by setting target signatures to 100%
-				cfg.UploadTargetSignaturesCount.Numerator = 1
-				cfg.UploadTargetSignaturesCount.Denominator = 1
-			}, nil)
+			env := makeTestEnv(t, tt.numValidators, tt.numClients, func(cfg *fibre.ClientConfig) {}, nil)
 			defer env.Close()
 
 			totalBlobs := tt.numClients * tt.blobsPerClient

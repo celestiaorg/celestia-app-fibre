@@ -342,7 +342,7 @@ func (ms msgServer) validateValidatorSignatures(ctx sdk.Context, signBytes []byt
 
 	// Create signature set with 2/3+ thresholds
 	twoThirds := cmtmath.Fraction{Numerator: 2, Denominator: 3}
-	sigSet := valSet.NewSignatureSet(twoThirds, twoThirds, validatorSignBytes)
+	sigSet := valSet.NewSignatureSet(twoThirds, validatorSignBytes)
 
 	// Add all provided signatures to the signature set
 	for i, signature := range signatures {

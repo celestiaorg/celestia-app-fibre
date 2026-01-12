@@ -40,8 +40,6 @@ type ClientConfig struct {
 
 	// UploadTargetVotingPower is the fraction (e.g., 2/3) of total voting power required for Upload operations.
 	UploadTargetVotingPower cmtmath.Fraction
-	// UploadTargetSignaturesCount is the fraction (e.g., 2/3) of total signature count required for Upload operations.
-	UploadTargetSignaturesCount cmtmath.Fraction
 	// UploadConcurrency is the maximum number of concurrent uploads to validators.
 	UploadConcurrency int
 	// DownloadConcurrency is the maximum number of concurrent read requests to validators.
@@ -64,13 +62,12 @@ type ClientConfig struct {
 // DefaultClientConfig returns a [ClientConfig] with the default values.
 func DefaultClientConfig() ClientConfig {
 	return ClientConfig{
-		DefaultKeyName:              DefaultKeyName,
-		ChainID:                     "celestia",
-		BlobConfig:                  DefaultBlobConfigV0(),
-		UploadTargetVotingPower:     cmtmath.Fraction{Numerator: 2, Denominator: 3},
-		UploadTargetSignaturesCount: cmtmath.Fraction{Numerator: 2, Denominator: 3},
-		UploadConcurrency:           100, // matches expected number of validators to maximize throughput by default
-		DownloadConcurrency:         25,  // 1/4 of validators to match 1/3 erasure coding overhead and request the minimum number of samples to get the data
+		DefaultKeyName:          DefaultKeyName,
+		ChainID:                 "celestia",
+		BlobConfig:              DefaultBlobConfigV0(),
+		UploadTargetVotingPower: cmtmath.Fraction{Numerator: 2, Denominator: 3},
+		UploadConcurrency:       100, // matches expected number of validators to maximize throughput by default
+		DownloadConcurrency:     25,  // 1/4 of validators to match 1/3 erasure coding overhead and request the minimum number of samples to get the data
 	}
 }
 
