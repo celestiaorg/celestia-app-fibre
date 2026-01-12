@@ -32,9 +32,6 @@ const (
 	TimeoutPrecommitDelta = time.Millisecond * 500
 	TimeoutCommit         = time.Millisecond
 	// DelayedPrecommitTimeout is the timeout for the delayed precommit.
-	//
-	// If the target block time changes, update
-	// fibre.DefaultServerConfig().BlockTime accordingly.
 	DelayedPrecommitTimeout = time.Millisecond * 5850
 
 	// TestUpgradeHeightDelay is the number of blocks that chain-id "test" waits

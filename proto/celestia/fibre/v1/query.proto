@@ -94,4 +94,5 @@ message QueryValidatePaymentPromiseRequest {
 // QueryValidatePaymentPromiseResponse is the response type for the Query/ValidatePaymentPromise RPC method.
 message QueryValidatePaymentPromiseResponse {
   bool is_valid = 1;
+  google.protobuf.Timestamp expiration_time = 2 [(gogoproto.stdtime) = true];
 }

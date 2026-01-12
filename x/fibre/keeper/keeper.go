@@ -260,11 +260,8 @@ func (k Keeper) ValidatePaymentPromiseInternal(ctx sdk.Context, promise *types.P
 	}
 
 	// Perform stateful validation
-	if err := k.ValidatePaymentPromiseStateful(ctx, promise); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := k.ValidatePaymentPromiseStateful(ctx, promise)
+	return err
 }
 
 func (k Keeper) ValidatePaymentPromiseStateless(ctx sdk.Context, promise *types.PaymentPromise) error {
@@ -310,19 +307,10 @@ func (k Keeper) ParseProcessedPaymentsByTimeKey(key []byte) (processedAt time.Ti
 	return processedAt, paymentPromiseHash, nil
 }
 
-// ValidatePaymentPromiseStateful performs stateful validation of a payment promise.
-// It checks:
-// 1. The creation_timestamp is within valid bounds
-// 2. The payment promise has not already been processed
-// 3. The escrow account exists for the signer
-// 4. The escrow account has sufficient available balance
-//
-// This method does NOT perform stateless validation.
-// Callers should perform stateless validation separately via pp.Validate().
-func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) error {
-	// Validate creation_timestamp bounds
-	// Spec requirement: creation_timestamp <= current confirmed timestamp
-	// and creation_timestamp > (header_timestamp - withdrawal_delay)
+// validatePaymentPromiseStatefulInternal performs the core stateful validation logic.
+// The isTimeout parameter indicates whether this is being called for timeout processing,
+// which skips expiration and height validation to allow processing older promises.
+func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise *types.PaymentPromise, isTimeout bool) (time.Time, error) {
 	params := k.GetParams(ctx)
 	currentTime := ctx.BlockTime()
 	creationTime := promise.CreationTimestamp
@@ -330,12 +318,36 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 	// Check creation_timestamp is not too old (must be greater than header_timestamp - withdrawal_delay)
 	minAllowedTime := currentTime.Add(-params.WithdrawalDelay)
 	if !creationTime.After(minAllowedTime) {
-		return fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
+		return time.Time{}, fmt.Errorf("creation_timestamp %v must be greater than %v (current_time - withdrawal_delay)", creationTime, minAllowedTime)
+	}
+
+	expirationTime := creationTime.Add(params.PaymentPromiseTimeout)
+	// Expiration time validation only applies to normal flow (not timeout mechanism)
+	if !isTimeout {
+		if currentTime.After(expirationTime) || currentTime.Equal(expirationTime) {
+			return time.Time{}, fmt.Errorf("payment promise expired: creation_timestamp %v + timeout %v = %v, current_time: %v", creationTime, params.PaymentPromiseTimeout, expirationTime, currentTime)
+		}
+	}
+
+	// Height validation only applies to normal flow (not timeout mechanism)
+	if !isTimeout {
+		currentHeight := ctx.BlockHeight()
+		promiseHeight := int64(promise.Height)
+
+		// Validate height is not too far in the past
+		if currentHeight-promiseHeight > int64(params.PaymentPromiseHeightWindow) {
+			return time.Time{}, fmt.Errorf("payment promise height %d is too far in the past (current height: %d, max window: %d)", promiseHeight, currentHeight, params.PaymentPromiseHeightWindow)
+		}
+
+		// Validate height is not too far in the future (allow up to 1 block ahead)
+		if promiseHeight > currentHeight+1 {
+			return time.Time{}, fmt.Errorf("payment promise height %d is too far in the future (current height: %d, max allowed: %d)", promiseHeight, currentHeight, currentHeight+1)
+		}
 	}
 
 	// Check if payment promise has already been processed
 	if isAlreadyProcessed := k.IsPaymentPromiseProcessed(ctx, promise); isAlreadyProcessed {
-		return fmt.Errorf("payment promise has already been processed")
+		return time.Time{}, fmt.Errorf("payment promise has already been processed")
 	}
 
 	// Check escrow account exists
@@ -343,7 +355,7 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 	signerAddrStr := signerAddr.String()
 	escrowAccount, found := k.GetEscrowAccount(ctx, signerAddrStr)
 	if !found {
-		return fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
+		return time.Time{}, fmt.Errorf("escrow account not found for signer %v", signerAddrStr)
 	}
 
 	// Check sufficient available balance
@@ -355,8 +367,32 @@ func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.P
 
 	hasSufficientBalance := escrowAccount.AvailableBalance.IsGTE(requiredAmount)
 	if !hasSufficientBalance {
-		return fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
+		return time.Time{}, fmt.Errorf("insufficient balance in escrow account. required: %v, available: %v", requiredAmount, escrowAccount.AvailableBalance)
 	}
 
-	return nil
+	return expirationTime, nil
+}
+
+// ValidatePaymentPromiseStateful performs stateful validation of a payment promise.
+//
+// This method does NOT perform stateless validation.
+// Callers should perform stateless validation separately via pp.Validate().
+//
+// Returns the expiration time if validation succeeds.
+func (k Keeper) ValidatePaymentPromiseStateful(ctx sdk.Context, promise *types.PaymentPromise) (time.Time, error) {
+	isTimeout := false
+	return k.validatePaymentPromiseStatefulInternal(ctx, promise, isTimeout)
+}
+
+// ValidatePaymentPromiseStatefulForTimeout performs stateful validation of a payment promise for timeout processing.
+// It performs the same checks as ValidatePaymentPromiseStateful except it skips expiration and height validation
+// to allow processing older promises that may be outside the normal validation windows.
+//
+// This method does NOT perform stateless validation.
+// Callers should perform stateless validation separately via pp.Validate().
+//
+// Returns the expiration time if validation succeeds.
+func (k Keeper) ValidatePaymentPromiseStatefulForTimeout(ctx sdk.Context, promise *types.PaymentPromise) (time.Time, error) {
+	isTimeout := true
+	return k.validatePaymentPromiseStatefulInternal(ctx, promise, isTimeout)
 }

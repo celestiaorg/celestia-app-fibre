@@ -109,6 +109,8 @@ func startCommandHandler(
 		if err != nil {
 			return fmt.Errorf("failed to start Fibre server: %w", err)
 		}
+		fibreServer.Start()
+
 		maxMsgSize := fibre.MaxMessageSize(serverConfig.BlobConfig)
 		svrCfg.GRPC.MaxRecvMsgSize = maxMsgSize
 		svrCfg.GRPC.MaxSendMsgSize = maxMsgSize

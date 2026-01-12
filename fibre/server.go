@@ -1,9 +1,9 @@
 package fibre
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	fibregrpc "github.com/celestiaorg/celestia-app/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
@@ -20,8 +20,6 @@ import (
 type ServerConfig struct {
 	// ChainID is the chain identifier for domain separation in [PaymentPromise] validation.
 	ChainID string
-	// BlockTime is the expected block time for calculating height-based timeouts.
-	BlockTime time.Duration
 
 	BlobConfig
 	StoreConfig
@@ -38,7 +36,6 @@ type ServerConfig struct {
 func DefaultServerConfig() ServerConfig {
 	return ServerConfig{
 		ChainID:     "celestia",
-		BlockTime:   time.Second * 6,
 		BlobConfig:  DefaultBlobConfigV0(),
 		StoreConfig: DefaultStoreConfig(),
 	}
@@ -60,6 +57,8 @@ type Server struct {
 
 	log    *slog.Logger
 	tracer trace.Tracer
+
+	cancel context.CancelFunc
 }
 
 // NewServer creates a new Fibre [Server] with default Badger store backend.
@@ -164,8 +163,19 @@ func (s *Server) Store() *Store {
 	return s.store
 }
 
-// Stop stops the server.
+// Start starts background routines for the server.
+// It should be called after the server is created. Use [Stop] to stop the background routines.
+func (s *Server) Start() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	go s.startPruneLoop(ctx)
+}
+
+// Stop stops the server and its background routines.
 // NOTE: It is not a graceful shutdown as it doesn't await for pending requests to complete.
 func (s *Server) Stop() error {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	return s.store.Close()
 }

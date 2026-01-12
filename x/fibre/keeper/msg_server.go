@@ -136,7 +136,8 @@ func (ms msgServer) PayForFibre(goCtx context.Context, msg *types.MsgPayForFibre
 	}
 
 	// Perform stateful verification (escrow account, balance, not already processed)
-	if err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise); err != nil {
+	_, err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise)
+	if err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise stateful verification failed: %s", err)
 	}
 
@@ -213,16 +214,16 @@ func (ms msgServer) PaymentPromiseTimeout(goCtx context.Context, msg *types.MsgP
 	}
 
 	// Perform stateful verification (escrow account, balance, not already processed)
-	if err := ms.ValidatePaymentPromiseStateful(ctx, &msg.PaymentPromise); err != nil {
+	// Use ValidatePaymentPromiseStatefulForTimeout which allows expired promises
+	expirationTime, err := ms.ValidatePaymentPromiseStatefulForTimeout(ctx, &msg.PaymentPromise)
+	if err != nil {
 		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise stateful verification failed: %s", err)
 	}
 
 	// Check if timeout period has passed
-	params := ms.GetParams(ctx)
-	timeoutDeadline := msg.PaymentPromise.CreationTimestamp.Add(params.PaymentPromiseTimeout)
-
-	if ctx.BlockTime().Before(timeoutDeadline) {
-		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has not yet timed out. Timeout at: %s, current time: %s", timeoutDeadline, ctx.BlockTime())
+	currentTime := ctx.BlockTime()
+	if currentTime.Before(expirationTime) {
+		return nil, errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "payment promise has not yet timed out. Timeout at: %s, current time: %s", expirationTime, currentTime)
 	}
 
 	// Calculate payment amount based on blob size and gas per byte (same as PayForFibre)

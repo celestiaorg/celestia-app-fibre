@@ -52,7 +52,7 @@ func (suite *KeeperTestSuite) SetupTest() {
 
 	mockBankKeeper := &MockBankKeeper{}
 	authority := authtypes.NewModuleAddress("gov").String()
-	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC()}, false, nil)
+	suite.ctx = sdk.NewContext(stateStore, cmtproto.Header{Time: time.Now().UTC(), Height: 100}, false, nil)
 	mockStakingKeeper := &MockStakingKeeper{}
 	suite.keeper = keeper.NewKeeper(suite.cdc, storeKey, mockBankKeeper, mockStakingKeeper, authority)
 	suite.keeper.SetParams(suite.ctx, types.DefaultParams())
@@ -70,6 +70,7 @@ func (suite *KeeperTestSuite) TestSetGetParams() {
 			48*time.Hour, // WithdrawalDelay
 			2*time.Hour,  // PaymentPromiseTimeout
 			48*time.Hour, // PaymentPromiseRetentionWindow
+			2000,         // PaymentPromiseHeightWindow
 		)
 		suite.keeper.SetParams(suite.ctx, want)
 		got := suite.keeper.GetParams(suite.ctx)
@@ -472,8 +473,10 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
 		paymentPromise.CreationTimestamp = suite.ctx.BlockTime().Add(1 * time.Hour)
 
 		// Validate should fail because creation timestamp is in the future
-		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		expirationTime, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
 		suite.NoError(err)
+		wantTime := paymentPromise.CreationTimestamp.Add(suite.keeper.GetParams(suite.ctx).PaymentPromiseTimeout)
+		suite.Equal(wantTime, expirationTime)
 	})
 
 	suite.T().Run("payment promise with timestamp before withdrawal delay should be rejected", func(t *testing.T) {
@@ -488,11 +491,93 @@ func (suite *KeeperTestSuite) TestValidatePaymentPromiseStateful() {
 		paymentPromise.CreationTimestamp = currentTime.Add(-params.WithdrawalDelay).Add(-1 * time.Second)
 
 		// Validate should fail because creation timestamp is too old
-		err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
 		suite.Error(err)
 		suite.Contains(err.Error(), "creation_timestamp")
 		suite.Contains(err.Error(), "must be greater than")
 		suite.Contains(err.Error(), "current_time - withdrawal_delay")
+	})
+
+	suite.T().Run("payment promise with height within window should be accepted", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		currentHeight := suite.ctx.BlockHeight()
+		// Set height to be within the window (e.g., 50 blocks back)
+		paymentPromise.Height = currentHeight - 50
+
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.NoError(err)
+	})
+
+	suite.T().Run("payment promise with height too far in past should be rejected", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		params := suite.keeper.GetParams(suite.ctx)
+		currentHeight := suite.ctx.BlockHeight()
+		// Set height to be beyond the window
+		paymentPromise.Height = currentHeight - int64(params.PaymentPromiseHeightWindow) - 1
+
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "too far in the past")
+	})
+
+	suite.T().Run("payment promise with height more than 1 block ahead should be rejected", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		currentHeight := suite.ctx.BlockHeight()
+		// Set height to be 2 blocks ahead
+		paymentPromise.Height = currentHeight + 2
+
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.Error(err)
+		suite.Contains(err.Error(), "too far in the future")
+	})
+
+	suite.T().Run("payment promise with height exactly at currentHeight + 1 should be accepted", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		currentHeight := suite.ctx.BlockHeight()
+		// Set height to be exactly 1 block ahead
+		paymentPromise.Height = currentHeight + 1
+
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.NoError(err)
+	})
+
+	suite.T().Run("payment promise with height at currentHeight should be accepted", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		currentHeight := suite.ctx.BlockHeight()
+		// Set height to be exactly at current height
+		paymentPromise.Height = currentHeight
+
+		_, err := suite.keeper.ValidatePaymentPromiseStateful(suite.ctx, &paymentPromise)
+		suite.NoError(err)
+	})
+}
+
+func (suite *KeeperTestSuite) TestValidatePaymentPromiseStatefulForTimeout() {
+	suite.T().Run("timeout mechanism should accept promise height outside window", func(t *testing.T) {
+		paymentPromise := suite.createPaymentPromise()
+		suite.createEscrowAccount(paymentPromise)
+
+		params := suite.keeper.GetParams(suite.ctx)
+		currentHeight := suite.ctx.BlockHeight()
+		// Set height to be far beyond the window
+		paymentPromise.Height = currentHeight - int64(params.PaymentPromiseHeightWindow) - 100
+
+		// Set creation timestamp to be old enough that it's expired
+		paymentPromise.CreationTimestamp = suite.ctx.BlockTime().Add(-params.PaymentPromiseTimeout).Add(-1 * time.Hour)
+
+		// ValidatePaymentPromiseStatefulForTimeout should accept it (height validation is skipped)
+		_, err := suite.keeper.ValidatePaymentPromiseStatefulForTimeout(suite.ctx, &paymentPromise)
+		suite.NoError(err)
 	})
 }
 
