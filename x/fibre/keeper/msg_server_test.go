@@ -18,7 +18,6 @@ import (
 	"github.com/celestiaorg/go-square/v4/share"
 	"github.com/cometbft/cometbft/crypto/ed25519"
 	cmtproto "github.com/cometbft/cometbft/proto/tendermint/types"
-	core "github.com/cometbft/cometbft/types"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/codec"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
@@ -679,11 +678,8 @@ func (suite *MsgServerTestSuite) generateValidatorSignatures(paymentPromise *typ
 	err := pp.FromProto(paymentPromise)
 	suite.NoError(err)
 
-	signBytes, err := pp.SignBytes()
-	suite.NoError(err)
-
 	// Prepare validator sign bytes with domain separation (same as validation code)
-	validatorSignBytes, err := core.RawBytesMessageSignBytes(paymentPromise.ChainId, fibre.SignBytesPrefix, signBytes)
+	validatorSignBytes, err := pp.SignBytesValidator()
 	suite.NoError(err)
 
 	// Get validator key
