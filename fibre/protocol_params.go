@@ -55,21 +55,17 @@ type ProtocolParams struct {
 
 // DefaultProtocolParams contains the default protocol parameters for version 0.
 var DefaultProtocolParams = ProtocolParams{
-	// Erasure coding: 2^12 original rows, 3x parity (12288 parity rows, 16384 total)
-	Rows:          1 << 12,
-	EncodingRatio: 0.25,
+	Rows:          1 << 12, // 4096 original rows
+	EncodingRatio: 0.25,    // 3x parity (12288 parity rows, 16384 total)
 
-	// Network: 100 validators
 	MaxValidatorCount: 100,
 
-	// Security: 100 bits, 2/3 safety, 1/3 liveness
 	UniqueDecodingSecurityBits: 100,
 	SafetyThreshold:            cmtmath.Fraction{Numerator: 2, Denominator: 3},
 	LivenessThreshold:          cmtmath.Fraction{Numerator: 1, Denominator: 3},
 
-	// Size: 128 MiB max blob s(2^27), 64 byte minimum row size
-	MaxBlobSize: 1 << 27,
-	MinRowSize:  1 << 6,
+	MaxBlobSize: 1 << 27, // 128 MiB
+	MinRowSize:  1 << 6,  // 64 byte
 }
 
 func init() {
