@@ -71,7 +71,7 @@ func (s *Server) UploadShard(ctx context.Context, req *types.UploadShardRequest)
 	span.AddEvent("shard_stored")
 
 	// sign the payment promise
-	signature, err := SignPaymentPromise(promise, s.privVal)
+	signature, err := SignPaymentPromiseValidator(promise, s.privVal)
 	if err != nil {
 		log.ErrorContext(ctx, "failed to sign payment promise", "error", err)
 		span.RecordError(err)

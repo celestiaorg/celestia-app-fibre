@@ -283,8 +283,8 @@ func (p *PaymentPromise) SignBytesValidator() ([]byte, error) {
 	return core.RawBytesMessageSignBytes(p.ChainID, signBytesPrefix, signBytes)
 }
 
-// SignPaymentPromise signs the [PaymentPromise] using validator's private key behind [core.PrivValidator].
-func SignPaymentPromise(promise *PaymentPromise, privVal core.PrivValidator) ([]byte, error) {
+// SignPaymentPromiseValidator signs the [PaymentPromise] using validator's private key behind [core.PrivValidator].
+func SignPaymentPromiseValidator(promise *PaymentPromise, privVal core.PrivValidator) ([]byte, error) {
 	signBytes, err := promise.SignBytes()
 	if err != nil {
 		return nil, fmt.Errorf("getting sign bytes: %w", err)

@@ -145,7 +145,7 @@ func TestValidatorSignPaymentPromise(t *testing.T) {
 	pp.Signature = signature
 
 	privVal := core.NewMockPV()
-	valSignature, err := fibre.SignPaymentPromise(pp, privVal)
+	valSignature, err := fibre.SignPaymentPromiseValidator(pp, privVal)
 	require.NoError(t, err)
 	require.Len(t, valSignature, ed25519.SignatureSize)
 
