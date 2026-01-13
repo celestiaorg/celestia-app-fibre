@@ -16,7 +16,7 @@ jobs:
       - name: Configure Git for private modules
         run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 #v6.2.0
         with:
           go-version-file: "go.mod"
         env:
@@ -66,7 +66,7 @@ jobs:
       - name: Configure Git for private modules
         run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
 
-      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 #v6.0.0
+      - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 #v6.2.0
         with:
           go-version-file: "go.mod"
         env:
