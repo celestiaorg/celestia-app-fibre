@@ -2,7 +2,6 @@ package fibre
 
 import (
 	"context"
-	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -72,7 +71,7 @@ func (s *Server) UploadShard(ctx context.Context, req *types.UploadShardRequest)
 	span.AddEvent("shard_stored")
 
 	// sign the payment promise
-	signature, err := s.signPromise(promise)
+	signature, err := SignPaymentPromiseValidator(promise, s.privVal)
 	if err != nil {
 		log.ErrorContext(ctx, "failed to sign payment promise", "error", err)
 		span.RecordError(err)
@@ -197,9 +196,8 @@ func (s *Server) verifyShard(_ context.Context, promise *PaymentPromise, shard *
 		return fmt.Errorf("creating verification context: %w", err)
 	}
 
-	totalRows := s.cfg.OriginalRows + s.cfg.ParityRows
 	for _, rowPb := range shard.Rows {
-		row, err := parseRow(rowPb, totalRows)
+		row, err := parseRow(rowPb)
 		if err != nil {
 			return err
 		}
@@ -212,25 +210,6 @@ func (s *Server) verifyShard(_ context.Context, promise *PaymentPromise, shard *
 	// set RLC root and clear coefficients
 	shard.Rlc = &types.BlobShard_Root{Root: rlcRoot[:]}
 	return nil
-}
-
-// signPromise signs the [PaymentPromise] using the validator's private key and returns the signature.
-func (s *Server) signPromise(promise *PaymentPromise) ([]byte, error) {
-	signBytes, err := promise.SignBytes()
-	if err != nil {
-		return nil, fmt.Errorf("getting sign bytes: %w", err)
-	}
-
-	// sign using validator's private key
-	signature, err := s.privVal.SignRawBytes(s.cfg.ChainID, SignBytesPrefix, signBytes)
-	if err != nil {
-		return nil, fmt.Errorf("signing payment promise: %w", err)
-	}
-	if len(signature) != ed25519.SignatureSize {
-		return nil, fmt.Errorf("invalid signature length: expected %d, got %d", ed25519.SignatureSize, len(signature))
-	}
-
-	return signature, nil
 }
 
 // parseRLCCoeffs validates and converts RLC coefficients from bytes to field elements.
@@ -272,10 +251,7 @@ func parseRowSize(rows []*types.BlobRow) (int, error) {
 }
 
 // parseRow validates and converts a single proto row to rsema1d.RowProof format.
-func parseRow(row *types.BlobRow, totalRows int) (*rsema1d.RowProof, error) {
-	if int(row.Index) >= totalRows {
-		return nil, fmt.Errorf("row index %d out of bounds (total rows: %d)", row.Index, totalRows)
-	}
+func parseRow(row *types.BlobRow) (*rsema1d.RowProof, error) {
 	if len(row.Proof) == 0 {
 		return nil, fmt.Errorf("row %d missing proof", row.Index)
 	}

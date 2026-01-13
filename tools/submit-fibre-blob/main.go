@@ -111,11 +111,12 @@ func main() {
 	queryClient := valaddrtypes.NewQueryClient(grpcConn)
 	hostReg := fibregrpc.NewHostRegistry(queryClient)
 
-	// Create Fibre client config
-	clientCfg := fibre.DefaultClientConfig()
+	// Create Fibre client config for single node testnet
+	params := fibre.DefaultProtocolParams
+	params.MaxValidatorCount = 1 // Single node testnet
+	clientCfg := fibre.NewClientConfigFromParams(params)
 	clientCfg.ChainID = *chainID
 	clientCfg.DefaultKeyName = *keyName
-	clientCfg.ShardingFactor = 1 // This is a single node testnet
 
 	// Create Fibre client
 	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, clientCfg)
