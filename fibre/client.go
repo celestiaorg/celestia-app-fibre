@@ -42,8 +42,6 @@ type ClientConfig struct {
 
 	// UploadTargetVotingPower is the fraction (e.g., 2/3) of total voting power required for Upload operations.
 	UploadTargetVotingPower cmtmath.Fraction
-	// UploadTargetSignaturesCount is the fraction (e.g., 2/3) of total signature count required for Upload operations.
-	UploadTargetSignaturesCount cmtmath.Fraction
 
 	// UploadConcurrency is the maximum number of concurrent uploads to validators.
 	UploadConcurrency int
@@ -79,7 +77,6 @@ func NewClientConfigFromParams(p ProtocolParams) ClientConfig {
 		RowsPerShard:                p.RowsPerShard,
 		MaxMessageSize:              p.MaxMessageSize(p.MaxValidatorCount),
 		UploadTargetVotingPower:     p.SafetyThreshold,
-		UploadTargetSignaturesCount: p.SafetyThreshold,
 		UploadConcurrency:           p.MaxValidatorCount,
 		DownloadConcurrency:         p.ShardsForReconstruction(p.MaxValidatorCount),
 	}
