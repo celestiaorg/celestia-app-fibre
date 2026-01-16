@@ -25,6 +25,12 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	var (
 		chainID        = flag.String("chain-id", "test", "Chain ID")
 		keyName        = flag.String("key-name", "validator", "Key name in keyring")
@@ -40,29 +46,39 @@ func main() {
 		*home = os.Getenv("HOME") + "/.celestia-app"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
-	defer cancel()
-
 	// Generate random blob data (1024 bytes)
 	blobBytes := make([]byte, 1024)
 	if _, err := rand.Read(blobBytes); err != nil {
-		log.Fatalf("Failed to generate random blob: %v", err)
+		return fmt.Errorf("failed to generate random blob: %w", err)
 	}
 
 	// Generate random namespace
 	nsID := make([]byte, share.NamespaceVersionZeroIDSize)
 	if _, err := rand.Read(nsID); err != nil {
-		log.Fatalf("Failed to generate random namespace: %v", err)
+		return fmt.Errorf("failed to generate random namespace: %w", err)
 	}
 	id := make([]byte, 0, share.NamespaceIDSize)
 	id = append(id, share.NamespaceVersionZeroPrefix...)
 	id = append(id, nsID...)
 	ns, err := share.NewNamespace(share.NamespaceVersionZero, id)
 	if err != nil {
-		log.Fatalf("Failed to create namespace: %v", err)
+		return fmt.Errorf("failed to create namespace: %w", err)
 	}
 	fmt.Printf("Generated random blob (size: %d bytes)\n", len(blobBytes))
 	fmt.Printf("Generated random namespace: %s\n", hex.EncodeToString(nsID))
+
+	// Create encoding config
+	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
+
+	// Create keyring
+	// Note: Currently only supports "test" backend. Other backends can be added if needed.
+	if *keyringBackend != "test" {
+		return fmt.Errorf("unsupported keyring backend: %s (only 'test' is supported)", *keyringBackend)
+	}
+	kr, err := keyring.New(app.Name, keyring.BackendTest, *home, nil, encCfg.Codec)
+	if err != nil {
+		return fmt.Errorf("failed to initialize keyring: %w", err)
+	}
 
 	// Create gRPC connection
 	grpcConn, err := grpc.NewClient(
@@ -74,35 +90,9 @@ func main() {
 		),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create gRPC connection: %v", err)
+		return fmt.Errorf("failed to create gRPC connection: %w", err)
 	}
 	defer grpcConn.Close()
-
-	// Create encoding config
-	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
-
-	// Create keyring
-	// Note: Currently only supports "test" backend. Other backends can be added if needed.
-	var kr keyring.Keyring
-	if *keyringBackend == "test" {
-		kr, err = keyring.New(app.Name, keyring.BackendTest, *home, nil, encCfg.Codec)
-	} else {
-		log.Fatalf("Unsupported keyring backend: %s (only 'test' is supported)", *keyringBackend)
-	}
-	if err != nil {
-		log.Fatalf("Failed to initialize keyring: %v", err)
-	}
-
-	// Create TxClient
-	var txClient *user.TxClient
-	if *keyName != "" {
-		txClient, err = user.SetupTxClient(ctx, kr, grpcConn, encCfg, user.WithDefaultAccount(*keyName))
-	} else {
-		txClient, err = user.SetupTxClient(ctx, kr, grpcConn, encCfg)
-	}
-	if err != nil {
-		log.Fatalf("Failed to set up tx client: %v", err)
-	}
 
 	// Create validator set getter
 	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
@@ -118,10 +108,25 @@ func main() {
 	clientCfg.ChainID = *chainID
 	clientCfg.DefaultKeyName = *keyName
 
+	// Create context with timeout for network operations
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+	defer cancel()
+
+	// Create TxClient
+	var txClient *user.TxClient
+	if *keyName != "" {
+		txClient, err = user.SetupTxClient(ctx, kr, grpcConn, encCfg, user.WithDefaultAccount(*keyName))
+	} else {
+		txClient, err = user.SetupTxClient(ctx, kr, grpcConn, encCfg)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to set up tx client: %w", err)
+	}
+
 	// Create Fibre client
 	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, clientCfg)
 	if err != nil {
-		log.Fatalf("Failed to create Fibre client: %v", err)
+		return fmt.Errorf("failed to create Fibre client: %w", err)
 	}
 	defer fibreClient.Close()
 
@@ -129,10 +134,11 @@ func main() {
 	fmt.Printf("Submitting Fibre blob (size: %d bytes, namespace: %s)...\n", len(blobBytes), ns.String())
 	result, err := fibreClient.Put(ctx, ns, blobBytes)
 	if err != nil {
-		log.Fatalf("Failed to submit Fibre blob: %v", err)
+		return fmt.Errorf("failed to submit Fibre blob: %w", err)
 	}
 
 	fmt.Printf("Successfully submitted Fibre blob!\n")
 	fmt.Printf("Transaction hash: %s\n", result.TxHash)
 	fmt.Printf("Height: %d\n", result.Height)
+	return nil
 }

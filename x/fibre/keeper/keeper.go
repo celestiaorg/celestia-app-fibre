@@ -332,7 +332,7 @@ func (k Keeper) validatePaymentPromiseStatefulInternal(ctx sdk.Context, promise 
 	// Height validation only applies to normal flow (not timeout mechanism)
 	if !isTimeout {
 		currentHeight := ctx.BlockHeight()
-		promiseHeight := int64(promise.Height)
+		promiseHeight := promise.Height
 
 		// Validate height is not too far in the past
 		if currentHeight-promiseHeight > int64(params.PaymentPromiseHeightWindow) {
