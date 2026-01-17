@@ -216,10 +216,9 @@ func testStorePruneBeforePreservesOtherPromiseShard(t *testing.T, store *fibre.S
 	require.Equal(t, uint32(2), gotShard.Rows[0].Index)
 }
 
-func testStoreGetDeterministicOrdering(t *testing.T) {
+func testStoreGetDeterministicOrdering(t *testing.T, store *fibre.Store) {
 	ctx := t.Context()
 
-	store := makeTestStore(t)
 	blob := makeTestBlobV0(t, 256)
 	commitment := blob.Commitment()
 

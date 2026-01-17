@@ -26,7 +26,7 @@ import (
 // TestClientServerUploadDownload validates end-to-end download flow with various blob sizes and configurations.
 func TestClientServerUploadDownload(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping TestClientServerUpload in short mode")
+		t.Skip("skipping TestClientServerUploadDownload in short mode")
 	}
 
 	tests := []struct {
@@ -38,7 +38,7 @@ func TestClientServerUploadDownload(t *testing.T) {
 		duplicate      int // upload same blob multiple times at different heights
 	}{
 		{
-			name:           "MaxBlobSize", // highly resource-intensive test
+			name:           "MaxBlobSize",
 			numValidators:  2,
 			numClients:     1,
 			blobsPerClient: 1,
@@ -89,7 +89,7 @@ func TestClientServerUploadDownload(t *testing.T) {
 						return fmt.Errorf("generating random data for blob %d: %w", blobIdx, err)
 					}
 
-					blob, err := fibre.NewBlob(data, client.Config().BlobConfig)
+					blob, err := fibre.NewBlob(data, fibre.DefaultBlobConfigV0())
 					if err != nil {
 						return fmt.Errorf("creating blob %d: %w", blobIdx, err)
 					}
@@ -320,7 +320,6 @@ func makeTestServers(
 	t *testing.T,
 	validators []*core.Validator,
 	privKeys []cmted25519.PrivKey,
-	valSet validator.Set,
 	params fibre.ProtocolParams,
 	valSetGetter validator.SetGetter,
 	modifyServerConfig func(*fibre.ServerConfig),
@@ -336,7 +335,7 @@ func makeTestServers(
 		require.NoError(t, err)
 
 		serverCfg := fibre.NewServerConfigFromParams(params)
-		serverCfg.StoreConfig.Path = t.TempDir()
+		serverCfg.Path = t.TempDir()
 
 		// create logger with unique server identifier
 		serverCfg.Log = slog.Default().With(

@@ -75,14 +75,7 @@ func TestBlobHeaderV0_EncodeToRows_DecodeFromRows(t *testing.T) {
 
 func TestBlob_Reconstruct(t *testing.T) {
 	testData := []byte("test erasure coding reconstruction")
-
-	cfg := BlobConfig{
-		OriginalRows:  4,
-		ParityRows:    8,
-		CodingWorkers: 2,
-		RowSizeMin:    64,
-		MaxBlobSize:   1024,
-	}
+	cfg := DefaultBlobConfigV0()
 
 	blob, err := NewBlob(testData, cfg)
 	require.NoError(t, err)

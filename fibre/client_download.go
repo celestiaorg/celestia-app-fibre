@@ -180,7 +180,7 @@ func (c *Client) downloadBlob(
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(errDownloaded)
 
-	blob := NewEmptyBlob(c.cfg.BlobConfig, commitment)
+	blob := NewEmptyBlob(DefaultBlobConfigV0(), commitment)
 
 	var (
 		responses            atomic.Uint32         // tracks finished responses
