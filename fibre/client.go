@@ -35,6 +35,8 @@ type ClientConfig struct {
 	// ChainID is the chain identifier for domain separation in [PaymentPromise] signatures.
 	ChainID string
 
+	// RowsPerShard computes the number of rows per shard given the total number of shards.
+	RowsPerShard func(totalShards int) int
 	// MaxMessageSize is the maximum gRPC message size for upload requests.
 	MaxMessageSize int
 
@@ -72,6 +74,7 @@ func NewClientConfigFromParams(p ProtocolParams) ClientConfig {
 	return ClientConfig{
 		DefaultKeyName:              DefaultKeyName,
 		ChainID:                     "celestia",
+		RowsPerShard:                p.RowsPerShard,
 		MaxMessageSize:              p.MaxMessageSize(p.MaxValidatorCount),
 		UploadTargetVotingPower:     p.SafetyThreshold,
 		UploadConcurrency:           p.MaxValidatorCount,
