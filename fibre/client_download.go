@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
-	"slices"
 	"sync/atomic"
 
 	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
@@ -26,14 +24,14 @@ var (
 
 // Download retrieves and reconstructs [Blob] by [Commitment] from the [Server]s.
 //
-// The algorithm is simple: take a randomized 2/3 subset of the latest validators (instead of the complete set)
-// and request blob shards from them. In the happy path, this is sufficient to reconstruct blobs.
-// For the unhappy path, we add recovery requests to additional validators if any of the initial requests fail,
-// so that in the worst case, we cover all validators.
+// The algorithm selects minimal required number of validators,
+// shuffled by stake weight for load balancing and requests them for shards.
+// If any of the requests fails, more validators are requested until enough shards are retrieved or
+// the maximum number of validators is reached. In the happy case, the operation succeeds in a single roundtrip.
 //
 // Errors:
 //   - [ErrNotFound]: no shard was retrieved for the blob
-//   - [ErrNotEnoughShards]: not enough rows were retrieved to reconstruct the original data
+//   - [ErrNotEnoughShards]: not enough shards were retrieved to reconstruct the original data
 //   - [ErrInvalidCommitment]: the commitment doesn't match the reconstructed blob
 func (c *Client) Download(ctx context.Context, commitment Commitment) (*Blob, error) {
 	if c.closed.Load() {
@@ -192,19 +190,9 @@ func (c *Client) downloadBlob(
 		downloadedCh = make(chan struct{}) // closes when downloadTarget amount of responses complete
 	)
 
-	var (
-		// limit to download minimum required amount of shards in the best case, instead of everything
-		downloadTarget = max(valSet.Size()*int(c.cfg.UploadTargetSignaturesCount.Numerator)/
-			int(c.cfg.UploadTargetSignaturesCount.Denominator), 1)
-		downloadLimitCh = make(chan struct{}, downloadTarget)
-	)
-
-	// shuffle validators for random prioritization
-	// TODO(@Wondertan): Order validators based on their performance over time using EWMA
-	validators := slices.Clone(valSet.Validators)
-	rand.Shuffle(len(validators), func(i, j int) {
-		validators[i], validators[j] = validators[j], validators[i]
-	})
+	// select validators shuffled by stake for load balancing
+	validators, downloadTarget := valSet.Select(blob.Config().OriginalRows, c.cfg.MinRowsPerValidator, c.cfg.LivenessThreshold)
+	downloadLimitCh := make(chan struct{}, downloadTarget)
 
 loop:
 	for _, val := range validators {

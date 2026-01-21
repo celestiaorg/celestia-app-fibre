@@ -97,7 +97,7 @@ func testClientDownloadClosedClient(t *testing.T) {
 
 func testClientDownloadExactTargetCount(t *testing.T) {
 	// test that we download from exactly downloadTarget validators (no more)
-	// with 10 validators and 2/3 target, downloadTarget = 6
+	// with 10 equal-stake validators and livenessThreshold=1/3, downloadTarget = 4
 	const numValidators = 10
 
 	blob := makeTestBlobV0(t, 256*1024)
@@ -112,13 +112,14 @@ func testClientDownloadExactTargetCount(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, blob.Data(), downloaded.Data())
 
-	// downloadTarget = 10 * 2/3 = 6
-	// we should have exactly 6 successful downloads (no over-fetching in happy path)
-	require.Equal(t, int64(6), counter.Load(), "should download from exactly downloadTarget validators")
+	// Select returns minRequired = 4 for 10 equal-stake validators with livenessThreshold=1/3
+	// we should have exactly 4 successful downloads (no over-fetching in happy path)
+	require.Equal(t, int64(4), counter.Load(), "should download from exactly downloadTarget validators")
 }
 
 func testClientDownloadFaultTolerance(t *testing.T) {
-	// test failure tolerance boundaries with 10 validators and 2/3 target
+	// test failure tolerance boundaries with 10 validators
+	// Select uses livenessThreshold (1/3), so downloadTarget = 4 for 10 equal-stake validators
 	const numValidators = 10
 	blob := makeTestBlobV0(t, 256*1024)
 
@@ -127,10 +128,10 @@ func testClientDownloadFaultTolerance(t *testing.T) {
 		expectErr error
 	}{
 		{10, fibre.ErrNotFound},
-		{6, fibre.ErrNotEnoughShards}, // 4 successes, need 6
-		{5, fibre.ErrNotEnoughShards}, // 5 successes, need 6
-		{4, nil},                      // 6 successes, exactly enough
-		{3, nil},                      // 7 successes, more than enough
+		{7, fibre.ErrNotEnoughShards}, // 3 successes, need 4
+		{6, nil},                      // 4 successes, exactly enough
+		{5, nil},                      // 5 successes, more than enough
+		{4, nil},                      // 6 successes, more than enough
 	}
 
 	for _, tc := range tests {
