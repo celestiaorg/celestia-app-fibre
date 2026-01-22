@@ -106,19 +106,18 @@ func (s Set) Select(originalRows, minRows int, livenessThreshold cmtmath.Fractio
 	validators = make([]*core.Validator, len(s.Validators))
 	copy(validators, s.Validators)
 
-	// minStakeFraction is the minimum contribution per validator for unique decodability
-	// e.g., 148 / (4096 * 3) ≈ 1.2% for livenessThreshold=1/3
-	totalDistributedRows := originalRows * int(livenessThreshold.Denominator) / int(livenessThreshold.Numerator)
-	minStakeFraction := float64(minRows) / float64(totalDistributedRows)
+	// find split point where row assignments start overlapping
+	// each validator contributes max(their stake, minStake) where minStake ensures unique decodability
+	totalStake := s.TotalVotingPower()
+	totalDistributedRows := int64(originalRows) * int64(livenessThreshold.Denominator) / int64(livenessThreshold.Numerator)
+	minStake := (int64(minRows)*totalStake + totalDistributedRows - 1) / totalDistributedRows // ceil division
 
-	// find last non-overlapping validator using effective stake (actual stake floored by minStakeFraction)
-	totalStake := float64(s.TotalVotingPower())
-	accumulated := 0.0
+	accumulated := int64(0)
 	splitIdx := len(validators)
 	for i, v := range validators {
-		accumulated += max(float64(v.VotingPower)/totalStake, minStakeFraction)
-		if accumulated >= 1.0 {
-			splitIdx = i + 1
+		accumulated += max(v.VotingPower, minStake)
+		if accumulated > totalStake {
+			splitIdx = i
 			break
 		}
 	}
