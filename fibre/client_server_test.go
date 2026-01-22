@@ -77,7 +77,7 @@ func TestClientServerUploadDownload(t *testing.T) {
 			defer env.Close()
 
 			totalBlobs := tt.numClients * tt.blobsPerClient
-			allCommitments := make([]fibre.Commitment, totalBlobs)
+			allCommitments := make([]fibre.BlobID, totalBlobs)
 			allPromiseHashes := make([][][]byte, totalBlobs)
 			allData := make([][]byte, totalBlobs)
 
@@ -114,7 +114,7 @@ func TestClientServerUploadDownload(t *testing.T) {
 						allPromiseHashes[slotIdx] = append(allPromiseHashes[slotIdx], promiseHash)
 					}
 
-					allCommitments[slotIdx] = blob.Commitment()
+					allCommitments[slotIdx] = blob.ID()
 					allData[slotIdx] = data
 				}
 
@@ -124,16 +124,16 @@ func TestClientServerUploadDownload(t *testing.T) {
 			require.NoError(t, err)
 
 			// verify storage: all stores should have valid data and payment promises
-			// collect row indices per store for duplicate detection (map[storeIdx]map[commitment][]rowIndex)
-			rowIndicesByStore := make([]map[fibre.Commitment][]uint32, len(env.stores))
+			// collect row indices per store for duplicate detection (map[storeIdx]map[commitmentStr][]rowIndex)
+			rowIndicesByStore := make([]map[string][]uint32, len(env.stores))
 			for i := range rowIndicesByStore {
-				rowIndicesByStore[i] = make(map[fibre.Commitment][]uint32)
+				rowIndicesByStore[i] = make(map[string][]uint32)
 			}
 			var rowIndicesMu sync.Mutex
 
 			err = env.ForEachStore(t.Context(), func(ctx context.Context, store *fibre.Store, storeIdx int) error {
 				for i, commitment := range allCommitments {
-					rows, err := store.Get(ctx, commitment)
+					rows, err := store.Get(ctx, commitment.Commitment())
 					if err != nil {
 						return fmt.Errorf("store %d missing rows for commitment %s: %w", storeIdx, commitment.String(), err)
 					}
@@ -154,7 +154,7 @@ func TestClientServerUploadDownload(t *testing.T) {
 						indices[j] = row.Index
 					}
 					rowIndicesMu.Lock()
-					rowIndicesByStore[storeIdx][commitment] = indices
+					rowIndicesByStore[storeIdx][commitment.String()] = indices
 					rowIndicesMu.Unlock()
 
 					// verify all payment promises are stored (one per duplicate upload)
@@ -164,10 +164,10 @@ func TestClientServerUploadDownload(t *testing.T) {
 							return fmt.Errorf("store %d missing payment promise %d for hash %x: %w", storeIdx, j, promiseHash, err)
 						}
 
-						// verify payment promise commitment matches
-						if !promise.Commitment.Equals(commitment) {
-							return fmt.Errorf("store %d payment promise %d commitment mismatch: got %s, expected %s",
-								storeIdx, j, promise.Commitment.String(), commitment.String())
+						// verify payment promise commitment matches the BlobID's commitment
+						if promise.Commitment != commitment.Commitment() {
+							return fmt.Errorf("store %d payment promise %d commitment mismatch: got %x, expected %x",
+								storeIdx, j, promise.Commitment[:], commitment.Commitment())
 						}
 					}
 				}
@@ -179,7 +179,7 @@ func TestClientServerUploadDownload(t *testing.T) {
 			for _, commitment := range allCommitments {
 				seen := make(map[uint32]int) // row index -> store index
 				for storeIdx, storeRows := range rowIndicesByStore {
-					for _, rowIdx := range storeRows[commitment] {
+					for _, rowIdx := range storeRows[commitment.String()] {
 						if existingStore, exists := seen[rowIdx]; exists {
 							t.Fatalf("duplicate row index %d for commitment %s: found in store %d and store %d",
 								rowIdx, commitment.String(), existingStore, storeIdx)
@@ -204,9 +204,9 @@ func TestClientServerUploadDownload(t *testing.T) {
 						return fmt.Errorf("data mismatch for %s: downloaded %d bytes, expected %d bytes",
 							commitment.String(), len(blob.Data()), len(originalData))
 					}
-					if !blob.Commitment().Equals(commitment) {
+					if !blob.ID().Equals(commitment) {
 						return fmt.Errorf("commitment mismatch: got %s, expected %s",
-							blob.Commitment().String(), commitment.String())
+							blob.ID().String(), commitment.String())
 					}
 				}
 				return nil
