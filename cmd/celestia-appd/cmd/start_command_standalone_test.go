@@ -61,6 +61,78 @@ func TestGetGenDocProvider(t *testing.T) {
 	assert.Equal(t, time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC), genDoc.GenesisTime)
 }
 
+// TestGetGenDocProvider_ChainID verifies that the chain ID can be correctly
+// extracted from the genesis file. This is important because the Fibre server
+// needs the chain ID from genesis (not from a flag/config) to properly identify
+// the chain it's serving.
+func TestGetGenDocProvider_ChainID(t *testing.T) {
+	testCases := []struct {
+		name            string
+		chainID         string
+		expectedChainID string
+	}{
+		{
+			name:            "standard chain ID",
+			chainID:         "celestia",
+			expectedChainID: "celestia",
+		},
+		{
+			name:            "test chain ID",
+			chainID:         "test",
+			expectedChainID: "test",
+		},
+		{
+			name:            "mocha testnet",
+			chainID:         "mocha-4",
+			expectedChainID: "mocha-4",
+		},
+		{
+			name:            "arabica testnet",
+			chainID:         "arabica-11",
+			expectedChainID: "arabica-11",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			configDir := filepath.Join(tempDir, "config")
+			require.NoError(t, os.MkdirAll(configDir, 0o755))
+
+			genesisFile := filepath.Join(configDir, "genesis.json")
+			genesisContent := `{
+				"app_name": "celestia-appd",
+				"app_version": "test",
+				"genesis_time": "2024-01-01T00:00:00Z",
+				"chain_id": "` + tc.chainID + `",
+				"initial_height": 1,
+				"app_hash": null,
+				"app_state": {},
+				"consensus": {
+					"validators": [],
+					"params": {
+						"block": {"max_bytes": "22020096", "max_gas": "-1"},
+						"evidence": {"max_age_num_blocks": "100000", "max_age_duration": "172800000000000", "max_bytes": "1048576"},
+						"validator": {"pub_key_types": ["ed25519"]},
+						"version": {"app": "0"},
+						"abci": {"vote_extensions_enable_height": "0"}
+					}
+				}
+			}`
+			require.NoError(t, os.WriteFile(genesisFile, []byte(genesisContent), 0o644))
+
+			cfg := cmtcfg.DefaultConfig()
+			cfg.SetRoot(tempDir)
+
+			provider := getGenDocProvider(cfg)
+			genDoc, err := provider()
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedChainID, genDoc.ChainID)
+		})
+	}
+}
+
 func TestGetGenDocProvider_FileNotFound(t *testing.T) {
 	// Create a CometBFT config pointing to a non-existent directory
 	cfg := cmtcfg.DefaultConfig()
