@@ -214,12 +214,12 @@ func testStoreGetDeterministicOrdering(t *testing.T, store *fibre.Store) {
 	ctx := t.Context()
 
 	blob := makeTestBlobV0(t, 256)
-	commitment := blob.ID()
+	id := blob.ID()
 
 	// store multiple shards with different row indices
 	for i := range 5 {
 		shard := makeShardFrom(t, blob, i*2, i*2+1)
-		promise := makeTestPaymentPromise(uint64(100+i), commitment)
+		promise := makeTestPaymentPromise(uint64(100+i), id)
 		err := store.Put(ctx, promise, shard, promise.CreationTimestamp)
 		require.NoError(t, err)
 	}
@@ -227,7 +227,7 @@ func testStoreGetDeterministicOrdering(t *testing.T, store *fibre.Store) {
 	// get multiple times and verify ordering is deterministic
 	var firstRowIndex uint32
 	for i := range 10 {
-		gotShard, err := store.Get(ctx, commitment.Commitment())
+		gotShard, err := store.Get(ctx, id.Commitment())
 		require.NoError(t, err)
 		require.NotEmpty(t, gotShard.Rows)
 
