@@ -8,6 +8,7 @@ import (
 
 	"github.com/celestiaorg/celestia-app/v6/fibre"
 	"github.com/celestiaorg/go-square/v4/share"
+	cmtmath "github.com/cometbft/cometbft/libs/math"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,7 +50,9 @@ func TestClientServerUpload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			env := makeTestEnv(t, tt.numValidators, tt.numClients, func(cfg *fibre.ClientConfig) {}, nil)
+			env := makeTestEnv(t, tt.numValidators, tt.numClients, func(cfg *fibre.ClientConfig) {
+				cfg.UploadTargetVotingPower = cmtmath.Fraction{Numerator: 1, Denominator: 1}
+			}, nil)
 			defer env.Close()
 
 			totalBlobs := tt.numClients * tt.blobsPerClient
