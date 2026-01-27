@@ -72,13 +72,13 @@ func DefaultClientConfig() ClientConfig {
 // Use this when you need a config with non-default protocol parameters (e.g., for testing).
 func NewClientConfigFromParams(p ProtocolParams) ClientConfig {
 	return ClientConfig{
-		DefaultKeyName:              DefaultKeyName,
-		ChainID:                     "celestia",
-		RowsPerShard:                p.RowsPerShard,
-		MaxMessageSize:              p.MaxMessageSize(p.MaxValidatorCount),
-		UploadTargetVotingPower:     p.SafetyThreshold,
-		UploadConcurrency:           p.MaxValidatorCount,
-		DownloadConcurrency:         p.ShardsForReconstruction(p.MaxValidatorCount),
+		DefaultKeyName:          DefaultKeyName,
+		ChainID:                 "celestia",
+		RowsPerShard:            p.RowsPerShard,
+		MaxMessageSize:          p.MaxMessageSize(p.MaxValidatorCount),
+		UploadTargetVotingPower: p.SafetyThreshold,
+		UploadConcurrency:       p.MaxValidatorCount,
+		DownloadConcurrency:     p.ShardsForReconstruction(p.MaxValidatorCount),
 	}
 }
 
