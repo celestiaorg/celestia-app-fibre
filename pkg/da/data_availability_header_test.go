@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	appconstsv5 "github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
-	"github.com/celestiaorg/celestia-app/v6/pkg/wrapper"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	appconstsv5 "github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts/v5"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/wrapper"
 	sharev2 "github.com/celestiaorg/go-square/v2/share"
 	squarev4 "github.com/celestiaorg/go-square/v4"
 	sharev4 "github.com/celestiaorg/go-square/v4/share"

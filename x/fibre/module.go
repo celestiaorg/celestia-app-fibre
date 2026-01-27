@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"cosmossdk.io/core/appmodule"
-	"github.com/celestiaorg/celestia-app/v6/x/fibre/client/cli"
-	"github.com/celestiaorg/celestia-app/v6/x/fibre/keeper"
-	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/client/cli"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/keeper"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/codec"
 	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"

@@ -5,7 +5,7 @@ import "google/api/annotations.proto";
 import "cosmos/msg/v1/msg.proto";
 import "cosmos_proto/cosmos.proto";
 
-option go_package = "github.com/celestiaorg/celestia-app/x/signal/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/signal/types";
 
 // Msg defines the signal Msg service.
 service Msg {

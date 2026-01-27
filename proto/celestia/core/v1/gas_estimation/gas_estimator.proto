@@ -1,7 +1,7 @@
 syntax = "proto3";
 package celestia.core.v1.gas_estimation;
 
-option go_package = "github.com/celestiaorg/celestia-app/app/grpc/gasestimation";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/app/grpc/gasestimation";
 
 // GasEstimator estimation service for gas price and gas used.
 service GasEstimator {
