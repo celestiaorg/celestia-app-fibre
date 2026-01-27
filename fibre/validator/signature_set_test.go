@@ -100,7 +100,7 @@ func TestSignatureSet(t *testing.T) {
 		require.Len(t, sigErr.Collected, 2)
 		require.Equal(t, int64(20), sigErr.CollectedPower)
 		require.Equal(t, int64(33), sigErr.RequiredPower)
-		require.Contains(t, err.Error(), "not enough signatures")
+		require.Contains(t, err.Error(), "not enough voting power")
 	})
 
 	t.Run("SuccessSequential", func(t *testing.T) {
