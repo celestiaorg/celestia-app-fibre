@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
 
       - name: Configure Git for private modules
         run: git config --global url."https://${{ secrets.GH_PRIVATE_MODULES_TOKEN }}@github.com/".insteadOf "https://github.com/"
@@ -39,7 +39,7 @@ jobs:
   hadolint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
       - uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: docker/standalone.Dockerfile
@@ -53,5 +53,5 @@ jobs:
   yamllint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #v5.0.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
       - uses: celestiaorg/.github/.github/actions/yamllint@9ee03305d3cc6cf520b7895436429aa853b58e70 #v0.6.4
