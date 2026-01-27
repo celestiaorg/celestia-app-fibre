@@ -19,6 +19,7 @@ import (
 	"github.com/cometbft/cometbft/proxy"
 	"github.com/cometbft/cometbft/rpc/client/local"
 	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
+	cmttypes "github.com/cometbft/cometbft/types"
 	db "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/server"
@@ -28,6 +29,7 @@ import (
 	servercmtlog "github.com/cosmos/cosmos-sdk/server/log"
 	servertypes "github.com/cosmos/cosmos-sdk/server/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
+	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -102,7 +104,7 @@ func startCommandHandler(
 
 		// Register Fibre server BEFORE starting the gRPC server
 		serverConfig := fibre.DefaultServerConfig()
-		serverConfig.ChainID = svrCtx.Viper.GetString(ChainIDKey)
+		serverConfig.ChainID = cmtNode.GenesisDoc().ChainID
 		serverConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
 		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
 		fibreServer, err = fibre.NewServerFromGRPC(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, serverConfig)
@@ -173,7 +175,7 @@ func startCometNode(svrCtx *server.Context, appInstance servertypes.Application)
 		privVal,
 		nodeKey,
 		proxy.NewLocalClientCreator(cmtApp),
-		node.DefaultGenesisDocProviderFunc(cfg),
+		getGenDocProvider(cfg),
 		cmtcfg.DefaultDBProvider,
 		node.DefaultMetricsProvider(cfg.Instrumentation),
 		servercmtlog.CometLoggerWrapper{Logger: svrCtx.Logger},
@@ -340,4 +342,17 @@ func openTraceWriter(traceWriterFile string) (io.WriteCloser, error) {
 func openDB(rootDir string, backendType db.BackendType) (db.DB, error) {
 	dataDir := filepath.Join(rootDir, "data")
 	return db.NewDB("application", backendType, dataDir)
+}
+
+// getGenDocProvider returns a function that loads the genesis document from file.
+// This uses the SDK's AppGenesis format and converts it to CometBFT's GenesisDoc,
+// which properly handles the type conversion (e.g., InitialHeight as int64 vs string).
+func getGenDocProvider(cfg *cmtcfg.Config) func() (*cmttypes.GenesisDoc, error) {
+	return func() (*cmttypes.GenesisDoc, error) {
+		appGenesis, err := genutiltypes.AppGenesisFromFile(cfg.GenesisFile())
+		if err != nil {
+			return nil, err
+		}
+		return appGenesis.ToGenesisDoc()
+	}
 }
