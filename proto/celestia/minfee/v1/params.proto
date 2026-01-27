@@ -4,7 +4,7 @@ package celestia.minfee.v1;
 import "gogoproto/gogo.proto";
 import "cosmos_proto/cosmos.proto";
 
-option go_package = "github.com/celestiaorg/celestia-app/x/minfee/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/minfee/types";
 
 // Params defines the parameters for the module.
 message Params {

@@ -1,7 +1,7 @@
 syntax = "proto3";
 package celestia.signal.v1;
 
-option go_package = "github.com/celestiaorg/celestia-app/x/signal/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/signal/types";
 
 // Upgrade is a type that represents a network upgrade.
 message Upgrade {

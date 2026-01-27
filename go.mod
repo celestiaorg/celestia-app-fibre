@@ -1,4 +1,4 @@
-module github.com/celestiaorg/celestia-app/v6
+module github.com/celestiaorg/celestia-app-fibre/v6
 
 go 1.24.6
 

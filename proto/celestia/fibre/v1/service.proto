@@ -1,7 +1,7 @@
 syntax = "proto3";
 package celestia.fibre.v1;
 
-option go_package = "github.com/celestiaorg/celestia-app/x/fibre/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/fibre/types";
 
 import "celestia/fibre/v1/fibre.proto";
 

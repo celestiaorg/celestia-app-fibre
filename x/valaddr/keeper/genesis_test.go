@@ -3,10 +3,10 @@ package keeper_test
 import (
 	"testing"
 
-	"github.com/celestiaorg/celestia-app/v6/app"
-	testutil "github.com/celestiaorg/celestia-app/v6/test/util"
-	"github.com/celestiaorg/celestia-app/v6/x/valaddr"
-	"github.com/celestiaorg/celestia-app/v6/x/valaddr/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app"
+	testutil "github.com/celestiaorg/celestia-app-fibre/v6/test/util"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/valaddr"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/valaddr/types"
 	"github.com/stretchr/testify/require"
 )
 

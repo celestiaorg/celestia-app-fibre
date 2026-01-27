@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

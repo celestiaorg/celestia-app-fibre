@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/celestiaorg/celestia-app/v6/app"
-	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testnode"
 	celestiadockertypes "github.com/celestiaorg/tastora/framework/docker/cosmos"
 	tastoracontainertypes "github.com/celestiaorg/tastora/framework/docker/container"
 	rpchttp "github.com/cometbft/cometbft/rpc/client/http"

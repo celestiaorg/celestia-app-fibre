@@ -4,7 +4,7 @@ package celestia.blob.v1;
 import "gogoproto/gogo.proto";
 import "celestia/blob/v1/params.proto";
 
-option go_package = "github.com/celestiaorg/celestia-app/x/blob/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/blob/types";
 
 // EventPayForBlobs defines an event that is emitted after a pay for blob has
 // been processed.
