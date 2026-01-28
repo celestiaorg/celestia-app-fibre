@@ -8,9 +8,9 @@ import (
 	"time"
 
 	sdkmath "cosmossdk.io/math"
-	"github.com/celestiaorg/celestia-app/v6/pkg/user"
-	"github.com/celestiaorg/celestia-app/v6/test/util/testfactory"
-	"github.com/celestiaorg/celestia-app/v6/x/blob/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/user"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testfactory"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/blob/types"
 	"github.com/celestiaorg/go-square/v4/share"
 	tastoradockertypes "github.com/celestiaorg/tastora/framework/docker/cosmos"
 	"github.com/celestiaorg/tastora/framework/testutil/wait"
@@ -18,7 +18,7 @@ import (
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/stretchr/testify/require"
 
-	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testnode"
 )
 
 func (s *CelestiaTestSuite) TestE2ESimple() {

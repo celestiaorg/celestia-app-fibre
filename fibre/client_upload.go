@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync/atomic"
 
-	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
-	"github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
 	"github.com/celestiaorg/go-square/v4/share"
 	"github.com/celestiaorg/rsema1d"
 	"github.com/celestiaorg/rsema1d/field"
@@ -67,7 +67,7 @@ func (c *Client) Upload(ctx context.Context, ns share.Namespace, blob *Blob) (re
 	))
 
 	// 2) assign shards to validators
-	shardMap := valSet.Assign(rsema1d.Commitment(blob.Commitment()), c.cfg.RowsPerShard(len(valSet.Validators)))
+	shardMap := valSet.Assign(rsema1d.Commitment(blob.Commitment()), blob.Config().TotalRows(), blob.Config().OriginalRows, c.cfg.MinRowsPerValidator, c.cfg.LivenessThreshold)
 	span.AddEvent("shards_assigned")
 
 	validatorSignBytes, err := promise.SignBytesValidator()

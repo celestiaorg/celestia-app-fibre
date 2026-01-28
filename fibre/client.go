@@ -7,9 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/celestiaorg/celestia-app/v6/fibre/grpc"
-	"github.com/celestiaorg/celestia-app/v6/fibre/validator"
-	"github.com/celestiaorg/celestia-app/v6/pkg/user"
+	"github.com/celestiaorg/celestia-app-fibre/v6/fibre/grpc"
+	"github.com/celestiaorg/celestia-app-fibre/v6/fibre/validator"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/user"
 	cmtmath "github.com/cometbft/cometbft/libs/math"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	clock "github.com/filecoin-project/go-clock"
@@ -35,8 +35,13 @@ type ClientConfig struct {
 	// ChainID is the chain identifier for domain separation in [PaymentPromise] signatures.
 	ChainID string
 
-	// RowsPerShard computes the number of rows per shard given the total number of shards.
-	RowsPerShard func(totalShards int) int
+	// SafetyThreshold is the fraction of stake needed to cause a safety failure (typically 2/3).
+	SafetyThreshold cmtmath.Fraction
+	// LivenessThreshold is the fraction of stake needed to cause a liveness failure (typically 1/3).
+	LivenessThreshold cmtmath.Fraction
+	// MinRowsPerValidator is the minimum number of rows each validator must receive
+	// for unique decodability security.
+	MinRowsPerValidator int
 	// MaxMessageSize is the maximum gRPC message size for upload requests.
 	MaxMessageSize int
 
@@ -74,11 +79,13 @@ func NewClientConfigFromParams(p ProtocolParams) ClientConfig {
 	return ClientConfig{
 		DefaultKeyName:          DefaultKeyName,
 		ChainID:                 "celestia",
-		RowsPerShard:            p.RowsPerShard,
-		MaxMessageSize:          p.MaxMessageSize(p.MaxValidatorCount),
+		SafetyThreshold:         p.SafetyThreshold,
+		LivenessThreshold:       p.LivenessThreshold,
+		MinRowsPerValidator:     p.MinRowsPerValidator(),
+		MaxMessageSize:          p.MaxMessageSize(),
 		UploadTargetVotingPower: p.SafetyThreshold,
 		UploadConcurrency:       p.MaxValidatorCount,
-		DownloadConcurrency:     p.ShardsForReconstruction(p.MaxValidatorCount),
+		DownloadConcurrency:     p.ValidatorsForReconstruction(),
 	}
 }
 

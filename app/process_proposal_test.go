@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celestiaorg/celestia-app/v6/app/encoding"
-	fibretypes "github.com/celestiaorg/celestia-app/v6/x/fibre/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app/encoding"
+	fibretypes "github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
 	squarev4 "github.com/celestiaorg/go-square/v4"
 	blobv4 "github.com/celestiaorg/go-square/v4/proto/blob/v4"
 	"github.com/celestiaorg/go-square/v4/share"

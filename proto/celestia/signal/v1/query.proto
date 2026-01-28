@@ -4,7 +4,7 @@ package celestia.signal.v1;
 import "google/api/annotations.proto";
 import "celestia/signal/v1/upgrade.proto";
 
-option go_package = "github.com/celestiaorg/celestia-app/x/signal/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/signal/types";
 
 // Query defines the signal Query service.
 service Query {

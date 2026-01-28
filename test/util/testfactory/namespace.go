@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"slices"
 
-	"github.com/celestiaorg/celestia-app/v6/test/util/random"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/random"
 	"github.com/celestiaorg/go-square/v4/share"
 )
 

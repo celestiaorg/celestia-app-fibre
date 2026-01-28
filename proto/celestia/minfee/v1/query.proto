@@ -6,7 +6,7 @@ import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "cosmos_proto/cosmos.proto";
 
-option go_package = "github.com/celestiaorg/celestia-app/x/minfee/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/minfee/types";
 
 // Query defines the gRPC querier service.
 service Query {

@@ -4,7 +4,7 @@ package celestia.valaddr.v1;
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 
-option go_package = "github.com/celestiaorg/celestia-app/x/valaddr/types";
+option go_package = "github.com/celestiaorg/celestia-app-fibre/x/valaddr/types";
 
 // Query defines the gRPC query service for the valaddr module.
 service Query {

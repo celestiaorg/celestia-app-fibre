@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 
 	"cosmossdk.io/log"
-	"github.com/celestiaorg/celestia-app/v6/fibre"
+	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/p2p"
