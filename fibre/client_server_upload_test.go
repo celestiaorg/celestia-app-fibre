@@ -51,7 +51,7 @@ func TestClientServerUpload(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			env := makeTestEnv(t, tt.numValidators, tt.numClients, func(cfg *fibre.ClientConfig) {
-				cfg.UploadTargetVotingPower = cmtmath.Fraction{Numerator: 1, Denominator: 1}
+				cfg.SafetyThreshold = cmtmath.Fraction{Numerator: 1, Denominator: 1}
 			}, nil)
 			defer env.Close()
 

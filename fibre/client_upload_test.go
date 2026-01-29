@@ -234,7 +234,7 @@ func makeTestClientWithFailures(t *testing.T, numValidators, numFailures int, cu
 	cfg := fibre.DefaultClientConfig()
 	cfg.NewClientFn = mockClientFn
 	cfg.UploadConcurrency = 10 // Set lower than numValidators to ensure semaphore limits concurrency
-	cfg.UploadTargetVotingPower = cmtmath.Fraction{Numerator: 2, Denominator: 3}
+	cfg.SafetyThreshold = cmtmath.Fraction{Numerator: 2, Denominator: 3}
 	if customCfg != nil {
 		customCfg(&cfg)
 	}
