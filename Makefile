@@ -13,7 +13,7 @@ PROJECTNAME=$(shell basename "$(PWD)")
 DOCKER_GOOS ?= linux
 DOCKER_GOARCH ?= amd64
 HTTPS_GIT := https://github.com/celestiaorg/celestia-app.git
-PACKAGE_NAME := github.com/celestiaorg/celestia-app/v6
+PACKAGE_NAME := github.com/celestiaorg/celestia-app-fibre/v6
 # Before upgrading the GOLANG_CROSS_VERSION, please verify that a Docker image exists with the new tag.
 # See https://github.com/goreleaser/goreleaser-cross/pkgs/container/goreleaser-cross
 GOLANG_CROSS_VERSION  ?= v1.24.6
@@ -23,7 +23,7 @@ V2_UPGRADE_HEIGHT ?= 0
 BUILD_TAGS_STANDALONE := ledger
 BUILD_TAGS_MULTIPLEXER := ledger,multiplexer
 
-LDFLAGS_COMMON := -X github.com/cosmos/cosmos-sdk/version.Name=celestia-app -X github.com/cosmos/cosmos-sdk/version.AppName=celestia-appd -X github.com/cosmos/cosmos-sdk/version.Version=$(VERSION) -X github.com/cosmos/cosmos-sdk/version.Commit=$(COMMIT) -X github.com/celestiaorg/celestia-app/v6/cmd/celestia-appd/cmd.v2UpgradeHeight=$(V2_UPGRADE_HEIGHT)
+LDFLAGS_COMMON := -X github.com/cosmos/cosmos-sdk/version.Name=celestia-app -X github.com/cosmos/cosmos-sdk/version.AppName=celestia-appd -X github.com/cosmos/cosmos-sdk/version.Version=$(VERSION) -X github.com/cosmos/cosmos-sdk/version.Commit=$(COMMIT) -X github.com/celestiaorg/celestia-app-fibre/v6/cmd/celestia-appd/cmd.v2UpgradeHeight=$(V2_UPGRADE_HEIGHT)
 LDFLAGS_STANDALONE := $(LDFLAGS_COMMON) -X github.com/cosmos/cosmos-sdk/version.BuildTags=$(BUILD_TAGS_STANDALONE)
 LDFLAGS_MULTIPLEXER := $(LDFLAGS_COMMON) -X github.com/cosmos/cosmos-sdk/version.BuildTags=$(BUILD_TAGS_MULTIPLEXER)
 
@@ -202,6 +202,23 @@ build-docker-multiplexer:
 		-f docker/multiplexer.Dockerfile .
 .PHONY: build-docker-multiplexer
 
+## build-docker-multiplexer-local: Build the multiplexer Docker image locally with private repo access. Requires GH_PRIVATE_REPO env var.
+build-docker-multiplexer-local:
+	@echo "--> Building Multiplexer Docker image locally with private repo access"
+	@if [ -z "$$GH_PRIVATE_REPO" ]; then \
+		echo "ERROR: GH_PRIVATE_REPO environment variable is not set"; \
+		echo "Please run: export GH_PRIVATE_REPO=<your_github_token>"; \
+		exit 1; \
+	fi
+	@export DOCKER_BUILDKIT=0 && \
+	$(DOCKER) build \
+		--build-arg GITHUB_TOKEN="$$GH_PRIVATE_REPO" \
+		--build-arg TARGETOS=$(DOCKER_GOOS) \
+		--build-arg TARGETARCH=$(DOCKER_GOARCH) \
+		-t ghcr.io/celestiaorg/celestia-app:$(CELESTIA_TAG) \
+		-f docker/multiplexer-local.Dockerfile .
+.PHONY: build-docker-multiplexer-local
+
 ## build-ghcr-docker: Build the celestia-appd Docker image tagged with the current commit hash for GitHub Container Registry.
 build-ghcr-docker:
 	@echo "--> Building Docker image"
@@ -257,18 +274,6 @@ fmt:
 lint-fix: fmt
 .PHONY: lint-fix
 
-## modernize-fix: Apply modernize suggestions automatically.
-modernize-fix:
-	@echo "--> Applying modernize fixes"
-	@bash scripts/modernize.sh
-.PHONY: modernize-fix
-
-## modernize-check: Check for modernize issues without applying fixes.
-modernize-check:
-	@echo "--> Checking for modernize issues"
-	@bash scripts/modernize-check.sh
-.PHONY: modernize-check
-
 ## test: Run tests.
 test:
 	@echo "--> Running tests"
@@ -315,7 +320,7 @@ test-race:
 # TODO: Remove the -skip flag once the following tests no longer contain data races.
 # https://github.com/celestiaorg/celestia-app/issues/1369
 	@echo "--> Running tests in race mode"
-	@go test -timeout 15m ./... -v -race -skip "TestPrepareProposalConsistency|TestIntegrationTestSuite|TestSquareSizeIntegrationTest|TestStandardSDKIntegrationTestSuite|TestTxsimCommandFlags|TestTxsimCommandEnvVar|TestTxsimDefaultKeypath|TestMintIntegrationTestSuite|TestUpgrade|TestMaliciousTestNode|TestBigBlobSuite|TestQGBIntegrationSuite|TestSignerTestSuite|TestPriorityTestSuite|TestTimeInPrepareProposalContext|TestCLITestSuite|TestLegacyUpgrade|TestSignerTwins|TestConcurrentTxSubmission|TestTxClientTestSuite|Test_testnode|TestEvictions|TestEstimateGasUsed|TestEstimateGasPrice|TestWithEstimatorService|TestTxsOverMaxTxSizeGetRejected|TestStart_Success|TestReadBlockchainHeaders|TestPrepareProposalCappingNumberOfMessages|TestGasEstimatorE2E|TestGasEstimatorE2EWithNetworkMinGasPrice|TestRejections|TestClaimRewardsAfterFullUndelegation|TestParallelTxSubmission"
+	@go test -timeout 15m -v -race -skip "TestPrepareProposalConsistency|TestIntegrationTestSuite|TestSquareSizeIntegrationTest|TestStandardSDKIntegrationTestSuite|TestTxsimCommandFlags|TestTxsimCommandEnvVar|TestTxsimDefaultKeypath|TestMintIntegrationTestSuite|TestUpgrade|TestMaliciousTestNode|TestBigBlobSuite|TestQGBIntegrationSuite|TestSignerTestSuite|TestPriorityTestSuite|TestTimeInPrepareProposalContext|TestCLITestSuite|TestLegacyUpgrade|TestSignerTwins|TestConcurrentTxSubmission|TestTxClientTestSuite|Test_testnode|TestEvictions|TestEstimateGasUsed|TestEstimateGasPrice|TestWithEstimatorService|TestTxsOverMaxTxSizeGetRejected|TestStart_Success|TestReadBlockchainHeaders|TestPrepareProposalCappingNumberOfMessages|TestGasEstimatorE2E|TestGasEstimatorE2EWithNetworkMinGasPrice|TestRejections|TestClaimRewardsAfterFullUndelegation|TestParallelTxSubmission|TestRun|TestClientServerUpload" ./...
 .PHONY: test-race
 
 ## test-bench: Run benchmark unit tests.

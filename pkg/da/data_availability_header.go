@@ -5,14 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts/v5"
-	"github.com/celestiaorg/celestia-app/v6/pkg/wrapper"
-	daproto "github.com/celestiaorg/celestia-app/v6/proto/celestia/core/v1/da"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	appconstsv5 "github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts/v5"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/wrapper"
+	daproto "github.com/celestiaorg/celestia-app-fibre/v6/proto/celestia/core/v1/da"
 	squarev2 "github.com/celestiaorg/go-square/v2"
 	sharev2 "github.com/celestiaorg/go-square/v2/share"
 	squarev3 "github.com/celestiaorg/go-square/v3"
 	sharev3 "github.com/celestiaorg/go-square/v3/share"
+	squarev4 "github.com/celestiaorg/go-square/v4"
+	sharev4 "github.com/celestiaorg/go-square/v4/share"
 	"github.com/celestiaorg/rsmt2d"
 	"github.com/cometbft/cometbft/crypto/merkle"
 	"github.com/cometbft/cometbft/types"
@@ -65,21 +67,26 @@ func NewDataAvailabilityHeader(eds *rsmt2d.ExtendedDataSquare) (DataAvailability
 
 // ConstructEDS constructs an ExtendedDataSquare from the given transactions and app version.
 // If maxSquareSize is less than 0, it will use the upper bound square size for the given app version.
-func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.ExtendedDataSquare, error) {
+//
+// The handler parameter is required. Callers with access to TxConfig should create a handler using
+// app.NewPayForFibreHandler(txConfig). Callers without access to TxConfig can use
+// squarev3.NoOpPayForFibreHandler(), but note that PayForFibre transactions will be treated as
+// normal transactions, which may result in incorrect square construction.
+func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int, handler squarev4.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	switch appVersion {
 	case 0:
 		return nil, fmt.Errorf("app version cannot be 0")
 	case 1, 2, 3, 4, 5: // versions 1-5 are all compatible with v2 of the square package
 		if maxSquareSize < 0 {
-			maxSquareSize = v5.SquareSizeUpperBound
+			maxSquareSize = appconstsv5.SquareSizeUpperBound
 		}
 		// all versions 5 and below have the same parameters and algorithm
-		square, err := squarev2.Construct(txs, maxSquareSize, v5.SubtreeRootThreshold)
+		square, err := squarev2.Construct(txs, maxSquareSize, appconstsv5.SubtreeRootThreshold)
 		if err != nil {
 			return nil, err
 		}
 		return ExtendShares(sharev2.ToBytes(square))
-	default: // assume all other versions are compatible with v3 of the square package
+	case 6: // version 6 used go-square v3
 		if maxSquareSize < 0 {
 			maxSquareSize = appconsts.SquareSizeUpperBound
 		}
@@ -88,27 +95,42 @@ func ConstructEDS(txs [][]byte, appVersion uint64, maxSquareSize int) (*rsmt2d.E
 			return nil, err
 		}
 		return ExtendShares(sharev3.ToBytes(square))
+	default: // assume all other versions are compatible with v4 of the square package
+		if maxSquareSize < 0 {
+			maxSquareSize = appconsts.SquareSizeUpperBound
+		}
+		square, err := squarev4.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
+		if err != nil {
+			return nil, err
+		}
+		return ExtendShares(sharev4.ToBytes(square))
+
 	}
 }
 
 // ConstructEDSWithTreePool constructs an ExtendedDataSquare from the given transactions and app version,
 // it uses treePool to optimize allocations.
 // If maxSquareSize is less than 0, it will use the upper bound square size for the given app version.
-func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int, treePool *wrapper.TreePool) (*rsmt2d.ExtendedDataSquare, error) {
+//
+// The handler parameter is required. Callers with access to TxConfig should create a handler using
+// app.NewPayForFibreHandler(txConfig). Callers without access to TxConfig can use
+// squarev3.NoOpPayForFibreHandler(), but note that PayForFibre transactions will be treated as
+// normal transactions, which may result in incorrect square construction.
+func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int, treePool *wrapper.TreePool, handler squarev4.PayForFibreHandler) (*rsmt2d.ExtendedDataSquare, error) {
 	switch appVersion {
 	case 0:
 		return nil, fmt.Errorf("app version cannot be 0")
 	case 1, 2, 3, 4, 5: // versions 1-5 are all compatible with v2 of the square package
 		if maxSquareSize < 0 {
-			maxSquareSize = v5.SquareSizeUpperBound
+			maxSquareSize = appconstsv5.SquareSizeUpperBound
 		}
 		// all versions 5 and below have the same parameters and algorithm
-		square, err := squarev2.Construct(txs, maxSquareSize, v5.SubtreeRootThreshold)
+		square, err := squarev2.Construct(txs, maxSquareSize, appconstsv5.SubtreeRootThreshold)
 		if err != nil {
 			return nil, err
 		}
 		return ExtendSharesWithTreePool(sharev2.ToBytes(square), treePool)
-	default: // assume all other versions are compatible with v3 of the square package
+	case 6: // version 6 used go-square v3
 		if maxSquareSize < 0 {
 			maxSquareSize = appconsts.SquareSizeUpperBound
 		}
@@ -117,6 +139,16 @@ func ConstructEDSWithTreePool(txs [][]byte, appVersion uint64, maxSquareSize int
 			return nil, err
 		}
 		return ExtendSharesWithTreePool(sharev3.ToBytes(square), treePool)
+	default:
+		// assume all other versions are compatible with v4 of the square package
+		if maxSquareSize < 0 {
+			maxSquareSize = appconsts.SquareSizeUpperBound
+		}
+		square, err := squarev4.Construct(txs, maxSquareSize, appconsts.SubtreeRootThreshold, handler)
+		if err != nil {
+			return nil, err
+		}
+		return ExtendSharesWithTreePool(sharev4.ToBytes(square), treePool)
 	}
 }
 

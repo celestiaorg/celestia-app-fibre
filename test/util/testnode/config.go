@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"cosmossdk.io/log"
-	"github.com/celestiaorg/celestia-app/v6/app"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/celestia-app/v6/test/util/genesis"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/genesis"
 	tmconfig "github.com/cometbft/cometbft/config"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	dbm "github.com/cosmos/cosmos-db"
@@ -24,6 +24,7 @@ const (
 	DefaultValidatorAccountName = "validator"
 	DefaultInitialBalance       = genesis.DefaultInitialBalance
 	// TimeoutCommit is a flag that can be used to override the timeout_commit.
+	//
 	// Deprecated: Use DelayedPrecommitTimeout instead.
 	TimeoutCommitFlag = "timeout-commit"
 	// DelayedPrecommitTimeout is a flag that can be used to override the DelayedPrecommitTimeout.
@@ -87,6 +88,7 @@ func (c *Config) WithSuppressLogs(sl bool) *Config {
 
 // WithTimeoutCommit sets the timeout commit in the cometBFT config and returns
 // the Config. For backward compatibility, it also sets the app's block time.
+//
 // Deprecated: Use WithBlockTime instead.
 func (c *Config) WithTimeoutCommit(d time.Duration) *Config {
 	c.TmConfig.Consensus.TimeoutCommit = d

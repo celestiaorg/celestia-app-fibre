@@ -6,9 +6,9 @@ import (
 	"slices"
 
 	"cosmossdk.io/errors"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/go-square/v3/inclusion"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	"github.com/celestiaorg/go-square/v4/inclusion"
+	"github.com/celestiaorg/go-square/v4/share"
 	"github.com/cometbft/cometbft/crypto/merkle"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )

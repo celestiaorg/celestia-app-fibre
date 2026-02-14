@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
 )
 
 func BenchmarkRun(b *testing.B) {

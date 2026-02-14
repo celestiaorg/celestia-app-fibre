@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/celestiaorg/celestia-app/v6/x/minfee/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/minfee/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 

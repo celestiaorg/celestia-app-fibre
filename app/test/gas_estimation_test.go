@@ -7,18 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celestiaorg/celestia-app/v6/app"
-	"github.com/celestiaorg/celestia-app/v6/app/encoding"
-	"github.com/celestiaorg/celestia-app/v6/app/grpc/gasestimation"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/celestia-app/v6/pkg/user"
-	testutil "github.com/celestiaorg/celestia-app/v6/test/util"
-	"github.com/celestiaorg/celestia-app/v6/test/util/blobfactory"
-	"github.com/celestiaorg/celestia-app/v6/test/util/random"
-	"github.com/celestiaorg/celestia-app/v6/test/util/testfactory"
-	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
-	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app/encoding"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app/grpc/gasestimation"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/user"
+	testutil "github.com/celestiaorg/celestia-app-fibre/v6/test/util"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/blobfactory"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/random"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testfactory"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testnode"
+	blobtypes "github.com/celestiaorg/celestia-app-fibre/v6/x/blob/types"
+	"github.com/celestiaorg/go-square/v4/share"
 	abci "github.com/cometbft/cometbft/abci/types"
 	coretypes "github.com/cometbft/cometbft/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -39,7 +39,7 @@ func TestSortAndExtractGasPrice(t *testing.T) {
 	)
 
 	txGas := uint64(100000)
-	txs := make([]coretypes.Tx, 0)
+	txs := make([]coretypes.Tx, 0, len(accounts)*2)
 	txGasToSizeMap := make(map[float64]int)
 	for i, acc := range accounts {
 		signer, err := user.NewSigner(kr, enc, testutil.ChainID, user.NewAccount(acc, infos[i].AccountNum, infos[i].Sequence))

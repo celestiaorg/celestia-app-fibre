@@ -1,9 +1,13 @@
 package app
 
 import (
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	square "github.com/celestiaorg/go-square/v3"
-	"github.com/celestiaorg/go-square/v3/tx"
+	"fmt"
+
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	fibretypes "github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
+	square "github.com/celestiaorg/go-square/v4"
+	"github.com/celestiaorg/go-square/v4/share"
+	"github.com/celestiaorg/go-square/v4/tx"
 	tmbytes "github.com/cometbft/cometbft/libs/bytes"
 	coretypes "github.com/cometbft/cometbft/types"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -48,7 +52,7 @@ func (fsb *FilteredSquareBuilder) Fill(ctx sdk.Context, txs [][]byte) [][]byte {
 	logger := ctx.Logger().With("app/filtered-square-builder")
 
 	// note that there is an additional filter step for tx size of raw txs here
-	normalTxs, blobTxs := separateTxs(fsb.txConfig, txs)
+	normalTxs, blobTxs, payForFibreTxs := separateTxs(fsb.txConfig, txs)
 
 	var (
 		nonPFBMessageCount = 0
@@ -144,9 +148,88 @@ func (fsb *FilteredSquareBuilder) Fill(ctx sdk.Context, txs [][]byte) [][]byte {
 		m++
 	}
 
-	kept := make([][]byte, 0, m+n)
+	payForFibreTxCount := 0
+
+	for _, tx := range payForFibreTxs {
+		sdkTx, err := dec(tx)
+		if err != nil {
+			logger.Error("decoding already checked pay-for-fibre transaction", "tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()), "error", err)
+			continue
+		}
+
+		// Set the tx size on the context before calling the AnteHandler
+		ctx = ctx.WithTxBytes(tx)
+
+		msgTypes := msgTypes(sdkTx)
+
+		// Append pay-for-fibre transaction to builder (will be routed to PayForFibreNamespace in Export)
+		if !fsb.builder.AppendPayForFibreTx(tx) {
+			logger.Debug("skipping pay-for-fibre tx because it was too large to fit in the square", "tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()))
+			continue
+		}
+
+		ctx, err = fsb.handler(ctx, sdkTx, false)
+		// either the transaction is invalid (ie incorrect nonce) and we
+		// simply want to remove this tx, or we're catching a panic from one
+		// of the anteHandlers which is logged.
+		if err != nil {
+			logger.Error(
+				"filtering already checked pay-for-fibre transaction",
+				"tx", tmbytes.HexBytes(coretypes.Tx(tx).Hash()),
+				"error", err,
+				"msgs", msgTypes,
+			)
+			telemetry.IncrCounter(1, "prepare_proposal", "invalid_pay_for_fibre_txs")
+			err = fsb.builder.RevertLastPayForFibreTx()
+			if err != nil {
+				logger.Error("reverting last pay-for-fibre transaction", "error", err)
+			}
+			continue
+		}
+
+		// Generate and add system-level blob for this MsgPayForFibre transaction
+		msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+		if hasPayForFibre {
+			txHash := coretypes.Tx(tx).Hash()
+
+			// Create system blob
+			systemBlob, err := createSystemBlobForPayForFibre(msgPayForFibre)
+			if err != nil {
+				logger.Error(
+					"failed to create system blob for pay-for-fibre transaction",
+					"tx", tmbytes.HexBytes(txHash),
+					"error", err,
+				)
+				telemetry.IncrCounter(1, "prepare_proposal", "failed_system_blob_creation")
+				// Revert the transaction that was already appended
+				if revertErr := fsb.builder.RevertLastPayForFibreTx(); revertErr != nil {
+					logger.Error("reverting last pay-for-fibre transaction after system blob creation failure", "error", revertErr)
+				}
+				continue
+			}
+
+			// Add system blob to builder
+			if !fsb.builder.AppendSystemBlob(systemBlob) {
+				logger.Debug(
+					"skipping pay-for-fibre tx because system blob was too large to fit in the square",
+					"tx", tmbytes.HexBytes(txHash),
+				)
+				// Revert the transaction that was already appended
+				if revertErr := fsb.builder.RevertLastPayForFibreTx(); revertErr != nil {
+					logger.Error("reverting last pay-for-fibre transaction after system blob addition failure", "error", revertErr)
+				}
+				continue
+			}
+		}
+
+		payForFibreTxs[payForFibreTxCount] = tx
+		payForFibreTxCount++
+	}
+
+	kept := make([][]byte, 0, m+n+payForFibreTxCount)
 	kept = append(kept, normalTxs[:n]...)
 	kept = append(kept, encodeBlobTxs(blobTxs[:m])...)
+	kept = append(kept, payForFibreTxs[:payForFibreTxCount]...)
 	return kept
 }
 
@@ -171,14 +254,21 @@ func encodeBlobTxs(blobTxs []*tx.BlobTx) [][]byte {
 	return txs
 }
 
-// separateTxs decodes raw tendermint txs into normal and blob txs.
-func separateTxs(_ client.TxConfig, rawTxs [][]byte) ([][]byte, []*tx.BlobTx) {
-	normalTxs := make([][]byte, 0, len(rawTxs))
-	blobTxs := make([]*tx.BlobTx, 0, len(rawTxs))
+// separateTxs decodes raw tendermint txs into normal, blob, and pay-for-fibre txs.
+// This function filters out transactions that exceed MaxTxSize. In process_proposal,
+// transactions are already validated for size before this function is called, so
+// the size check here is redundant but harmless.
+func separateTxs(txConfig client.TxConfig, rawTxs [][]byte) (normalTxs [][]byte, blobTxs []*tx.BlobTx, payForFibreTxs [][]byte) {
+	normalTxs = make([][]byte, 0, len(rawTxs))
+	blobTxs = make([]*tx.BlobTx, 0, len(rawTxs))
+	payForFibreTxs = make([][]byte, 0, len(rawTxs))
+	dec := txConfig.TxDecoder()
+
 	for _, rawTx := range rawTxs {
 		// this check in theory shouldn't get hit, as txs should be filtered
 		// in CheckTx. However in tests we're inserting too large of txs
-		// therefore also filter here.
+		// therefore also filter here. In process_proposal, transactions are
+		// already validated for size, so this check is redundant but harmless.
 		if len(rawTx) > appconsts.MaxTxSize {
 			continue
 		}
@@ -189,9 +279,107 @@ func separateTxs(_ client.TxConfig, rawTxs [][]byte) ([][]byte, []*tx.BlobTx) {
 				panic(err)
 			}
 			blobTxs = append(blobTxs, bTx)
-		} else {
+			continue
+		}
+
+		// Decode the transaction
+		sdkTx, err := dec(rawTx)
+		if err != nil {
 			normalTxs = append(normalTxs, rawTx)
+			continue
+		}
+
+		// Check if this is a pay-for-fibre transaction
+		if _, hasPayForFibre := extractMsgPayForFibre(sdkTx); hasPayForFibre {
+			payForFibreTxs = append(payForFibreTxs, rawTx)
+			continue
+		}
+		// If it's not a pay-for-fibre transaction, add it to the normal transactions
+		normalTxs = append(normalTxs, rawTx)
+	}
+	return normalTxs, blobTxs, payForFibreTxs
+}
+
+// payForFibreHandler implements square.PayForFibreHandler for celestia-app.
+type payForFibreHandler struct {
+	txConfig client.TxConfig
+}
+
+// NewPayForFibreHandler creates a new PayForFibreHandler for celestia-app.
+func NewPayForFibreHandler(txConfig client.TxConfig) square.PayForFibreHandler {
+	return &payForFibreHandler{txConfig: txConfig}
+}
+
+// IsPayForFibreTx returns true if the transaction contains a MsgPayForFibre message.
+func (h *payForFibreHandler) IsPayForFibreTx(tx []byte) bool {
+	sdkTx, err := h.txConfig.TxDecoder()(tx)
+	if err != nil {
+		return false
+	}
+	_, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+	return hasPayForFibre
+}
+
+// CreateSystemBlob creates a system blob from a PayForFibre transaction.
+func (h *payForFibreHandler) CreateSystemBlob(tx []byte) (*share.Blob, error) {
+	sdkTx, err := h.txConfig.TxDecoder()(tx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode transaction: %w", err)
+	}
+	msgPayForFibre, hasPayForFibre := extractMsgPayForFibre(sdkTx)
+	if !hasPayForFibre {
+		return nil, fmt.Errorf("transaction does not contain MsgPayForFibre")
+	}
+	return createSystemBlobForPayForFibre(msgPayForFibre)
+}
+
+// extractMsgPayForFibre extracts MsgPayForFibre from a transaction's messages.
+// Returns the first MsgPayForFibre found and true if found, nil and false otherwise.
+func extractMsgPayForFibre(sdkTx sdk.Tx) (*fibretypes.MsgPayForFibre, bool) {
+	msgs := sdkTx.GetMsgs()
+	for _, msg := range msgs {
+		if pff, ok := msg.(*fibretypes.MsgPayForFibre); ok {
+			return pff, true
 		}
 	}
-	return normalTxs, blobTxs
+	return nil, false
+}
+
+// createSystemBlobForPayForFibre creates a system-level blob for a MsgPayForFibre message.
+// The blob uses share version 2 and contains the Fibre blob version and commitment.
+func createSystemBlobForPayForFibre(msg *fibretypes.MsgPayForFibre) (*share.Blob, error) {
+	// Extract namespace from PaymentPromise
+	namespaceBytes := msg.PaymentPromise.Namespace
+	if len(namespaceBytes) != share.NamespaceSize {
+		return nil, fmt.Errorf("invalid namespace size: expected %d bytes, got %d", share.NamespaceSize, len(namespaceBytes))
+	}
+	namespace, err := share.NewNamespaceFromBytes(namespaceBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create namespace: %w", err)
+	}
+
+	// Convert signer from bech32 to 20-byte address
+	signerAddr, err := sdk.AccAddressFromBech32(msg.Signer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode signer address: %w", err)
+	}
+	signerBytes := signerAddr.Bytes()
+	if len(signerBytes) != share.SignerSize {
+		return nil, fmt.Errorf("invalid signer size: expected %d bytes, got %d", share.SignerSize, len(signerBytes))
+	}
+
+	// Extract fibre_blob_version and commitment from PaymentPromise
+	fibreBlobVersion := msg.PaymentPromise.BlobVersion
+	commitment := msg.PaymentPromise.Commitment
+	if len(commitment) != share.FibreCommitmentSize {
+		return nil, fmt.Errorf("invalid commitment size: expected %d bytes, got %d", share.FibreCommitmentSize, len(commitment))
+	}
+
+	// Create V2 blob using NewV2Blob
+	blob, err := share.NewV2Blob(namespace, fibreBlobVersion, commitment, signerBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create V2 blob: %w", err)
+	}
+
+	return blob, nil
 }

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"sort"
 
-	"github.com/celestiaorg/celestia-app/v6/test/util/random"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/random"
+	"github.com/celestiaorg/go-square/v4/share"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/hd"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"

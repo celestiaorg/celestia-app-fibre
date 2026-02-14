@@ -6,9 +6,9 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/go-square/v3"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	"github.com/celestiaorg/go-square/v4"
+	"github.com/celestiaorg/go-square/v4/share"
 	abci "github.com/cometbft/cometbft/abci/types"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cometbft/cometbft/types"
@@ -92,7 +92,7 @@ func QueryShareInclusionProof(_ sdk.Context, path []string, req *abci.RequestQue
 	// construct the data square from the block data. As we don't have
 	// access to the application's state machine we use the upper bound
 	// square size instead of the square size dictated from governance
-	dataSquare, err := square.Construct(pbb.Data.Txs, appconsts.SquareSizeUpperBound, appconsts.SubtreeRootThreshold)
+	dataSquare, err := square.Construct(pbb.Data.Txs, appconsts.SquareSizeUpperBound, appconsts.SubtreeRootThreshold, square.NoOpPayForFibreHandler())
 	if err != nil {
 		return nil, err
 	}

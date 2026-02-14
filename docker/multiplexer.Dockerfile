@@ -61,7 +61,15 @@ WORKDIR /celestia-app
 
 # cache go module dependencies
 COPY go.mod go.sum ./
-RUN go mod download
+
+# Configure git for private modules using BuildKit secret mount
+ENV GOPRIVATE=github.com/celestiaorg/*
+RUN --mount=type=secret,id=github_token \
+    if [ -f /run/secrets/github_token ]; then \
+        GITHUB_TOKEN=$(cat /run/secrets/github_token) && \
+        git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"; \
+    fi && \
+    go mod download
 
 # copy source code after downloading modules (to leverage caching)
 COPY . .

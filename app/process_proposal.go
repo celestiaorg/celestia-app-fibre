@@ -7,12 +7,14 @@ import (
 
 	"cosmossdk.io/errors"
 	"cosmossdk.io/log"
-	"github.com/celestiaorg/celestia-app/v6/app/ante"
-	apperr "github.com/celestiaorg/celestia-app/v6/app/errors"
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/celestia-app/v6/pkg/da"
-	blobtypes "github.com/celestiaorg/celestia-app/v6/x/blob/types"
-	blobtx "github.com/celestiaorg/go-square/v3/tx"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app/ante"
+	apperr "github.com/celestiaorg/celestia-app-fibre/v6/app/errors"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/da"
+	blobtypes "github.com/celestiaorg/celestia-app-fibre/v6/x/blob/types"
+	squarev4 "github.com/celestiaorg/go-square/v4"
+	"github.com/celestiaorg/go-square/v4/share"
+	blobtx "github.com/celestiaorg/go-square/v4/tx"
 	abci "github.com/cometbft/cometbft/abci/types"
 	tmproto "github.com/cometbft/cometbft/proto/tendermint/types"
 	"github.com/cosmos/cosmos-sdk/telemetry"
@@ -128,7 +130,16 @@ func (app *App) ProcessProposalHandler(ctx sdk.Context, req *abci.RequestProcess
 
 	}
 
-	eds, err := da.ConstructEDSWithTreePool(req.Txs, appconsts.Version, app.MaxEffectiveSquareSize(ctx), app.TreePool())
+	// Build the square with PayForFibre support
+	pffHandler := NewPayForFibreHandler(app.encodingConfig.TxConfig)
+	dataSquare, err := squarev4.Construct(req.Txs, app.MaxEffectiveSquareSize(ctx), appconsts.SubtreeRootThreshold, pffHandler)
+	if err != nil {
+		logInvalidPropBlockError(app.Logger(), blockHeader, "failed to build data square:", err)
+		return reject(), nil
+	}
+
+	// Extend the square to create the extended data square
+	eds, err := da.ExtendSharesWithTreePool(share.ToBytes(dataSquare), app.TreePool())
 	if err != nil {
 		logInvalidPropBlockError(app.Logger(), blockHeader, "failure to compute extended data square from transactions:", err)
 		return reject(), nil

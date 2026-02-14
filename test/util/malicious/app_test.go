@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/celestiaorg/celestia-app/v6/pkg/appconsts"
-	"github.com/celestiaorg/celestia-app/v6/pkg/da"
-	"github.com/celestiaorg/celestia-app/v6/pkg/wrapper"
-	"github.com/celestiaorg/celestia-app/v6/test/util/blobfactory"
-	"github.com/celestiaorg/celestia-app/v6/test/util/random"
-	"github.com/celestiaorg/celestia-app/v6/test/util/testfactory"
-	"github.com/celestiaorg/celestia-app/v6/test/util/testnode"
-	square "github.com/celestiaorg/go-square/v3"
-	"github.com/celestiaorg/go-square/v3/share"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/appconsts"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/da"
+	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/wrapper"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/blobfactory"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/random"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testfactory"
+	"github.com/celestiaorg/celestia-app-fibre/v6/test/util/testnode"
+	square "github.com/celestiaorg/go-square/v4"
+	"github.com/celestiaorg/go-square/v4/share"
 	abci "github.com/cometbft/cometbft/abci/types"
 	"github.com/stretchr/testify/require"
 )
@@ -109,6 +109,7 @@ func TestMaliciousTestNode(t *testing.T) {
 	correctSquare, err := square.Construct(block.Block.Txs.ToSliceOfBytes(),
 		appconsts.SquareSizeUpperBound,
 		appconsts.SubtreeRootThreshold,
+		square.NoOpPayForFibreHandler(),
 	)
 	require.NoError(t, err)
 

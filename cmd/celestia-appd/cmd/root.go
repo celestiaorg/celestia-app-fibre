@@ -6,7 +6,7 @@ import (
 
 	"cosmossdk.io/log"
 	confixcmd "cosmossdk.io/tools/confix/cmd"
-	"github.com/celestiaorg/celestia-app/v6/app"
+	"github.com/celestiaorg/celestia-app-fibre/v6/app"
 	"github.com/cometbft/cometbft/cmd/cometbft/commands"
 	tmcli "github.com/cometbft/cometbft/libs/cli"
 	dbm "github.com/cosmos/cosmos-db"
@@ -34,6 +34,7 @@ const (
 	UpgradeHeightFlag = "v2-upgrade-height"
 
 	// TimeoutCommit is a flag that can be used to override the timeout_commit.
+	//
 	// Deprecated: Use DelayedPrecommitTimeoutFlag instead.
 	TimeoutCommitFlag = "timeout-commit"
 

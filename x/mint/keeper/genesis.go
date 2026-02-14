@@ -3,7 +3,7 @@ package keeper
 import (
 	"context"
 
-	"github.com/celestiaorg/celestia-app/v6/x/mint/types"
+	"github.com/celestiaorg/celestia-app-fibre/v6/x/mint/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
