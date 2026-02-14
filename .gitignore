@@ -32,3 +32,5 @@ config.json
 memory-bank/*
 .clinerules
 tools/talis/talis
+# Claude Code local settings
+.claude/*.local.json
