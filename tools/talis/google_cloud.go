@@ -234,7 +234,7 @@ func gcClientOptions(cfg Config) ([]option.ClientOption, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read Google Cloud key file at %s: %w", cfg.GoogleCloudKeyJSONPath, err)
 		}
-		opts = append(opts, option.WithCredentialsJSON(keyJSON))
+		opts = append(opts, option.WithCredentialsJSON(keyJSON)) //nolint:staticcheck
 	}
 	return opts, nil
 }
