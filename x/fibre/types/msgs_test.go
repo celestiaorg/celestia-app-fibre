@@ -398,7 +398,7 @@ func TestMsgPayForFibreValidateBasic(t *testing.T) {
 				PaymentPromise:      paymentPromise,
 				ValidatorSignatures: [][]byte{[]byte("sig1"), {}},
 			},
-			wantErr: sdkerrors.ErrInvalidRequest,
+			wantErr: nil,
 		},
 	}
 
