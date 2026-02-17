@@ -25,10 +25,6 @@ func addCmd() *cobra.Command {
 				return fmt.Errorf("failed to load config %q: %w", rootDir, err)
 			}
 
-			if provider == "" {
-				provider = "digitalocean"
-			}
-
 			switch nodeType {
 			case "validator":
 				for i := 0; i < count; i++ {
