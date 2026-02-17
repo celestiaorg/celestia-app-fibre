@@ -360,21 +360,12 @@ txsim-build-docker:
 	docker build -t ghcr.io/celestiaorg/txsim -f docker/txsim/Dockerfile  .
 .PHONY: txsim-build-docker
 
-## build-talis-bins: Build celestia-appd and txsim binaries for talis VMs (ubuntu 22.04 LTS)
+## build-talis-bins: Build celestia-appd, txsim, and latency-monitor binaries for talis VMs (ubuntu 22.04 LTS)
 build-talis-bins:
-	docker build \
-	  --file tools/talis/docker/Dockerfile \
-	  --target builder \
-	  --platform linux/amd64 \
-	  --build-arg LDFLAGS="$(LDFLAGS_STANDALONE)" \
-	  --build-arg GOOS=linux \
-	  --build-arg GOARCH=amd64 \
-	  --tag talis-builder:latest \
-	  .
 	mkdir -p build
-	docker create --platform linux/amd64 --name tmp talis-builder:latest
-	docker cp tmp:/out/. build/
-	docker rm tmp
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS_STANDALONE)" -o build/celestia-appd ./cmd/celestia-appd
+	GOOS=linux GOARCH=amd64 go build -o build/txsim ./test/cmd/txsim
+	GOOS=linux GOARCH=amd64 go build -o build/latency-monitor ./tools/latency-monitor 2>/dev/null || echo "latency-monitor not found, skipping"
 .PHONY: build-talis-bins
 
 
