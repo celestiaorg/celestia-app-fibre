@@ -114,12 +114,6 @@ func (msg *MsgPayForFibre) ValidateBasic() error {
 		return errorsmod.Wrap(sdkerrors.ErrInvalidRequest, "must have at least one validator signature")
 	}
 
-	for i, signature := range msg.ValidatorSignatures {
-		if len(signature) == 0 {
-			return errorsmod.Wrapf(sdkerrors.ErrInvalidRequest, "validator signature at index %d cannot be empty", i)
-		}
-	}
-
 	return nil
 }
 
