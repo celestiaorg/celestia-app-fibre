@@ -240,7 +240,7 @@ func fibreTxsimCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&rootDir, "directory", "d", ".", "root directory in which to initialize")
 	cmd.Flags().StringVar(&grpcEndpoint, "grpc-endpoint", "", "gRPC endpoint (default: first validator IP:9091)")
 	cmd.Flags().StringVar(&keyringDir, "keyring-dir", "", "keyring directory (default: <rootDir>/payload/<first-validator>)")
-	cmd.Flags().StringVar(&keyName, "key-name", "txsim", "key name in keyring")
+	cmd.Flags().StringVar(&keyName, "key-name", "validator", "key name in keyring (must match the account that deposited to escrow)")
 	cmd.Flags().IntVar(&blobSize, "blob-size", 1000000, "size of each blob in bytes")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 1, "number of concurrent blob submissions")
 	cmd.Flags().DurationVar(&interval, "interval", 0, "delay between blob submissions (0 = no delay, fire as fast as possible)")
