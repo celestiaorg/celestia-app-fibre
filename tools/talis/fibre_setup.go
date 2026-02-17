@@ -37,8 +37,7 @@ func setupFibreCmd() *cobra.Command {
 
 			for _, val := range cfg.Validators {
 				script := fmt.Sprintf(
-					"sleep 5 && "+
-						"celestia-appd tx valaddr set-host %s:%d "+
+					"celestia-appd tx valaddr set-host %s:%d "+
 						"--from validator --keyring-backend=test --home .celestia-app "+
 						"--chain-id %s --fees %s --yes && "+
 						"sleep 5 && "+

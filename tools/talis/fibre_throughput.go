@@ -79,7 +79,7 @@ func fibreThroughputCmd() *cobra.Command {
 				totalThroughput float64
 			)
 
-			ticker := time.NewTicker(2 * time.Second)
+			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 
 			for ctx.Err() == nil {
