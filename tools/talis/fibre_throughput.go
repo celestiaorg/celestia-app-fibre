@@ -36,6 +36,7 @@ func fibreThroughputCmd() *cobra.Command {
 		duration    time.Duration
 		withTraces  bool
 		tracesDir   string
+		startHeight int64
 	)
 
 	cmd := &cobra.Command{
@@ -81,12 +82,16 @@ func fibreThroughputCmd() *cobra.Command {
 				defer cancel()
 			}
 
-			// Get the current latest height to start from
-			statusResp, err := client.Status(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to get status: %w", err)
+			var nextHeight int64
+			if startHeight > 0 {
+				nextHeight = startHeight
+			} else {
+				statusResp, err := client.Status(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to get status: %w", err)
+				}
+				nextHeight = statusResp.SyncInfo.LatestBlockHeight + 1
 			}
-			nextHeight := statusResp.SyncInfo.LatestBlockHeight + 1
 			fmt.Printf("Starting from height %d\n\n", nextHeight)
 
 			var (
@@ -229,6 +234,7 @@ func fibreThroughputCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&duration, "duration", 0, "how long to run (0 = until Ctrl+C)")
 	cmd.Flags().BoolVar(&withTraces, "with-traces", false, "enable JSONL trace file output")
 	cmd.Flags().StringVar(&tracesDir, "traces-dir", "traces/throughput", "directory for trace files")
+	cmd.Flags().Int64Var(&startHeight, "start-height", 0, "block height to start from (0 = latest + 1)")
 
 	return cmd
 }
