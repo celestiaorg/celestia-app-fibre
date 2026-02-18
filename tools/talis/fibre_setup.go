@@ -80,6 +80,9 @@ func setupFibreCmd() *cobra.Command {
 			if len(errs) > 0 {
 				return errors.Join(errs...)
 			}
+			fmt.Println("Waiting for fibre setup to complete...")
+			time.Sleep(40 * time.Second)
+			fmt.Println("Done!")
 			return nil
 		},
 	}

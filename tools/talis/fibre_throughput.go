@@ -139,8 +139,8 @@ func fibreThroughputCmd() *cobra.Command {
 						throughputMBs = float64(blobBytes) / blockTimeDelta / (1024 * 1024)
 					}
 
-					fmt.Printf("height=%d txs=%d blob_bytes=%d block_time=%.2fs throughput=%.2f MB/s\n",
-						h, fibreTxCount, blobBytes, blockTimeDelta, throughputMBs)
+					fmt.Printf("height=%d txs=%d blob_bytes=%d MB block_time=%.2fs throughput=%.2f MB/s\n",
+						h, fibreTxCount, blobBytes/(1024*1024), blockTimeDelta, throughputMBs)
 
 					totalBlocks++
 					totalBytes += blobBytes
