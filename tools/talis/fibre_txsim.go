@@ -14,6 +14,7 @@ func fibreTxsimCmd() *cobra.Command {
 	var (
 		rootDir     string
 		SSHKeyPath  string
+		instances   int
 		concurrency int
 		blobSize    int
 		interval    time.Duration
@@ -37,7 +38,7 @@ func fibreTxsimCmd() *cobra.Command {
 			resolvedSSHKeyPath := resolveValue(SSHKeyPath, EnvVarSSHKeyPath, strings.ReplaceAll(cfg.SSHPubKeyPath, ".pub", ""))
 
 			// Select first N validators
-			n := concurrency
+			n := instances
 			if n > len(cfg.Validators) {
 				n = len(cfg.Validators)
 			}
@@ -45,10 +46,11 @@ func fibreTxsimCmd() *cobra.Command {
 
 			// Build the remote command — fibre-txsim is already in /bin/ from the payload
 			remoteCmd := fmt.Sprintf(
-				"fibre-txsim --chain-id %s --grpc-endpoint localhost:9091 --keyring-dir .celestia-app --key-name %s --blob-size %d --interval %s --duration %s",
+				"fibre-txsim --chain-id %s --grpc-endpoint localhost:9091 --keyring-dir .celestia-app --key-name %s --blob-size %d --concurrency %d --interval %s --duration %s",
 				cfg.ChainID,
 				keyName,
 				blobSize,
+				concurrency,
 				interval,
 				duration,
 			)
@@ -78,7 +80,8 @@ func fibreTxsimCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&rootDir, "directory", "d", ".", "root directory (for config.json)")
 	cmd.Flags().StringVarP(&SSHKeyPath, "ssh-key-path", "k", "", "path to SSH private key (overrides env/default)")
-	cmd.Flags().IntVar(&concurrency, "concurrency", 1, "number of validators to start fibre-txsim on")
+	cmd.Flags().IntVar(&instances, "instances", 1, "number of validators to start fibre-txsim on")
+	cmd.Flags().IntVar(&concurrency, "concurrency", 1, "number of concurrent blob submissions per instance")
 	cmd.Flags().IntVar(&blobSize, "blob-size", 1000000, "size of each blob in bytes")
 	cmd.Flags().DurationVar(&interval, "interval", 0, "delay between blob submissions (0 = no delay)")
 	cmd.Flags().DurationVar(&duration, "duration", 0, "how long to run (0 = until killed)")
