@@ -2,23 +2,40 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"time"
 
 	"github.com/celestiaorg/celestia-app-fibre/v6/app"
 	"github.com/celestiaorg/celestia-app-fibre/v6/app/encoding"
+	blobtypes "github.com/celestiaorg/celestia-app-fibre/v6/x/blob/types"
 	fibretypes "github.com/celestiaorg/celestia-app-fibre/v6/x/fibre/types"
 	"github.com/cometbft/cometbft/rpc/client/http"
 	"github.com/spf13/cobra"
 )
+
+type blockTrace struct {
+	Height           int64   `json:"height"`
+	Timestamp        string  `json:"timestamp"`
+	BlockTimeSec     float64 `json:"block_time_sec"`
+	PFFCount         int     `json:"pff_count"`
+	PFBCount         int     `json:"pfb_count"`
+	TotalPFFBytes    int64   `json:"total_pff_bytes"`
+	TotalPFBBytes    int64   `json:"total_pfb_bytes"`
+	PFFThroughputMBs float64 `json:"pff_throughput_mbs"`
+	PFBThroughputMBs float64 `json:"pfb_throughput_mbs"`
+}
 
 func fibreThroughputCmd() *cobra.Command {
 	var (
 		rootDir     string
 		rpcEndpoint string
 		duration    time.Duration
+		withTraces  bool
+		tracesDir   string
 	)
 
 	cmd := &cobra.Command{
@@ -79,6 +96,22 @@ func fibreThroughputCmd() *cobra.Command {
 				totalThroughput float64
 			)
 
+			var traceEncoder *json.Encoder
+			var traceFile *os.File
+			if withTraces {
+				if err := os.MkdirAll(tracesDir, 0o755); err != nil {
+					return fmt.Errorf("failed to create traces directory: %w", err)
+				}
+				traceFileName := filepath.Join(tracesDir, fmt.Sprintf("throughput_%s.jsonl", time.Now().Format(time.RFC3339)))
+				traceFile, err = os.Create(traceFileName)
+				if err != nil {
+					return fmt.Errorf("failed to create trace file: %w", err)
+				}
+				defer traceFile.Close()
+				traceEncoder = json.NewEncoder(traceFile)
+				fmt.Printf("Writing traces to %s\n", traceFileName)
+			}
+
 			ticker := time.NewTicker(time.Second)
 			defer ticker.Stop()
 
@@ -119,8 +152,10 @@ func fibreThroughputCmd() *cobra.Command {
 					}
 					prevBlockTime = blockTime
 
-					var fibreTxCount int
-					var blobBytes int64
+					var pffCount int
+					var pffBytes int64
+					var pfbCount int
+					var pfbBytes int64
 					for _, rawTx := range block.Block.Txs {
 						sdkTx, err := txDecoder(rawTx)
 						if err != nil {
@@ -128,24 +163,50 @@ func fibreThroughputCmd() *cobra.Command {
 						}
 						for _, msg := range sdkTx.GetMsgs() {
 							if pff, ok := msg.(*fibretypes.MsgPayForFibre); ok {
-								fibreTxCount++
-								blobBytes += int64(pff.PaymentPromise.BlobSize)
+								pffCount++
+								pffBytes += int64(pff.PaymentPromise.BlobSize)
+								continue
+							}
+							if pfb, ok := msg.(*blobtypes.MsgPayForBlobs); ok {
+								pfbCount++
+								for _, size := range pfb.BlobSizes {
+									pfbBytes += int64(size)
+								}
 							}
 						}
 					}
 
-					var throughputMBs float64
+					var pffThroughputMBs float64
+					var pfbThroughputMBs float64
 					if blockTimeDelta > 0 {
-						throughputMBs = float64(blobBytes) / blockTimeDelta / (1024 * 1024)
+						pffThroughputMBs = float64(pffBytes) / blockTimeDelta / (1024 * 1024)
+						pfbThroughputMBs = float64(pfbBytes) / blockTimeDelta / (1024 * 1024)
 					}
 
-					fmt.Printf("height=%d txs=%d blob_bytes=%d MB block_time=%.2fs throughput=%.2f MB/s\n",
-						h, fibreTxCount, blobBytes/(1024*1024), blockTimeDelta, throughputMBs)
+					fmt.Printf("height=%d pff_txs=%d pfb_txs=%d pff_bytes=%dMB pfb_bytes=%dMB block_time=%.2fs pff_throughput=%.2fMB/s pfb_throughput=%.2fMB/s\n",
+						h, pffCount, pfbCount, pffBytes/(1024*1024), pfbBytes/(1024*1024), blockTimeDelta, pffThroughputMBs, pfbThroughputMBs)
+
+					if traceEncoder != nil {
+						trace := blockTrace{
+							Height:           h,
+							Timestamp:        blockTime.Format(time.RFC3339),
+							BlockTimeSec:     blockTimeDelta,
+							PFFCount:         pffCount,
+							PFBCount:         pfbCount,
+							TotalPFFBytes:    pffBytes,
+							TotalPFBBytes:    pfbBytes,
+							PFFThroughputMBs: pffThroughputMBs,
+							PFBThroughputMBs: pfbThroughputMBs,
+						}
+						if err := traceEncoder.Encode(trace); err != nil {
+							fmt.Printf("error writing trace: %v\n", err)
+						}
+					}
 
 					totalBlocks++
-					totalBytes += blobBytes
+					totalBytes += pffBytes
 					if blockTimeDelta > 0 {
-						totalThroughput += throughputMBs
+						totalThroughput += pffThroughputMBs
 					}
 
 					nextHeight = h + 1
@@ -166,6 +227,8 @@ func fibreThroughputCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&rootDir, "directory", "d", ".", "root directory in which to initialize")
 	cmd.Flags().StringVar(&rpcEndpoint, "rpc-endpoint", "", "CometBFT RPC endpoint (default: first validator IP:26657)")
 	cmd.Flags().DurationVar(&duration, "duration", 0, "how long to run (0 = until Ctrl+C)")
+	cmd.Flags().BoolVar(&withTraces, "with-traces", false, "enable JSONL trace file output")
+	cmd.Flags().StringVar(&tracesDir, "traces-dir", "traces/throughput", "directory for trace files")
 
 	return cmd
 }
