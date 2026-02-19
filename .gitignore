@@ -34,3 +34,5 @@ memory-bank/*
 tools/talis/talis
 .gocache
 .gomodcache
+# Claude Code local settings
+.claude/*.local.json
