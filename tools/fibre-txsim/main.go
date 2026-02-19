@@ -53,15 +53,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("chain-id:      %s\n", chainID)
-	fmt.Printf("gRPC endpoint: %s\n", grpcEndpoint)
-	fmt.Printf("Keyring dir:   %s\n", keyringDir)
-	fmt.Printf("Key name:      %s\n", keyName)
-	fmt.Printf("Blob size:     %d bytes\n", blobSize)
-	fmt.Printf("Concurrency:   %d\n", concurrency)
-	fmt.Printf("Interval:      %s\n", interval)
-	fmt.Printf("Duration:      %s\n", duration)
-
 	if err := run(chainID, grpcEndpoint, keyringDir, keyName, blobSize, concurrency, interval, duration); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
