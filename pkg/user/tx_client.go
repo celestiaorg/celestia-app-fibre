@@ -483,7 +483,11 @@ func (client *TxClient) BroadcastTx(ctx context.Context, msgs []sdktypes.Msg, op
 	}
 
 	if !hasUserSetFee {
-		fee := int64(math.Ceil(appconsts.DefaultMinGasPrice * float64(gasLimit)))
+		gasPriceResp, err := client.gasEstimationClient.EstimateGasPrice(ctx, &gasestimation.EstimateGasPriceRequest{})
+		if err != nil {
+			return nil, err
+		}
+		fee := int64(math.Ceil(gasPriceResp.EstimatedGasPrice * float64(gasLimit)))
 		txBuilder.SetFeeAmount(sdktypes.NewCoins(sdktypes.NewCoin(appconsts.BondDenom, sdkmath.NewInt(fee))))
 	}
 

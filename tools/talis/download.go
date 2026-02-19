@@ -54,8 +54,8 @@ func downloadCmd() *cobra.Command {
 				remotePaths = append(remotePaths, path)
 			default:
 				if strings.Contains(table, ",") {
-					tables := strings.SplitSeq(table, ",")
-					for table := range tables {
+					tables := strings.Split(table, ",")
+					for _, table := range tables {
 						remotePaths = append(remotePaths, filepath.Join(baseTracesRemotePath, table+".jsonl"))
 					}
 				} else {
