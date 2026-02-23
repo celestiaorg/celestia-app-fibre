@@ -233,6 +233,66 @@ builds:
       - -X "{{ .Env.SDKPath }}.AppName=celestia-appd"
       - -X "{{ .Env.SDKPath }}.Version={{ .Version }}"
       - -X "{{ .Env.SDKPath }}.Commit={{ .FullCommit }}"
+  - id: fibre-darwin-amd64
+    main: ./fibre/cmd
+    binary: fibre
+    goarch:
+      - amd64
+    goos:
+      - darwin
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.buildDate={{ .Date }}
+  - id: fibre-darwin-arm64
+    main: ./fibre/cmd
+    binary: fibre
+    goarch:
+      - arm64
+    goos:
+      - darwin
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.buildDate={{ .Date }}
+  - id: fibre-linux-amd64
+    main: ./fibre/cmd
+    binary: fibre
+    goarch:
+      - amd64
+    goos:
+      - linux
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.buildDate={{ .Date }}
+  - id: fibre-linux-arm64
+    main: ./fibre/cmd
+    binary: fibre
+    goarch:
+      - arm64
+    goos:
+      - linux
+    flags:
+      - -trimpath
+    ldflags:
+      - -s
+      - -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.buildDate={{ .Date }}
 dist: ./build/goreleaser
 archives:
   - id: multiplexer
@@ -260,6 +320,20 @@ archives:
     # uname.
     name_template: >-
       {{ .ProjectName }}-standalone_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+  - id: fibre
+    ids:
+      - fibre-darwin-amd64
+      - fibre-darwin-arm64
+      - fibre-linux-amd64
+      - fibre-linux-arm64
+    formats: ['tar.gz']
+    name_template: >-
+      {{ .ProjectName }}-fibre_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386

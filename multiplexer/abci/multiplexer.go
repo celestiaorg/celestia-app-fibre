@@ -13,7 +13,6 @@ import (
 	"sync"
 
 	"cosmossdk.io/log"
-	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
 	"github.com/celestiaorg/celestia-app-fibre/v6/multiplexer/internal"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
@@ -181,39 +180,6 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 		}
 		m.clientContext = clientContext // update client context with grpc
 
-		// Register Fibre server BEFORE starting the gRPC server
-		// This ensures all services are registered before Server.Serve() is called
-		var fibreServer *fibre.Server
-		if m.cmNode != nil {
-			serverConfig := fibre.DefaultServerConfig()
-			serverConfig.ChainID = m.chainID
-			serverConfig.Path = filepath.Join(m.svrCtx.Config.RootDir, "data", "fibre-store")
-			// TODO: convert the m.Logger into a *slog.Logger and then propgate
-			fibreServer, err = fibre.NewServerFromGRPC(m.cmNode.PrivValidator(), grpcServer, m.clientContext.GRPCClient, serverConfig)
-			if err != nil {
-				return fmt.Errorf("failed to start Fibre server: %w", err)
-			}
-			fibreServer.Start()
-
-			m.svrCfg.GRPC.MaxRecvMsgSize = serverConfig.MaxMessageSize
-			m.svrCfg.GRPC.MaxSendMsgSize = serverConfig.MaxMessageSize
-
-			// Add graceful shutdown for Fibre server
-			if fibreServer != nil {
-				m.g.Go(func() error {
-					<-m.ctx.Done()
-					m.logger.Info("Stopping Fibre server")
-					if err := fibreServer.Stop(); err != nil {
-						m.logger.Error("Error stopping Fibre server", "error", err)
-						return err
-					}
-					return nil
-				})
-			}
-		} else {
-			m.logger.Info("CometBFT node is not running, skipping Fibre server startup")
-		}
-
 		// Now start the gRPC server (after all services are registered)
 		if err := m.startGRPCServer(grpcServer); err != nil {
 			return err
@@ -231,8 +197,6 @@ func (m *Multiplexer) enableGRPCAndAPIServers(app servertypes.Application) error
 				return err
 			}
 		}
-	} else {
-		m.logger.Info("gRPC server is disabled, skipping Fibre server startup")
 	}
 	return nil
 }
@@ -331,7 +295,7 @@ func (m *Multiplexer) initRemoteGrpcConn() error {
 }
 
 // createGRPCServer creates and configures the gRPC server but does not start serving.
-// This allows services (like Fibre) to be registered before the server starts.
+// This allows all services to be registered before the server starts.
 func (m *Multiplexer) createGRPCServer() (*grpc.Server, client.Context, error) {
 	_, _, err := net.SplitHostPort(m.svrCfg.GRPC.Address)
 	if err != nil {

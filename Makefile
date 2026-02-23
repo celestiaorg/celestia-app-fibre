@@ -26,9 +26,11 @@ BUILD_TAGS_MULTIPLEXER := ledger,multiplexer
 LDFLAGS_COMMON := -X github.com/cosmos/cosmos-sdk/version.Name=celestia-app -X github.com/cosmos/cosmos-sdk/version.AppName=celestia-appd -X github.com/cosmos/cosmos-sdk/version.Version=$(VERSION) -X github.com/cosmos/cosmos-sdk/version.Commit=$(COMMIT) -X github.com/celestiaorg/celestia-app-fibre/v6/cmd/celestia-appd/cmd.v2UpgradeHeight=$(V2_UPGRADE_HEIGHT)
 LDFLAGS_STANDALONE := $(LDFLAGS_COMMON) -X github.com/cosmos/cosmos-sdk/version.BuildTags=$(BUILD_TAGS_STANDALONE)
 LDFLAGS_MULTIPLEXER := $(LDFLAGS_COMMON) -X github.com/cosmos/cosmos-sdk/version.BuildTags=$(BUILD_TAGS_MULTIPLEXER)
+LDFLAGS_FIBRE := -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 BUILD_FLAGS_STANDALONE := -tags=$(BUILD_TAGS_STANDALONE) -ldflags '$(LDFLAGS_STANDALONE)'
 BUILD_FLAGS_MULTIPLEXER := -tags=$(BUILD_TAGS_MULTIPLEXER) -ldflags '$(LDFLAGS_MULTIPLEXER)'
+BUILD_FLAGS_FIBRE := -ldflags '$(LDFLAGS_FIBRE)'
 
 # NOTE: This version must be updated at the same time as the version in:
 # internal/embedding/data.go
@@ -53,6 +55,13 @@ build-standalone: mod
 	@go build $(BUILD_FLAGS_STANDALONE) -o build/celestia-appd ./cmd/celestia-appd
 .PHONY: build-standalone
 
+## build-fibre: Build the fibre binary into the ./build directory.
+build-fibre: mod
+	@mkdir -p build/
+	@echo "--> Building build/fibre"
+	@go build $(BUILD_FLAGS_FIBRE) -o build/fibre ./fibre/cmd
+.PHONY: build-fibre
+
 DOWNLOAD ?= true
 ## build: Build the celestia-appd binary into the ./build directory.
 build: mod
@@ -71,6 +80,12 @@ install-standalone:
 	@echo "--> Installing celestia-appd"
 	@go install $(BUILD_FLAGS_STANDALONE) ./cmd/celestia-appd
 .PHONY: install-standalone
+
+## install-fibre: Build and install the fibre binary into the $GOPATH/bin directory.
+install-fibre:
+	@echo "--> Installing fibre"
+	@go install $(BUILD_FLAGS_FIBRE) ./fibre/cmd
+.PHONY: install-fibre
 
 ## install: Build and install the multiplexer version of celestia-appd into the $GOPATH/bin directory.
 # TODO: Improve logic here and in goreleaser to make it future proof and less expensive.

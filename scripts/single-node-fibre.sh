@@ -10,15 +10,26 @@ CHAIN_ID="test"
 KEY_NAME="validator"
 KEYRING_BACKEND="test"
 FEES="5000utia"
-FIBRE_HOST="localhost:9090"  # Fibre DA server runs on the same gRPC server
+APP_GRPC_ADDR="localhost:9090"
+FIBRE_HOST="localhost:7980"
 
 VERSION=$(celestia-appd version 2>&1)
 APP_HOME="${HOME}/.celestia-app"
+FIBRE_HOME="${HOME}/.celestia-fibre"
 GENESIS_FILE="${APP_HOME}/config/genesis.json"
 CELESTIA_APP_PID=""
+FIBRE_PID=""
 
-# Cleanup function to kill background celestia-appd process
+# Cleanup function to kill background processes
 cleanup() {
+  if [ -n "${FIBRE_PID}" ]; then
+    echo ""
+    echo "Stopping fibre (PID: ${FIBRE_PID})..."
+    kill "${FIBRE_PID}" 2>/dev/null || true
+    wait "${FIBRE_PID}" 2>/dev/null || true
+    echo "fibre stopped."
+  fi
+
   if [ -n "${CELESTIA_APP_PID}" ]; then
     echo ""
     echo "Stopping celestia-appd (PID: ${CELESTIA_APP_PID})..."
@@ -34,8 +45,15 @@ trap cleanup INT TERM EXIT
 
 echo "celestia-app version: ${VERSION}"
 echo "celestia-app home: ${APP_HOME}"
+echo "fibre home: ${FIBRE_HOME}"
 echo "celestia-app genesis file: ${GENESIS_FILE}"
 echo ""
+
+if ! command -v fibre >/dev/null 2>&1; then
+  echo "Error: fibre binary not found in PATH"
+  echo "Please build/install it first (make build-fibre or make install-fibre)"
+  exit 1
+fi
 
 createGenesis() {
     echo "Initializing validator and node config files..."
@@ -80,14 +98,17 @@ createGenesis() {
 
     # Persist ABCI responses
     sed -i.bak 's#discard_abci_responses = true#discard_abci_responses = false#g' "${APP_HOME}"/config/config.toml
-
-    # Override the log level to reduce noisy logs
-    # sed -i.bak 's#log_level = "info"#log_level = "info"#g' "${APP_HOME}"/config/config.toml
 }
 
-deleteCelestiaAppHome() {
-    echo "Deleting $APP_HOME..."
-    rm -r "$APP_HOME"
+deleteHome() {
+    if [ -d "$APP_HOME" ]; then
+      echo "Deleting $APP_HOME..."
+      rm -r "$APP_HOME"
+    fi
+    if [ -d "$FIBRE_HOME" ]; then
+      echo "Deleting $FIBRE_HOME..."
+      rm -r "$FIBRE_HOME"
+    fi
 }
 
 registerFibreProviderInfo() {
@@ -119,11 +140,22 @@ startCelestiaApp() {
   echo "celestia-appd started with PID: ${CELESTIA_APP_PID}"
 }
 
-deleteCelestiaAppHome
+startFibre() {
+  echo "Starting fibre in background..."
+  fibre start \
+    --home "${FIBRE_HOME}" \
+    --app-grpc-address "${APP_GRPC_ADDR}" &
+
+  FIBRE_PID=$!
+  echo "fibre started with PID: ${FIBRE_PID}"
+}
+
+deleteHome
 createGenesis
 startCelestiaApp
+startFibre
 registerFibreProviderInfo
 
-# Keep script running and wait for celestia-appd process
+# Keep script running and wait for celestia-appd process.
 # This allows logs to continue streaming and CTRL+C will trigger cleanup
 wait "${CELESTIA_APP_PID}"
