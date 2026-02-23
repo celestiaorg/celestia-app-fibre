@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 
 	"cosmossdk.io/log"
-	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
 	cmtcfg "github.com/cometbft/cometbft/config"
 	"github.com/cometbft/cometbft/node"
 	"github.com/cometbft/cometbft/p2p"
@@ -35,8 +34,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// startCommandHandler is a custom start command handler that wraps the default Cosmos SDK
-// start logic and adds Fibre server initialization for validator nodes.
+// startCommandHandler is a custom start command handler that wraps Cosmos SDK
+// start logic and manages CometBFT, gRPC, and API lifecycles explicitly.
 func startCommandHandler(
 	svrCtx *server.Context,
 	clientCtx client.Context,
@@ -93,7 +92,6 @@ func startCommandHandler(
 
 	// Start gRPC server if enabled
 	var grpcServer *grpc.Server
-	var fibreServer *fibre.Server
 	if svrCfg.GRPC.Enable {
 		// Create and configure gRPC server (but don't start serving yet)
 		var err error
@@ -102,39 +100,10 @@ func startCommandHandler(
 			return fmt.Errorf("failed to create gRPC server: %w", err)
 		}
 
-		// Register Fibre server BEFORE starting the gRPC server
-		serverConfig := fibre.DefaultServerConfig()
-		serverConfig.ChainID = cmtNode.GenesisDoc().ChainID
-		serverConfig.Path = filepath.Join(svrCtx.Config.RootDir, "data", "fibre-store")
-		// TODO: convert the svrCtx.Logger into a *slog.Logger and then propgate
-		fibreServer, err = fibre.NewServerFromGRPC(cmtNode.PrivValidator(), grpcServer, clientCtx.GRPCClient, serverConfig)
-		if err != nil {
-			return fmt.Errorf("failed to start Fibre server: %w", err)
-		}
-		fibreServer.Start()
-
-		svrCfg.GRPC.MaxRecvMsgSize = serverConfig.MaxMessageSize
-		svrCfg.GRPC.MaxSendMsgSize = serverConfig.MaxMessageSize
-
 		// Now start the gRPC server (after all services are registered)
 		if err := startGRPCServer(ctx, g, svrCtx, svrCfg, grpcServer, cmtNode); err != nil {
 			return fmt.Errorf("failed to start gRPC server: %w", err)
 		}
-
-		// Add graceful shutdown for Fibre server
-		if fibreServer != nil {
-			g.Go(func() error {
-				<-ctx.Done()
-				svrCtx.Logger.Info("Stopping Fibre server")
-				if err := fibreServer.Stop(); err != nil {
-					svrCtx.Logger.Error("Error stopping Fibre server", "error", err)
-					return err
-				}
-				return nil
-			})
-		}
-	} else {
-		svrCtx.Logger.Info("gRPC server is disabled, skipping Fibre server startup")
 	}
 
 	// Start API server if enabled
@@ -195,7 +164,7 @@ func startCometNode(svrCtx *server.Context, appInstance servertypes.Application)
 }
 
 // createGRPCServer creates and configures the gRPC server but does not start serving.
-// This allows services (like Fibre) to be registered before the server starts.
+// This allows all services to be registered before the server starts.
 func createGRPCServer(
 	svrCtx *server.Context,
 	clientCtx client.Context,
@@ -226,7 +195,7 @@ func createGRPCServer(
 		return nil, clientCtx, fmt.Errorf("failed to create gRPC server: %w", err)
 	}
 
-	// Register BlockAPI on gRPC server (needed for Fibre server's SetGetter)
+	// Register BlockAPI on gRPC server.
 	coreEnv, err := cmtNode.ConfigureRPC()
 	if err != nil {
 		return nil, clientCtx, fmt.Errorf("failed to configure RPC for CometBFT node: %w", err)
