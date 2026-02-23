@@ -37,7 +37,7 @@ message UploadShardResponse {
 
 // DownloadShardRequest is the request message for the DownloadShard RPC method.
 message DownloadShardRequest {
-  bytes commitment = 1; // const len == 32
+  bytes blob_id = 1; // const len == 33 (version + commitment)
 }
 
 // DownloadShardResponse is the response message for the DownloadShard RPC method.
