@@ -39,7 +39,7 @@ require (
 	github.com/cosmos/ibc-apps/middleware/packet-forward-middleware/v8 v8.2.0
 	github.com/cosmos/ibc-go/modules/capability v1.0.1
 	github.com/cosmos/ibc-go/v8 v8.7.0
-	github.com/digitalocean/godo v1.165.1
+	github.com/digitalocean/godo v1.175.0
 	github.com/filecoin-project/go-clock v0.1.0
 	github.com/go-kit/log v0.2.1
 	github.com/golang/protobuf v1.5.4
@@ -47,7 +47,6 @@ require (
 	github.com/hashicorp/go-metrics v0.5.4
 	github.com/ipfs/go-datastore v0.9.0
 	github.com/ipfs/go-ds-badger4 v0.1.8
-	github.com/klauspost/reedsolomon v1.12.5
 	github.com/joho/godotenv v1.5.1
 	github.com/klauspost/reedsolomon v1.12.5
 	github.com/rs/zerolog v1.34.0
