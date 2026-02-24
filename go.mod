@@ -47,9 +47,8 @@ require (
 	github.com/hashicorp/go-metrics v0.5.4
 	github.com/ipfs/go-datastore v0.9.0
 	github.com/ipfs/go-ds-badger4 v0.1.8
-	github.com/klauspost/reedsolomon v1.12.5
 	github.com/joho/godotenv v1.5.1
-	github.com/klauspost/reedsolomon v1.12.5
+	github.com/klauspost/reedsolomon v1.13.2
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.9.1
@@ -207,7 +206,7 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jmhodges/levigo v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
