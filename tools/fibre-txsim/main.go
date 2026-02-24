@@ -15,11 +15,8 @@ import (
 	"github.com/celestiaorg/celestia-app-fibre/v6/app"
 	"github.com/celestiaorg/celestia-app-fibre/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
-	fibregrpc "github.com/celestiaorg/celestia-app-fibre/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/user"
-	valaddrtypes "github.com/celestiaorg/celestia-app-fibre/v6/x/valaddr/types"
 	"github.com/celestiaorg/go-square/v4/share"
-	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,7 +24,6 @@ import (
 
 func main() {
 	var (
-		chainID      string
 		grpcEndpoint string
 		keyringDir   string
 		keyName      string
@@ -37,7 +33,6 @@ func main() {
 		duration     time.Duration
 	)
 
-	flag.StringVar(&chainID, "chain-id", "", "chain ID (required)")
 	flag.StringVar(&grpcEndpoint, "grpc-endpoint", "localhost:9091", "gRPC endpoint")
 	flag.StringVar(&keyringDir, "keyring-dir", ".celestia-app", "keyring directory")
 	flag.StringVar(&keyName, "key-name", "validator", "key name in keyring")
@@ -47,19 +42,13 @@ func main() {
 	flag.DurationVar(&duration, "duration", 0, "how long to run (0 = until killed)")
 	flag.Parse()
 
-	if chainID == "" {
-		fmt.Fprintln(os.Stderr, "error: --chain-id is required")
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if err := run(chainID, grpcEndpoint, keyringDir, keyName, blobSize, concurrency, interval, duration); err != nil {
+	if err := run(grpcEndpoint, keyringDir, keyName, blobSize, concurrency, interval, duration); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(chainID, grpcEndpoint, keyringDir, keyName string, blobSize, concurrency int, interval, duration time.Duration) error {
+func run(grpcEndpoint, keyringDir, keyName string, blobSize, concurrency int, interval, duration time.Duration) error {
 	encCfg := encoding.MakeConfig(app.ModuleEncodingRegisters...)
 
 	kr, err := keyring.New(app.Name, keyring.BackendTest, keyringDir, nil, encCfg.Codec)
@@ -80,11 +69,8 @@ func run(chainID, grpcEndpoint, keyringDir, keyName string, blobSize, concurrenc
 	}
 	defer grpcConn.Close()
 
-	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
-	hostReg := fibregrpc.NewHostRegistry(valaddrtypes.NewQueryClient(grpcConn))
-
 	clientCfg := fibre.DefaultClientConfig()
-	clientCfg.ChainID = chainID
+	clientCfg.StateAddress = grpcEndpoint
 	clientCfg.DefaultKeyName = keyName
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -95,11 +81,19 @@ func run(chainID, grpcEndpoint, keyringDir, keyName string, blobSize, concurrenc
 		return fmt.Errorf("failed to set up tx client: %w", err)
 	}
 
-	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, clientCfg)
+	fibreClient, err := fibre.NewClient(kr, clientCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create fibre client: %w", err)
 	}
-	defer fibreClient.Close()
+	defer func() {
+		if err := fibreClient.Stop(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "stopping fibre client: %v\n", err)
+		}
+	}()
+
+	if err := fibreClient.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start fibre client: %w", err)
+	}
 
 	// Handle signals
 	sigCh := make(chan os.Signal, 1)
@@ -191,7 +185,7 @@ func run(chainID, grpcEndpoint, keyringDir, keyName string, blobSize, concurrenc
 			}
 
 			t := time.Now()
-			result, err := fibreClient.Put(ctx, ns, data)
+			result, err := fibre.Put(ctx, fibreClient, txClient, ns, data)
 			lat := time.Since(t)
 
 			totalSent.Add(1)

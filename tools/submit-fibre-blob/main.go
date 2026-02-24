@@ -14,11 +14,8 @@ import (
 	"github.com/celestiaorg/celestia-app-fibre/v6/app"
 	"github.com/celestiaorg/celestia-app-fibre/v6/app/encoding"
 	"github.com/celestiaorg/celestia-app-fibre/v6/fibre"
-	fibregrpc "github.com/celestiaorg/celestia-app-fibre/v6/fibre/grpc"
 	"github.com/celestiaorg/celestia-app-fibre/v6/pkg/user"
-	valaddrtypes "github.com/celestiaorg/celestia-app-fibre/v6/x/valaddr/types"
 	"github.com/celestiaorg/go-square/v4/share"
-	coregrpc "github.com/cometbft/cometbft/rpc/grpc"
 	"github.com/cosmos/cosmos-sdk/crypto/keyring"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -32,7 +29,6 @@ func main() {
 
 func run() error {
 	var (
-		chainID        = flag.String("chain-id", "test", "Chain ID")
 		keyName        = flag.String("key-name", "validator", "Key name in keyring")
 		keyringBackend = flag.String("keyring-backend", "test", "Keyring backend")
 		home           = flag.String("home", "", "Home directory (default: $HOME/.celestia-app)")
@@ -94,18 +90,11 @@ func run() error {
 	}
 	defer grpcConn.Close()
 
-	// Create validator set getter
-	valGet := fibregrpc.NewSetGetter(coregrpc.NewBlockAPIClient(grpcConn))
-
-	// Create host registry
-	queryClient := valaddrtypes.NewQueryClient(grpcConn)
-	hostReg := fibregrpc.NewHostRegistry(queryClient)
-
 	// Create Fibre client config for single node testnet
 	params := fibre.DefaultProtocolParams
 	params.MaxValidatorCount = 1 // Single node testnet
 	clientCfg := fibre.NewClientConfigFromParams(params)
-	clientCfg.ChainID = *chainID
+	clientCfg.StateAddress = *grpcAddr
 	clientCfg.DefaultKeyName = *keyName
 
 	// Create context with timeout for network operations
@@ -124,15 +113,23 @@ func run() error {
 	}
 
 	// Create Fibre client
-	fibreClient, err := fibre.NewClient(txClient, kr, valGet, hostReg, clientCfg)
+	fibreClient, err := fibre.NewClient(kr, clientCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create Fibre client: %w", err)
 	}
-	defer fibreClient.Close()
+	defer func() {
+		if err := fibreClient.Stop(ctx); err != nil {
+			log.Printf("stopping fibre client: %v", err)
+		}
+	}()
+
+	if err := fibreClient.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start Fibre client: %w", err)
+	}
 
 	// Submit blob using Put (which handles upload + PayForFibre transaction)
 	fmt.Printf("Submitting Fibre blob (size: %d bytes, namespace: %s)...\n", len(blobBytes), ns.String())
-	result, err := fibreClient.Put(ctx, ns, blobBytes)
+	result, err := fibre.Put(ctx, fibreClient, txClient, ns, blobBytes)
 	if err != nil {
 		return fmt.Errorf("failed to submit Fibre blob: %w", err)
 	}
