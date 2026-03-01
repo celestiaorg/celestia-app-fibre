@@ -57,6 +57,7 @@ func resetCmd() *cobra.Command {
 				tmux kill-session -t txsim 2>/dev/null || true
 				tmux kill-session -t latency-monitor 2>/dev/null || true
 				tmux kill-session -t fibre-txsim 2>/dev/null || true
+				tmux kill-session -t monitor 2>/dev/null || true
 				rm -rf .celestia-app logs payload payload.tar.gz /bin/celestia* /bin/txsim
 			`
 			// Run cleanup on each validator
