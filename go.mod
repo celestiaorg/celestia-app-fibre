@@ -47,7 +47,6 @@ require (
 	github.com/hashicorp/go-metrics v0.5.4
 	github.com/ipfs/go-datastore v0.9.0
 	github.com/ipfs/go-ds-badger4 v0.1.8
-	github.com/klauspost/reedsolomon v1.12.5
 	github.com/joho/godotenv v1.5.1
 	github.com/klauspost/reedsolomon v1.12.5
 	github.com/rs/zerolog v1.34.0
