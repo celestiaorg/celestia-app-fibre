@@ -49,6 +49,7 @@ require (
 	github.com/ipfs/go-ds-badger4 v0.1.8
 	github.com/klauspost/reedsolomon v1.12.5
 	github.com/joho/godotenv v1.5.1
+	github.com/klauspost/reedsolomon v1.12.5
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cast v1.10.0
 	github.com/spf13/cobra v1.9.1
