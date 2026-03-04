@@ -83,7 +83,7 @@ A payment promise accepted by the fibre server can be rejected on-chain via `Msg
 **Additional rejection for `MsgPaymentPromiseTimeout`** (checks 9-11 are skipped):
 18. Not yet timed out: `blockTime < expirationTime` (the inverse of check 9)
 
-**Answer**: So, if we implement the local validation of the payment promises. We can be sure that any payment promise that's submitted onchain and has enough signatures is valid.
+**Answer**: So, if we implement the local validation of the payment promises. We can be sure that any payment promise that's submitted onchain and has enough signatures is valid. And we don't need to worry about this case. For the expired promises, that's handled in another issue.
 
 ### DD8: Thread-safety approach?
 **Answer**: Single `sync.Mutex` on the cache. On cache hit: lock, deduct, unlock. On cache miss: lock to check, unlock, call gRPC (no lock held), lock to populate and deduct, unlock. Duplicate fetches on concurrent misses are harmless (both get the same block's state).
