@@ -35,6 +35,8 @@ func main() {
 		setupFibreCmd(),
 		fibreTxsimCmd(),
 		fibreThroughputCmd(),
+		resourceMonitorCmd(),
+		downloadResourcesCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

@@ -233,7 +233,7 @@ func fibreThroughputCmd() *cobra.Command {
 	cmd.Flags().StringVar(&rpcEndpoint, "rpc-endpoint", "", "CometBFT RPC endpoint (default: first validator IP:26657)")
 	cmd.Flags().DurationVar(&duration, "duration", 0, "how long to run (0 = until Ctrl+C)")
 	cmd.Flags().BoolVar(&withTraces, "with-traces", false, "enable JSONL trace file output")
-	cmd.Flags().StringVar(&tracesDir, "traces-dir", "traces/throughput", "directory for trace files")
+	cmd.Flags().StringVar(&tracesDir, "traces-dir", "./data/monitoring/throughput", "directory for trace files")
 	cmd.Flags().Int64Var(&startHeight, "start-height", 0, "block height to start from (0 = latest + 1)")
 
 	return cmd
