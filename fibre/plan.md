@@ -95,7 +95,7 @@ A payment promise accepted by the fibre server can be rejected on-chain via `Msg
 **Answer**: No. Same UX concern. The cache solves the problem without changing economic parameters.
 
 ### DD11: Can we skip `ValidatePaymentPromise` entirely and do all checks locally?
-**Answer**: See DD2 for the decision. The long-term direction is to move as much validation logic as possible to run locally, with event-driven updates for chain state changes.
+**Answer**: See DD2 for the decision. It's partially possible to do given the details in DD2.
 
 ### DD12: What about deposits (balance increases) happening after cache was seeded?
 **Answer**: The cache won't see new deposits until TTL expiry or zero-balance re-query. When `available` hits zero, the next promise triggers a re-fetch, which picks up any deposits.
