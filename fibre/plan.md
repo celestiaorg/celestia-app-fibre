@@ -98,6 +98,11 @@ A payment promise accepted by the fibre server can be rejected on-chain via `Msg
 **Answer**: See DD2 for the decision. The long-term direction is to move as much validation logic as possible to run locally, with event-driven updates for chain state changes.
 
 ### DD12: What about deposits (balance increases) happening after cache was seeded?
-**Answer**: The cache won't see new deposits until TTL expiry or zero-balance re-query. When `available` hits zero, the next promise triggers a re-fetch, which picks up any deposits. Documented as a known limitation.
+**Answer**: The cache won't see new deposits until TTL expiry or zero-balance re-query. When `available` hits zero, the next promise triggers a re-fetch, which picks up any deposits.
+
+**Note**: If we adopt the per-block refresh pattern from DD4, we could also listen for `EventDepositToEscrow` (already emitted in `msg_server.go:64`) and update the cached balance for the affected account immediately. This would eliminate this limitation entirely.
+
+### DD13: Cache size and eviction
+**Answer**: The `entries` map grows unbounded as unique accounts submit promises. Entries should be evicted after TTL expiry to prevent unbounded memory growth. A simple approach: during the per-block update (DD4), iterate entries and remove any where `time.Since(entry.fetchedAt) >= ttl`. This piggybacks on the existing per-block lock so no additional synchronization is needed.
 
 ---
