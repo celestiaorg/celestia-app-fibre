@@ -20,11 +20,29 @@
 
 **Proposal**: We could make many validations local. For example, the timestamp could be checked against the block time. We could throw events on params/governance changes and listen for those events so that when they happen, we update immediately. The goal would be to have as much of `ValidatePaymentPromise` logic running locally as possible, reducing reliance on the gRPC round-trip for each promise. This could be a follow-up.
 
+**Full list of validations in `ValidatePaymentPromise`** (from `keeper.go:313-374`):
+
+1. **Timestamp not too old**: `creationTime > blockTime - WithdrawalDelay`. Needs `blockTime`, `params.WithdrawalDelay`. Could be local — cache block time per block, cache params via `EventUpdateFibreParams`.
+
+2. **Not expired**: `blockTime < creationTime + PaymentPromiseTimeout`. Needs `blockTime`, `params.PaymentPromiseTimeout`. Could be local — same as above.
+
+3. **Height not too far in past**: `currentHeight - promiseHeight <= PaymentPromiseHeightWindow`. Needs `blockHeight`, `params.PaymentPromiseHeightWindow`. Could be local — cache block height per block.
+
+4. **Height not too far in future**: `promiseHeight <= currentHeight + 1`. Needs `blockHeight`. Could be local — same.
+
+5. **Not already processed**: `IsPaymentPromiseProcessed()`. Needs processed payments KV store. Harder — need to track which promises have been included on-chain. Could read blocks or listen for `EventPayForFibre`/`EventPaymentPromiseTimeout` events.
+
+6. **Escrow account exists**. Needs escrow accounts KV store. Could be cached, seeded on first query, invalidated on deposits/withdrawals.
+
+7. **Sufficient available balance**: `AvailableBalance >= cost`. Needs escrow account balance. This is exactly what the escrow cache solves.
+
+Checks 1-4 only need `blockTime`, `blockHeight`, and `params` — all refreshable once per block. Check 5 is the hardest to make local. Checks 6-7 are what the escrow cache addresses. The proposal is to query this information once per block instead of once per-payment promise.
+
 ### DD3: How does the cache get seeded with the on-chain balance?
 **Answer**: On cache miss, after the `ValidatePaymentPromise` gRPC call succeeds, make a separate `EscrowAccount` gRPC query to get the current `AvailableBalance`. The `EscrowAccount` request already exists and returns the balance.
 
 ### DD4: What is the cache TTL? (addresses parameter change fragility)
-**Answer**: `TTL = WithdrawalDelay - PaymentPromiseTimeout` (default: 24h - 1h = 23h). Derived dynamically from chain params, never hardcoded. Params themselves are cached with a 10-minute TTL and re-fetched via `Params` gRPC query. Additionally, emit an event on TTL/param changes and listen for them so the cache can update immediately rather than waiting for the polling interval.
+**Answer**: `TTL = WithdrawalDelay - PaymentPromiseTimeout` (default: 24h - 1h = 23h). Derived dynamically from chain params, never hardcoded. Params can be refreshed once per block, or by listening for the existing `EventUpdateFibreParams` event (already emitted in `msg_server.go:289` when `UpdateFibreParams` is called — includes the full `Params` struct). No new events need to be added.
 
 ### DD5: When does the cache re-query the state machine?
 Three triggers:
@@ -36,7 +54,34 @@ Three triggers:
 **Answer**: All accepted payment promises are deducted from the cache regardless of whether they are ultimately included in a block. When the cache balance is renewed (on TTL expiry or zero-balance re-query), any pending (not-yet-included) promises must still be deducted from the refreshed balance. One approach is to read committed blocks to identify which payment promises were actually included on-chain, and maintain a set of pending promises whose deductions carry over across cache refreshes. Without this, malicious actors could benefit from free DA by submitting promises that pass the cache check but are never included on-chain, and then having the cache "forget" those deductions on refresh.
 
 ### DD7: How are promises that were not validated on-chain handled?
-**Answer**: TBD.
+
+A payment promise accepted by the fibre server can be rejected on-chain via `MsgPayForFibre` or `MsgPaymentPromiseTimeout` for any of the following reasons:
+
+**Stateless rejections** (from `payment_promise.go:121-171`):
+1. Invalid signer key (not 33-byte secp256k1 public key)
+2. Empty or oversized chain ID
+3. Zero upload size
+4. Zero creation timestamp
+5. Invalid signature length (not 64 bytes)
+6. Zero height
+7. Signature verification fails
+
+**Stateful rejections for `MsgPayForFibre`** (from `keeper.go:313-374`, `msg_server.go:124-199`):
+8. Timestamp too old: `creationTime <= blockTime - WithdrawalDelay`
+9. Promise expired: `blockTime >= creationTime + PaymentPromiseTimeout`
+10. Height too far in past: `currentHeight - promiseHeight > PaymentPromiseHeightWindow`
+11. Height too far in future: `promiseHeight > currentHeight + 1`
+12. Already processed (promise hash in processed payments store)
+13. Escrow account not found
+14. Insufficient balance (`Balance < paymentAmount`)
+15. Insufficient available balance (`AvailableBalance < paymentAmount`)
+16. Invalid validator sign bytes
+17. Validator signature validation fails (can't get historical validator set, invalid signatures, or < 2/3 voting power)
+
+**Additional rejection for `MsgPaymentPromiseTimeout`** (checks 9-11 are skipped):
+18. Not yet timed out: `blockTime < expirationTime` (the inverse of check 9)
+
+**Answer**: So, if we implement the local validation of the payment promises. We can be sure that any payment promise that's submitted onchain and has enough signatures is valid.
 
 ### DD8: Thread-safety approach?
 **Answer**: Single `sync.Mutex` on the cache. On cache hit: lock, deduct, unlock. On cache miss: lock to check, unlock, call gRPC (no lock held), lock to populate and deduct, unlock. Duplicate fetches on concurrent misses are harmless (both get the same block's state).
