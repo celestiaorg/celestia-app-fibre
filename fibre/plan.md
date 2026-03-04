@@ -42,7 +42,9 @@ Checks 1-4 only need `blockTime`, `blockHeight`, and `params` — all refreshabl
 **Answer**: On cache miss, after the `ValidatePaymentPromise` gRPC call succeeds, make a separate `EscrowAccount` gRPC query to get the current `AvailableBalance`. The `EscrowAccount` request already exists and returns the balance.
 
 ### DD4: What is the cache TTL? (addresses parameter change fragility)
-**Answer**: `TTL = WithdrawalDelay - PaymentPromiseTimeout` (default: 24h - 1h = 23h). Derived dynamically from chain params, never hardcoded. Params can be refreshed once per block, or by listening for the existing `EventUpdateFibreParams` event (already emitted in `msg_server.go:289` when `UpdateFibreParams` is called — includes the full `Params` struct). No new events need to be added.
+**Answer**: `TTL = WithdrawalDelay - PaymentPromiseTimeout` (default: 24h - 1h = 23h). Derived dynamically from chain params, never hardcoded. Params are refreshed once per block by listening for the existing `EventUpdateFibreParams` event (already emitted in `msg_server.go:289` when `UpdateFibreParams` is called — includes the full `Params` struct). No new events need to be added.
+
+To avoid a race condition between a parameter change and promise processing, the cache must **lock on every new block**, update `blockTime`, `blockHeight`, params (and any other per-block state), and only then unlock to resume processing promises. This ensures no promise is validated against stale state mid-block transition.
 
 ### DD5: When does the cache re-query the state machine?
 Three triggers:
