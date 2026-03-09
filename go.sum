@@ -760,8 +760,8 @@ github.com/aws/aws-sdk-go-v2/service/sts v1.38.4 h1:PR00NXRYgY4FWHqOGx3fC3lhVKjs
 github.com/aws/aws-sdk-go-v2/service/sts v1.38.4/go.mod h1:Z+Gd23v97pX9zK97+tX4ppAgqCt3Z2dIXB02CtBncK8=
 github.com/aws/smithy-go v1.23.0 h1:8n6I3gXzWJB2DxBDnfxgBaSX6oe0d/t10qGz7OKqMCE=
 github.com/aws/smithy-go v1.23.0/go.mod h1:t1ufH5HMublsJYulve2RKmHDC15xu1f26kHCp/HgceI=
-github.com/bcp-innovations/hyperlane-cosmos v1.0.1 h1:gT8OqyJ866Q6AHOlIXKxSdLjd0p8crKG9XXERIWoh4c=
-github.com/bcp-innovations/hyperlane-cosmos v1.0.1/go.mod h1:3yfa0io5Ii6GmhHWsWl2LEAOEHsqWuMgw2R02+LPogw=
+github.com/bcp-innovations/hyperlane-cosmos v1.1.0 h1:WXt+WrKv2DG/xVIkLvggDRbi/2law104Vj6AWZGxHNw=
+github.com/bcp-innovations/hyperlane-cosmos v1.1.0/go.mod h1:NP59yKAk2qFaT7+FSCh7kkoKKLlTxXNdIlxMstAJ5no=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
