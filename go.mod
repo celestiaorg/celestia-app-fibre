@@ -1,6 +1,6 @@
 module github.com/celestiaorg/celestia-app-fibre/v6
 
-go 1.24.6
+go 1.25.0
 
 require (
 	cloud.google.com/go/compute v1.54.0
@@ -66,7 +66,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.41.0
 	go.opentelemetry.io/otel/sdk v1.41.0
 	go.opentelemetry.io/otel/trace v1.41.0
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.19.0
 	google.golang.org/api v0.266.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57
