@@ -1,9 +1,9 @@
 module github.com/celestiaorg/celestia-app-fibre/v6
 
-go 1.24.6
+go 1.25.0
 
 require (
-	cloud.google.com/go/compute v1.54.0
+	cloud.google.com/go/compute v1.56.0
 	cosmossdk.io/api v0.7.6
 	cosmossdk.io/client/v2 v2.0.0-beta.8
 	cosmossdk.io/core v0.11.1
